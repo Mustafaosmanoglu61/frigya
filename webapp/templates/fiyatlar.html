@@ -11,6 +11,9 @@
     <button id="btn-guncelle" class="btn btn-primary btn-sm" onclick="guncelle()">
       <i class="bi bi-arrow-clockwise me-1"></i>Güncelle
     </button>
+    <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="Fiyatları gizle / göster">
+      <i class="bi bi-eye" id="price-toggle-icon"></i>
+    </button>
     <div class="d-flex align-items-center gap-2">
       <div class="form-check form-switch mb-0">
         <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()">
@@ -540,6 +543,57 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+/* ── Fiyat gizleme (blur) — $ bazlı hücreler, % ler görünür kalır ─────────── */
+body.prices-hidden .pc-price,
+body.prices-hidden .pc-range-lo,
+body.prices-hidden .pc-range-hi,
+body.prices-hidden .pc-stop-val,
+body.prices-hidden [data-field="current-price"],
+body.prices-hidden [data-field="market-value"],
+body.prices-hidden [data-field="daily-pnl"],
+body.prices-hidden [data-field="unrealized-pnl"],
+body.prices-hidden [data-field="hedef-kar"],
+body.prices-hidden [data-field="hedef-value"],
+body.prices-hidden [data-field="wl-fiyat-cell"],
+body.prices-hidden [data-field="extended-hours"],
+body.prices-hidden [data-field="taban-price"],
+body.prices-hidden [data-field="hedef-price"],
+body.prices-hidden [data-field="satis-sonrasi"],
+body.prices-hidden [data-col="fiyat"],
+body.prices-hidden [data-col="aftermarket"],
+body.prices-hidden [data-col="taban"],
+body.prices-hidden [data-col="hedef"],
+body.prices-hidden [data-col="ort-maliyet"],
+body.prices-hidden [data-col="son-alis"],
+body.prices-hidden [data-col="son-satis"],
+body.prices-hidden [data-col="satis-sonrasi"],
+body.prices-hidden .pc-cell:not(:has([data-field$="-pct"])) .pc-cell-val:not([data-field$="-pct"]),
+body.prices-hidden .pos-price-usd {
+  filter: blur(7px);
+  opacity: 0.35;
+  user-select: none;
+  pointer-events: none;
+  transition: filter 0.25s, opacity 0.25s;
+}
+#price-toggle-btn { min-width: 34px; }
+</style>
+<script>
+// ── Fiyat gizleme toggle ────────────────────────────────────────────────────
+function togglePrices() {
+  const hidden = document.body.classList.toggle('prices-hidden');
+  const icon = document.getElementById('price-toggle-icon');
+  if (icon) icon.className = hidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+  localStorage.setItem('pos-prices-hidden', hidden ? '1' : '0');
+}
+if (localStorage.getItem('pos-prices-hidden') === '1') {
+  document.body.classList.add('prices-hidden');
+  document.addEventListener('DOMContentLoaded', () => {
+    const icon = document.getElementById('price-toggle-icon');
+    if (icon) icon.className = 'bi bi-eye-slash';
+  });
+}
+</script>
 <script>
 // ── Fiyat güncelle ──────────────────────────────────────────────────────────
 let _autoRefreshTimer = null;
