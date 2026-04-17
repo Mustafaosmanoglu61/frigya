@@ -1,0 +1,585 @@
+{% extends "base.html" %}
+{% block title %}Yönetim Paneli — Frigya{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h4 class="fw-bold text-dark mb-0">
+    <i class="bi bi-gear me-2 text-primary"></i>Yönetim Paneli
+    {% if is_admin %}<span class="badge bg-danger ms-2">Admin</span>{% endif %}
+  </h4>
+</div>
+
+<!-- Success/Error Messages -->
+{% if request.query_params.get('success') %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  <i class="bi bi-check-circle me-2"></i>{{ request.query_params.get('success') }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+  <i class="bi bi-exclamation-circle me-2"></i>{{ request.query_params.get('error') }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-portfoy" type="button">
+      <i class="bi bi-folder me-1"></i>Portföyler
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-yukleme" type="button">
+      <i class="bi bi-cloud-upload me-1"></i>Veri Yükleme
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-hesapla" type="button">
+      <i class="bi bi-calculator me-1"></i>FIFO
+    </button>
+  </li>
+  {% if is_admin %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-onay" type="button">
+      <i class="bi bi-person-check me-1"></i>Onay Bekleyenler
+      {% if pending_count > 0 %}<span class="badge bg-danger ms-1" id="pending-badge">{{ pending_count }}</span>{% endif %}
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-roller" type="button">
+      <i class="bi bi-people me-1"></i>Rol Yönetimi
+      <span class="badge bg-danger ms-1">Admin</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-yedek" type="button">
+      <i class="bi bi-database-fill-gear me-1"></i>Yedekleme
+      <span class="badge bg-danger ms-1">Admin</span>
+    </button>
+  </li>
+  {% endif %}
+</ul>
+
+<div class="tab-content">
+
+  <!-- TAB: Portföyler -->
+  <div class="tab-pane fade show active" id="tab-portfoy">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-primary-custom text-white">
+            <i class="bi bi-folder-plus me-2"></i>Yeni Portföy Oluştur
+          </div>
+          <div class="card-body">
+            <form action="/yonetim/portföy-ekle" method="post">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Portföy Adı</label>
+                <input type="text" name="name" class="form-control" placeholder="Örn: GeneralMu, 2025, Yatırım-A"
+                       required minlength="2" maxlength="50">
+                <small class="form-text text-muted">Harf, rakam ve tire kullanabilirsiniz</small>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Açıklama (İsteğe Bağlı)</label>
+                <textarea name="description" class="form-control" rows="2" placeholder="Bu portföy hakkında notlar..."
+                          maxlength="200"></textarea>
+              </div>
+              <button type="submit" class="btn btn-success w-100">
+                <i class="bi bi-plus-lg me-1"></i>Portföy Oluştur
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-primary-custom text-white">
+            <i class="bi bi-folder-check me-2"></i>Mevcut Portföyler
+          </div>
+          <div class="card-body">
+            {% if portfolio_data %}
+            <div class="table-responsive">
+              <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Portföy</th>
+                    <th class="text-end">İşlem</th>
+                    <th class="text-end">Satış</th>
+                    <th class="text-end">Net K/Z</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for p in portfolio_data %}
+                  <tr>
+                    <td>
+                      <strong>{{ p.name }}</strong>
+                      {% if p.description %}
+                      <br><small class="text-muted">{{ p.description }}</small>
+                      {% endif %}
+                    </td>
+                    <td class="text-end">{{ p.tx_count }}</td>
+                    <td class="text-end">{{ p.sales_count }}</td>
+                    <td class="text-end">
+                      {% if p.net_pnl >= 0 %}
+                      <span class="text-success fw-bold">${{ "{:,.2f}".format(p.net_pnl) }}</span>
+                      {% else %}
+                      <span class="text-danger fw-bold">${{ "{:,.2f}".format(p.net_pnl) }}</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end">
+                      <form action="/yonetim/portföy-sil/{{ p.name }}" method="post" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                onclick="return confirm('{{ p.name }} portföyü ve tüm işlem verileri kalıcı olarak silinecek!\n\nEmin misiniz?')">
+                          <i class="bi bi-trash3"></i>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info mb-0">
+              <i class="bi bi-info-circle me-2"></i>Henüz portföy yok
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Veri Yükleme -->
+  <div class="tab-pane fade" id="tab-yukleme">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-primary-custom text-white">
+            <i class="bi bi-file-pdf me-2"></i>PDF Yükleme (Aylık Özet)
+          </div>
+          <div class="card-body">
+            <form id="pdf-form">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Portföy Seçin</label>
+                <select id="pdf-portfolio" class="form-select" required>
+                  <option value="">-- Seçiniz --</option>
+                  {% for p in portfolios %}
+                  <option value="{{ p }}">{{ p }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">PDF Dosyası</label>
+                <input type="file" id="pdf-file" accept=".pdf" class="form-control" required>
+              </div>
+              <button type="button" onclick="uploadPDF()" class="btn btn-primary w-100">
+                <i class="bi bi-cloud-upload me-1"></i>Yükle
+              </button>
+              <div id="pdf-status" class="mt-2"></div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-primary-custom text-white">
+            <i class="bi bi-file-earmark-csv me-2"></i>CSV Yükleme (Emir Geçmişi)
+          </div>
+          <div class="card-body">
+            <form id="csv-form">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Portföy Seçin</label>
+                <select id="csv-portfolio" class="form-select" required>
+                  <option value="">-- Seçiniz --</option>
+                  {% for p in portfolios %}
+                  <option value="{{ p }}">{{ p }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">CSV Dosyası</label>
+                <input type="file" id="csv-file" accept=".csv" class="form-control" required>
+              </div>
+              <button type="button" onclick="uploadCSV()" class="btn btn-primary w-100">
+                <i class="bi bi-cloud-upload me-1"></i>Yükle
+              </button>
+              <div id="csv-status" class="mt-2"></div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: FIFO -->
+  <div class="tab-pane fade" id="tab-hesapla">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-warning">
+        <i class="bi bi-calculator me-2"></i>FIFO Yeniden Hesaplama
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3">Yeni işlem ekledikten sonra FIFO hesaplamalarını güncelle</p>
+        <button type="button" onclick="recompute()" class="btn btn-warning">
+          <i class="bi bi-arrow-repeat me-1"></i>Hesapla
+        </button>
+        <div id="compute-status" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+
+  {% if is_admin %}
+  <!-- TAB: Onay Bekleyenler (admin only) -->
+  <div class="tab-pane fade" id="tab-onay">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-primary-custom text-white">
+        <i class="bi bi-person-check me-2"></i>Onay Bekleyen Kullanıcılar
+        <span class="badge bg-light text-dark ms-2" id="pending-count-label">{{ pending_count }}</span>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info py-2 small">
+          <i class="bi bi-info-circle me-1"></i>
+          Yeni kayıt olan her kullanıcı burada görünür. Onayla → giriş yapabilir. Reddet → hesap pasifleşir.
+        </div>
+        <div id="pending-empty" class="alert alert-secondary py-2 {% if pending_users %}d-none{% endif %}">
+          <i class="bi bi-inbox me-1"></i>Bekleyen kullanıcı yok.
+        </div>
+        <div class="table-responsive {% if not pending_users %}d-none{% endif %}" id="pending-table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Email</th>
+                <th>Kayıt Tarihi</th>
+                <th class="text-end">İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="pending-tbody">
+              {% for u in pending_users %}
+              <tr data-pending-id="{{ u.id }}">
+                <td>{{ u.email }}</td>
+                <td class="text-muted small">{{ u.created_at }}</td>
+                <td class="text-end">
+                  <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-success" onclick="approveUser({{ u.id }})">
+                      <i class="bi bi-check-lg me-1"></i>Onayla
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="rejectUser({{ u.id }})">
+                      <i class="bi bi-x-lg me-1"></i>Reddet
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="approval-status" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Rol Yönetimi (admin only) -->
+  <div class="tab-pane fade" id="tab-roller">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-primary-custom text-white">
+        <i class="bi bi-people me-2"></i>Kullanıcı Rolleri
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info py-2 small">
+          <i class="bi bi-info-circle me-1"></i>
+          Rol değişikliği anında etkin olur. Son admin rolü düşürülemez.
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Durum</th>
+                <th>Kayıt Tarihi</th>
+                <th class="text-end">İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody">
+              {% for u in all_users %}
+              <tr data-user-id="{{ u.id }}">
+                <td>
+                  {{ u.email }}
+                  {% if u.id == current_user_id %}
+                  <span class="badge bg-secondary ms-1">Sen</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge {% if u.role == 'admin' %}bg-danger{% else %}bg-secondary{% endif %} role-badge">
+                    {{ u.role }}
+                  </span>
+                </td>
+                <td>
+                  {% set st = u.approval_status or 'approved' %}
+                  {% if st == 'approved' %}
+                  <span class="badge bg-success">Onaylı</span>
+                  {% elif st == 'pending' %}
+                  <span class="badge bg-warning text-dark">Bekliyor</span>
+                  {% else %}
+                  <span class="badge bg-dark">Reddedildi</span>
+                  {% endif %}
+                </td>
+                <td class="text-muted small">{{ u.created_at }}</td>
+                <td class="text-end">
+                  <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-danger"
+                            onclick="setRole({{ u.id }}, 'admin', this)"
+                            {% if u.role == 'admin' %}disabled{% endif %}>
+                      Admin yap
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary"
+                            onclick="setRole({{ u.id }}, 'user', this)"
+                            {% if u.role == 'user' %}disabled{% endif %}>
+                      User yap
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="role-status" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: Yedekleme (admin only) -->
+  <div class="tab-pane fade" id="tab-yedek">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-danger text-white">
+        <i class="bi bi-database-fill-gear me-2"></i>SQLite Geri Yükleme
+      </div>
+      <div class="card-body">
+        <div class="alert alert-warning py-2">
+          Bu işlem mevcut cloud veritabanını yüklediğin dosyayla değiştirir.
+          İşlemden önce otomatik yedek alınır.
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">SQLite Dosyası (.db)</label>
+          <input type="file" id="restore-db-file" accept=".db,.sqlite,.sqlite3" class="form-control">
+          <small class="form-text text-muted">Yerel makinedeki güncel veritabanı dosyanı seç.</small>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Restore Token</label>
+          <input type="password" id="restore-token" class="form-control" placeholder="Render'daki DB_RESTORE_TOKEN değeri">
+          <small class="form-text text-muted">Token'ı Render > Environment bölümünden ayarlayıp buraya gir.</small>
+        </div>
+        <button type="button" onclick="restoreSQLite()" class="btn btn-danger">
+          <i class="bi bi-upload me-1"></i>DB Geri Yükle
+        </button>
+        <div id="restore-status" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function uploadPDF() {
+  const file = document.getElementById('pdf-file').files[0];
+  const portfolio = document.getElementById('pdf-portfolio').value;
+  if (!file) { alert('Dosya seçiniz'); return; }
+  if (!portfolio) { alert('Portföy seçiniz'); return; }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('portfolio', portfolio);
+
+  document.getElementById('pdf-status').innerHTML = '<span class="badge bg-info">Yükleniyor...</span>';
+  try {
+    const resp = await fetch('/yonetim/api/upload-pdf', {method: 'POST', body: formData});
+    const data = await resp.json();
+    if (resp.ok) {
+      document.getElementById('pdf-status').innerHTML =
+        `<span class="badge bg-success">✓ Başarılı: ${data.inserted} eklendi, ${data.skipped} mükerrer</span>`;
+      document.getElementById('pdf-file').value = '';
+    } else {
+      document.getElementById('pdf-status').innerHTML =
+        `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+    }
+  } catch (e) {
+    document.getElementById('pdf-status').innerHTML =
+      `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+  }
+}
+
+async function uploadCSV() {
+  const file = document.getElementById('csv-file').files[0];
+  const portfolio = document.getElementById('csv-portfolio').value;
+  if (!file) { alert('Dosya seçiniz'); return; }
+  if (!portfolio) { alert('Portföy seçiniz'); return; }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('portfolio', portfolio);
+
+  document.getElementById('csv-status').innerHTML = '<span class="badge bg-info">Yükleniyor...</span>';
+  try {
+    const resp = await fetch('/yonetim/api/upload-csv', {method: 'POST', body: formData});
+    const data = await resp.json();
+    if (resp.ok) {
+      document.getElementById('csv-status').innerHTML =
+        `<span class="badge bg-success">✓ Başarılı: ${data.inserted} eklendi, ${data.skipped} mükerrer</span>`;
+      document.getElementById('csv-file').value = '';
+    } else {
+      document.getElementById('csv-status').innerHTML =
+        `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+    }
+  } catch (e) {
+    document.getElementById('csv-status').innerHTML =
+      `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+  }
+}
+
+async function recompute() {
+  document.getElementById('compute-status').innerHTML = '<span class="badge bg-info">Hesaplanıyor...</span>';
+  try {
+    const resp = await fetch('/yonetim/api/recompute', {method: 'POST'});
+    const data = await resp.json();
+    if (resp.ok) {
+      document.getElementById('compute-status').innerHTML =
+        `<span class="badge bg-success">✓ Başarılı: ${data.sell_results} satış işlemi hesaplandı</span>`;
+    } else {
+      document.getElementById('compute-status').innerHTML =
+        `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+    }
+  } catch (e) {
+    document.getElementById('compute-status').innerHTML =
+      `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+  }
+}
+
+function _refreshPendingUI() {
+  const tbody = document.getElementById('pending-tbody');
+  const count = tbody ? tbody.querySelectorAll('tr').length : 0;
+  const label = document.getElementById('pending-count-label');
+  const navBadge = document.getElementById('nav-pending-badge');
+  const tabBadge = document.getElementById('pending-badge');
+  if (label) label.textContent = count;
+  if (navBadge) {
+    if (count > 0) { navBadge.textContent = count; navBadge.classList.remove('d-none'); }
+    else { navBadge.classList.add('d-none'); }
+  }
+  if (tabBadge) {
+    if (count > 0) { tabBadge.textContent = count; tabBadge.classList.remove('d-none'); }
+    else { tabBadge.classList.add('d-none'); }
+  }
+  document.getElementById('pending-empty')?.classList.toggle('d-none', count > 0);
+  document.getElementById('pending-table-wrap')?.classList.toggle('d-none', count === 0);
+}
+
+async function approveUser(userId) {
+  const statusEl = document.getElementById('approval-status');
+  statusEl.innerHTML = '<span class="badge bg-info">Onaylanıyor...</span>';
+  try {
+    const resp = await fetch(`/yonetim/api/users/${userId}/approve`, {method: 'POST'});
+    const data = await resp.json();
+    if (resp.ok) {
+      document.querySelector(`tr[data-pending-id="${userId}"]`)?.remove();
+      _refreshPendingUI();
+      statusEl.innerHTML = '<span class="badge bg-success">✓ Kullanıcı onaylandı</span>';
+    } else {
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+  }
+}
+
+async function rejectUser(userId) {
+  if (!confirm('Bu kullanıcı reddedilecek ve hesabı pasife düşecek. Emin misin?')) return;
+  const statusEl = document.getElementById('approval-status');
+  statusEl.innerHTML = '<span class="badge bg-info">Reddediliyor...</span>';
+  try {
+    const resp = await fetch(`/yonetim/api/users/${userId}/reject`, {method: 'POST'});
+    const data = await resp.json();
+    if (resp.ok) {
+      document.querySelector(`tr[data-pending-id="${userId}"]`)?.remove();
+      _refreshPendingUI();
+      statusEl.innerHTML = '<span class="badge bg-dark">✓ Kullanıcı reddedildi</span>';
+    } else {
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+  }
+}
+
+async function setRole(userId, role, btn) {
+  const statusEl = document.getElementById('role-status');
+  if (!confirm(`Bu kullanıcının rolü "${role}" olarak değiştirilecek. Emin misin?`)) return;
+  statusEl.innerHTML = '<span class="badge bg-info">Güncelleniyor...</span>';
+  try {
+    const resp = await fetch(`/yonetim/api/users/${userId}/role`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({role})
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      const row = document.querySelector(`tr[data-user-id="${userId}"]`);
+      if (row) {
+        const badge = row.querySelector('.role-badge');
+        badge.textContent = role;
+        badge.className = `badge role-badge ${role === 'admin' ? 'bg-danger' : 'bg-secondary'}`;
+        row.querySelectorAll('button').forEach(b => {
+          const target = b.getAttribute('onclick').match(/'(admin|user)'/)[1];
+          b.disabled = (target === role);
+        });
+      }
+      statusEl.innerHTML = `<span class="badge bg-success">✓ Rol güncellendi: ${role}</span>`;
+    } else {
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+  }
+}
+
+async function restoreSQLite() {
+  const file = document.getElementById('restore-db-file').files[0];
+  const restoreToken = document.getElementById('restore-token').value.trim();
+  const statusEl = document.getElementById('restore-status');
+  if (!file) { alert('SQLite dosyası seçiniz'); return; }
+  if (!restoreToken) { alert('Restore token giriniz'); return; }
+
+  const confirmed = confirm(
+    'Bu işlem cloud veritabanını tamamen değiştirir. Devam etmek istediğinize emin misiniz?'
+  );
+  if (!confirmed) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('restore_token', restoreToken);
+
+  statusEl.innerHTML = '<span class="badge bg-info">Yükleniyor ve geri yükleniyor...</span>';
+  try {
+    const resp = await fetch('/yonetim/api/restore-sqlite', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (resp.ok) {
+      statusEl.innerHTML = `<span class="badge bg-success">✓ ${data.message}</span>`;
+      document.getElementById('restore-db-file').value = '';
+      setTimeout(() => window.location.href = '/yonetim?success=DB%20restore%20tamamlandı', 1200);
+    } else {
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail || 'Bilinmeyen hata'}</span>`;
+    }
+  } catch (e) {
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+  }
+}
+</script>
+{% endblock %}

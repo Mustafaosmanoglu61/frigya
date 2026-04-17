@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+{% block title %}Açık Pozisyonlar — Frigya{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h4 class="fw-bold text-dark mb-0">
+    <i class="bi bi-wallet2 me-2 text-primary"></i>Açık Pozisyonlar
+  </h4>
+  <div class="d-flex align-items-center gap-3">
+    <div class="text-end">
+      <div class="text-muted small">Toplam Maliyet: <strong class="text-dark price-sensitive">${{ "{:,.2f}".format(total_cost) }}</strong></div>
+      <div class="small mt-1">Gerçekleşmemiş K/Z: <strong id="hdr-unrealized" class="text-muted price-sensitive">—</strong></div>
+    </div>
+    <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="Fiyatları gizle / göster">
+      <i class="bi bi-eye" id="price-toggle-icon"></i>
+    </button>
+  </div>
+</div>
+
+{% if not symbols %}
+<div class="alert alert-info">Açık pozisyon bulunmuyor.</div>
+{% else %}
+
+<!-- Symbol Widget Cards -->
+<div class="pos-widget-grid" id="pos-widget-grid">
+  {% for s in symbols %}
+  <div class="pos-widget" draggable="true" data-symbol="{{ s.symbol }}"
+       data-qty="{{ s.total_qty }}" data-cost="{{ s.total_cost }}"
+       onclick="toggleSymbolFilter('{{ s.symbol }}', event)"
+       title="Tabloda filtrele (Shift ile çoklu seçim)">
+
+    <!-- Header -->
+    <div class="pw-header">
+      <div class="pw-symbol-row">
+        <a href="/sembol/{{ s.symbol }}?portfolio={{ current_portfolio }}" class="pw-symbol"
+           onclick="event.stopPropagation()">{{ s.symbol }}</a>
+        <span class="pw-price price-sensitive" data-symbol="{{ s.symbol }}" data-field="current-price">—</span>
+        <span class="pw-change" data-symbol="{{ s.symbol }}" data-field="change-pct">—</span>
+      </div>
+      <div class="d-flex align-items-center gap-1">
+        <span class="pw-total-pct badge bg-secondary" data-symbol="{{ s.symbol }}" data-field="total-pct">—</span>
+        <span class="badge bg-secondary">{{ s.lot_count }} işlem</span>
+      </div>
+    </div>
+
+    <!-- After-market satırı (görünmez, fiyat gelince açılır) -->
+    <div class="pw-aftermarket" data-symbol="{{ s.symbol }}" data-field="after-market" style="display:none">
+      <span class="badge bg-dark text-warning small" data-field="after-market-label">—</span>
+    </div>
+
+    <!-- Stats -->
+    <div class="pw-stats">
+      <div class="pw-stat">
+        <span class="pw-stat-label">Adet</span>
+        <span class="pw-stat-value">{{ s.total_qty | fmtqty }}</span>
+      </div>
+      <div class="pw-stat">
+        <span class="pw-stat-label">Ort Maliyet</span>
+        <span class="pw-stat-value price-sensitive">${{ "{:,.2f}".format(s.avg_price) }}</span>
+      </div>
+      <div class="pw-stat">
+        <span class="pw-stat-label">Maliyet</span>
+        <span class="pw-stat-value price-sensitive">${{ "{:,.0f}".format(s.total_cost) }}</span>
+      </div>
+      <div class="pw-stat">
+        <span class="pw-stat-label">Mevcut</span>
+        <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="market-value">—</span>
+      </div>
+    </div>
+
+    <!-- K/Z -->
+    <div class="pw-pnl-row">
+      <div class="pw-stat">
+        <span class="pw-stat-label">Günlük K/Z</span>
+        <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="daily-pnl">—</span>
+      </div>
+      <div class="pw-stat">
+        <span class="pw-stat-label">Gerçekleşmemiş K/Z</span>
+        <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="unrealized-pnl">—</span>
+      </div>
+    </div>
+
+    {% if s.target.get('hedef_fiyat') %}
+    <div class="pw-target-row">
+      <span class="pw-stat-label">Hedef: ${{ "%.2f"|format(s.target.hedef_fiyat) }}</span>
+      <span class="pw-stat-value" data-symbol="{{ s.symbol }}" data-field="hedef-dist"
+            data-hedef="{{ s.target.hedef_fiyat }}">—</span>
+    </div>
+    {% endif %}
+
+    <!-- Tarih -->
+    <div class="pw-date-row">
+      <span>{{ s.earliest_buy }}{% if s.earliest_buy != s.latest_buy %} → {{ s.latest_buy }}{% endif %}</span>
+      <span>{{ s.days_open }}g açık</span>
+    </div>
+
+    {% if s.realized %}
+    <div class="pw-realized-row">
+      Ger. K/Z:&nbsp;<strong class="price-sensitive {% if s.realized.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+        ${{ "{:+,.0f}".format(s.realized.net_pnl) }}</strong>
+    </div>
+    {% endif %}
+
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Active filter banner -->
+<div id="filter-banner" class="alert alert-info py-2 mt-2 mb-0 d-none small">
+  <i class="bi bi-funnel-fill me-1"></i>
+  Filtre: <strong id="filter-banner-syms"></strong>
+  <button class="btn btn-sm btn-outline-secondary ms-2 py-0" onclick="clearSymbolFilter()">Tümünü Göster</button>
+</div>
+
+<!-- Lot Detail Table -->
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-header bg-white border-0 pt-3 pb-0 fw-semibold">Açık İşlem Detayı</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0 align-middle" id="pos-table">
+        <thead class="table-header-custom">
+          <tr>
+            <th draggable="true" class="col-draggable">Sembol</th>
+            <th draggable="true" class="col-draggable text-center">İşlem #</th>
+            <th draggable="true" class="col-draggable">Alış Tarihi</th>
+            <th draggable="true" class="col-draggable text-end">Gün</th>
+            <th draggable="true" class="col-draggable text-end">Adet</th>
+            <th draggable="true" class="col-draggable text-end">Alış Fiyatı</th>
+            <th draggable="true" class="col-draggable text-end">Maliyet</th>
+            <th draggable="true" class="col-draggable text-end">Anlık Fiyat</th>
+            <th draggable="true" class="col-draggable text-end">Mevcut Değer</th>
+            <th draggable="true" class="col-draggable text-end">Günlük K/Z</th>
+            <th draggable="true" class="col-draggable text-end">Toplam K/Z</th>
+            <th draggable="true" class="col-draggable text-end">K/Z %</th>
+            <th draggable="true" class="col-draggable text-end">Hedef</th>
+            <th draggable="true" class="col-draggable text-end">Hedefe %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set ns = namespace(prev_symbol='') %}
+          {% for r in lots %}
+          <tr class="{% if r.symbol != ns.prev_symbol %}border-top border-2{% endif %}"
+              data-symbol="{{ r.symbol }}" data-qty="{{ r.quantity }}" data-cost="{{ r.cost_basis }}"
+              data-hedef="{{ r.target.get('hedef_fiyat', '') or '' }}">
+            {% if r.symbol != ns.prev_symbol %}
+            <td>
+              <a href="/sembol/{{ r.symbol }}?portfolio={{ current_portfolio }}" class="symbol-link fw-bold">{{ r.symbol }}</a>
+            </td>
+            {% set ns.prev_symbol = r.symbol %}
+            {% else %}
+            <td class="text-muted small ps-3">↳</td>
+            {% endif %}
+            <td class="text-center text-muted small">{{ r.lot_seq }}</td>
+            <td class="text-nowrap">{{ r.buy_date }}</td>
+            <td class="text-end text-muted small">{{ r.days_since }}g</td>
+            <td class="text-end">{{ r.quantity | fmtqty }}</td>
+            <td class="text-end price-sensitive">${{ "{:,.2f}".format(r.buy_price) }}</td>
+            <td class="text-end fw-semibold price-sensitive">${{ "{:,.2f}".format(r.cost_basis) }}</td>
+            <td class="text-end lot-current-price price-sensitive">—</td>
+            <td class="text-end lot-market-value price-sensitive">—</td>
+            <td class="text-end lot-daily-pnl price-sensitive">—</td>
+            <td class="text-end lot-total-pnl fw-semibold price-sensitive">—</td>
+            <td class="text-end lot-pnl-pct">—</td>
+            <td class="text-end">
+              {% if r.target.get('hedef_fiyat') %}${{ "{:,.2f}".format(r.target.hedef_fiyat) }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end lot-hedef-pct">—</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<style>
+.price-sensitive { transition: filter 0.25s, opacity 0.25s; }
+body.prices-hidden .price-sensitive {
+  filter: blur(7px);
+  opacity: 0.35;
+  user-select: none;
+  pointer-events: none;
+}
+#price-toggle-btn { min-width: 34px; }
+</style>
+<script>
+function togglePrices() {
+  const hidden = document.body.classList.toggle('prices-hidden');
+  const icon = document.getElementById('price-toggle-icon');
+  icon.className = hidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+  localStorage.setItem('pos-prices-hidden', hidden ? '1' : '0');
+}
+// Sayfa yüklenince önceki tercih uygula
+if (localStorage.getItem('pos-prices-hidden') === '1') {
+  document.body.classList.add('prices-hidden');
+  document.addEventListener('DOMContentLoaded', () => {
+    const icon = document.getElementById('price-toggle-icon');
+    if (icon) icon.className = 'bi bi-eye-slash';
+  });
+}
+</script>
+<script>
+// ── Widget Filtre (tek veya çoklu seçim) ──────────────────────────────────
+let _selectedSymbols = new Set();
+
+function toggleSymbolFilter(symbol, event) {
+  // Drag başladıysa filtre açma
+  if (event && event.target.closest('a')) return;
+
+  const isShift = event && event.shiftKey;
+  if (!isShift) {
+    // Shift yok: tek seçim (aynıysa toggle off)
+    if (_selectedSymbols.size === 1 && _selectedSymbols.has(symbol)) {
+      _selectedSymbols.clear();
+    } else {
+      _selectedSymbols.clear();
+      _selectedSymbols.add(symbol);
+    }
+  } else {
+    // Shift: çoklu seçim ekle/çıkar
+    if (_selectedSymbols.has(symbol)) _selectedSymbols.delete(symbol);
+    else _selectedSymbols.add(symbol);
+  }
+  applySymbolFilter();
+}
+
+function clearSymbolFilter() {
+  _selectedSymbols.clear();
+  applySymbolFilter();
+}
+
+function applySymbolFilter() {
+  const active = _selectedSymbols.size > 0;
+
+  // Widget görsel seçim
+  document.querySelectorAll('.pos-widget').forEach(w => {
+    const sym = w.dataset.symbol;
+    w.classList.toggle('pw-selected', active && _selectedSymbols.has(sym));
+    w.classList.toggle('pw-dimmed',   active && !_selectedSymbols.has(sym));
+  });
+
+  // Tablo satır göster/gizle
+  document.querySelectorAll('#pos-table tbody tr').forEach(row => {
+    row.style.display = (!active || _selectedSymbols.has(row.dataset.symbol)) ? '' : 'none';
+  });
+
+  // Banner
+  const banner = document.getElementById('filter-banner');
+  if (active) {
+    banner.classList.remove('d-none');
+    document.getElementById('filter-banner-syms').textContent = [..._selectedSymbols].join(', ');
+  } else {
+    banner.classList.add('d-none');
+  }
+}
+
+// ── Widget Drag & Drop ─────────────────────────────────────────────────────
+let _dragWidget = null;
+
+function initWidgetDragDrop() {
+  const grid = document.getElementById('pos-widget-grid');
+  if (!grid) return;
+
+  grid.querySelectorAll('.pos-widget').forEach(w => {
+    w.addEventListener('dragstart', e => {
+      _dragWidget = w;
+      w.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    w.addEventListener('dragend', () => {
+      _dragWidget = null;
+      w.classList.remove('dragging');
+      grid.querySelectorAll('.pos-widget').forEach(c => c.classList.remove('drag-over'));
+    });
+    w.addEventListener('dragover', e => {
+      if (w !== _dragWidget) { e.preventDefault(); w.classList.add('drag-over'); }
+    });
+    w.addEventListener('dragleave', () => w.classList.remove('drag-over'));
+    w.addEventListener('drop', e => {
+      e.preventDefault();
+      w.classList.remove('drag-over');
+      if (w !== _dragWidget && _dragWidget) {
+        const all = Array.from(grid.querySelectorAll('.pos-widget'));
+        const di = all.indexOf(_dragWidget), ti = all.indexOf(w);
+        if (di < ti) w.parentNode.insertBefore(_dragWidget, w.nextSibling);
+        else w.parentNode.insertBefore(_dragWidget, w);
+        saveWidgetOrder();
+      }
+    });
+  });
+}
+
+function saveWidgetOrder() {
+  const grid = document.getElementById('pos-widget-grid');
+  if (!grid) return;
+  localStorage.setItem('pos-widget-order',
+    JSON.stringify(Array.from(grid.querySelectorAll('.pos-widget')).map(w => w.dataset.symbol)));
+}
+
+function restoreWidgetOrder() {
+  const grid = document.getElementById('pos-widget-grid');
+  if (!grid) return;
+  const saved = JSON.parse(localStorage.getItem('pos-widget-order') || '[]');
+  if (!saved.length) return;
+  const map = {};
+  grid.querySelectorAll('.pos-widget').forEach(w => { map[w.dataset.symbol] = w; });
+  saved.forEach(sym => { if (map[sym]) grid.appendChild(map[sym]); });
+}
+
+// ── Kolon Drag & Drop ──────────────────────────────────────────────────────
+let _dragCol = null;
+
+function initColumnDragDrop() {
+  const table = document.getElementById('pos-table');
+  if (!table) return;
+  table.querySelectorAll('th.col-draggable').forEach((th, idx) => {
+    th.style.cursor = 'grab';
+    th.addEventListener('dragstart', e => { _dragCol = idx; th.style.opacity='0.5'; e.dataTransfer.effectAllowed='move'; });
+    th.addEventListener('dragend',   () => { th.style.opacity='1'; _dragCol=null; });
+    th.addEventListener('dragover',  e => { if (_dragCol!==null && _dragCol!==idx) { e.preventDefault(); th.style.borderLeft='3px solid #0d6efd'; } });
+    th.addEventListener('dragleave', () => { th.style.borderLeft=''; });
+    th.addEventListener('drop',      e => {
+      e.preventDefault(); th.style.borderLeft='';
+      if (_dragCol!==null && _dragCol!==idx) { swapColumns(table,_dragCol,idx); saveColumnOrder(); initColumnDragDrop(); }
+    });
+  });
+}
+
+function swapColumns(table, from, to) {
+  table.querySelectorAll('tr').forEach(row => {
+    const c = Array.from(row.children);
+    if (c[from]&&c[to]) { if(from<to) row.insertBefore(c[from],c[to].nextSibling); else row.insertBefore(c[from],c[to]); }
+  });
+}
+
+function saveColumnOrder() {
+  const ths = document.querySelectorAll('#pos-table th');
+  localStorage.setItem('pos-col-order', JSON.stringify(Array.from(ths).map(th=>th.textContent.trim())));
+}
+
+function restoreColumnOrder() {
+  const table = document.getElementById('pos-table');
+  if (!table) return;
+  const saved = JSON.parse(localStorage.getItem('pos-col-order')||'[]');
+  if (!saved.length) return;
+  const ths = Array.from(table.querySelectorAll('th'));
+  const cur = ths.map(th=>th.textContent.trim());
+  const mapping = saved.map(n=>cur.indexOf(n));
+  if (mapping.includes(-1)) return;
+  table.querySelectorAll('tr').forEach(row => {
+    const cells = Array.from(row.children);
+    if (cells.length!==cur.length) return;
+    const frag = document.createDocumentFragment();
+    mapping.forEach(i => { if(cells[i]) frag.appendChild(cells[i]); });
+    row.appendChild(frag);
+  });
+}
+
+// ── Kolon Sıralama (çift tıklama) ─────────────────────────────────────────
+let _sortCol = -1, _sortDir = 1;
+
+function initTableSort() {
+  const table = document.getElementById('pos-table');
+  if (!table) return;
+  table.querySelectorAll('th').forEach((th, idx) => {
+    th.addEventListener('dblclick', () => sortTable(idx));
+    th.title = (th.title ? th.title + ' | ' : '') + 'Çift tık: sırala';
+  });
+}
+
+function sortTable(colIdx) {
+  const table = document.getElementById('pos-table');
+  if (!table) return;
+  if (_sortCol === colIdx) _sortDir *= -1; else { _sortCol = colIdx; _sortDir = 1; }
+
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+
+  rows.sort((a, b) => {
+    const ca = a.children[colIdx]?.textContent.trim() || '';
+    const cb = b.children[colIdx]?.textContent.trim() || '';
+    // Sayısal mı?
+    const na = parseFloat(ca.replace(/[$,+↑↓%g]/g,''));
+    const nb = parseFloat(cb.replace(/[$,+↑↓%g]/g,''));
+    if (!isNaN(na) && !isNaN(nb)) return (na - nb) * _sortDir;
+    return ca.localeCompare(cb, 'tr') * _sortDir;
+  });
+
+  rows.forEach(r => tbody.appendChild(r));
+
+  // Başlık oku ok
+  table.querySelectorAll('th').forEach((th, i) => {
+    th.textContent = th.textContent.replace(/ [▲▼]$/, '');
+    if (i === colIdx) th.textContent += _sortDir === 1 ? ' ▲' : ' ▼';
+  });
+}
+
+// ── Fiyat Güncelleme ───────────────────────────────────────────────────────
+let _totalCost = {{ total_cost | tojson }};
+let _cachedPrices = {};
+
+function fmt$(v) { return '$' + Math.abs(v).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+
+function updatePozPrices(prices) {
+  _cachedPrices = prices;
+  let totalUnrealized = 0, totalUnrValid = true;
+
+  document.querySelectorAll('.pos-widget').forEach(w => {
+    const sym = w.dataset.symbol;
+    const p = prices[sym];
+    if (!p || p.error) { totalUnrValid = false; return; }
+
+    const qty  = parseFloat(w.dataset.qty)  || 0;
+    const cost = parseFloat(w.dataset.cost) || 0;
+    const cur  = p.current_price;
+    const prev = p.prev_close;   // ← FIX: prev_close (not previous_close)
+    const mkt  = p.market_state;
+
+    // Anlık fiyat
+    const priceEl = w.querySelector('[data-field="current-price"]');
+    if (priceEl && cur != null) priceEl.textContent = '$' + cur.toFixed(2);
+
+    // Değişim %
+    const chgEl = w.querySelector('[data-field="change-pct"]');
+    if (chgEl && p.change_pct != null) {
+      chgEl.textContent = (p.change_pct >= 0 ? '+' : '') + p.change_pct.toFixed(2) + '%';
+      chgEl.className = 'pw-change ' + (p.change_pct >= 0 ? 'text-success' : 'text-danger');
+    }
+
+    // After-market gösterimi
+    const amEl = w.querySelector('[data-field="after-market"]');
+    const amLabel = w.querySelector('[data-field="after-market-label"]');
+    if (amEl && amLabel) {
+      const isExtended = mkt === 'PRE' || mkt === 'POST';
+      const extChg = p.extended_hours_change_pct;
+      const extPrice = p.extended_hours_price;
+      if (isExtended && (extChg != null || extPrice != null)) {
+        amEl.style.display = '';
+        const label = mkt === 'PRE' ? 'Pre-Market' : 'After-Market';
+        const chgStr = extChg != null ? (extChg >= 0 ? '+' : '') + extChg.toFixed(2) + '%' : '';
+        const priceStr = extPrice != null ? '$' + extPrice.toFixed(2) : '';
+        amLabel.textContent = `${label}: ${priceStr} (${chgStr})`;
+      } else {
+        amEl.style.display = 'none';
+      }
+    }
+
+    if (cur != null && qty > 0) {
+      const mv = qty * cur;
+      const upnl = mv - cost;
+      const upct = cost > 0 ? (upnl / cost * 100) : 0;
+      totalUnrealized += upnl;
+
+      // Mevcut değer
+      const mvEl = w.querySelector('[data-field="market-value"]');
+      if (mvEl) mvEl.textContent = fmt$(mv);
+
+      // Gerçekleşmemiş K/Z
+      const upEl = w.querySelector('[data-field="unrealized-pnl"]');
+      if (upEl) {
+        upEl.textContent = (upnl >= 0 ? '+' : '-') + fmt$(upnl);
+        upEl.className = 'pw-stat-value ' + (upnl >= 0 ? 'text-success' : 'text-danger');
+      }
+
+      // Toplam K/Z %  (#8)
+      const pctBadge = w.querySelector('[data-field="total-pct"]');
+      if (pctBadge) {
+        pctBadge.textContent = (upct >= 0 ? '+' : '') + upct.toFixed(1) + '%';
+        pctBadge.className = 'pw-total-pct badge ' + (upct >= 0 ? 'bg-success' : 'bg-danger');
+      }
+
+      // Günlük K/Z
+      if (prev != null) {
+        const dpnl = (cur - prev) * qty;
+        const dpEl = w.querySelector('[data-field="daily-pnl"]');
+        if (dpEl) {
+          dpEl.textContent = (dpnl >= 0 ? '+' : '-') + fmt$(dpnl);
+          dpEl.className = 'pw-stat-value ' + (dpnl >= 0 ? 'text-success' : 'text-danger');
+        }
+      }
+
+      // Hedefe mesafe
+      const hEl = w.querySelector('[data-field="hedef-dist"]');
+      if (hEl) {
+        const hedef = parseFloat(hEl.dataset.hedef) || 0;
+        if (hedef > 0) {
+          const dist = ((hedef - cur) / cur * 100);
+          hEl.textContent = (dist >= 0 ? '↑' : '↓') + Math.abs(dist).toFixed(1) + '%';
+          hEl.className = 'pw-stat-value ' + (dist > 0 ? 'text-primary' : 'text-success');
+        }
+      }
+    } else {
+      totalUnrValid = false;
+    }
+  });
+
+  // Header toplam gerçekleşmemiş
+  const hdrEl = document.getElementById('hdr-unrealized');
+  if (hdrEl) {
+    if (totalUnrValid) {
+      hdrEl.textContent = (totalUnrealized >= 0 ? '+' : '-') + fmt$(totalUnrealized);
+      hdrEl.className = 'fw-bold ' + (totalUnrealized >= 0 ? 'text-success' : 'text-danger');
+    } else {
+      hdrEl.textContent = '—';
+      hdrEl.className = 'text-muted';
+    }
+  }
+
+  // Tablo satırları — her lot ayrı ayrı
+  document.querySelectorAll('#pos-table tbody tr').forEach(row => {
+    const sym = row.dataset.symbol;
+    const p = prices[sym];
+    if (!p || p.error || p.current_price == null) return;
+
+    const qty   = parseFloat(row.dataset.qty)   || 0;
+    const cost  = parseFloat(row.dataset.cost)  || 0;
+    const hedef = parseFloat(row.dataset.hedef) || 0;
+    const cur   = p.current_price;
+    const prev  = p.prev_close;  // ← FIX
+
+    const cpEl = row.querySelector('.lot-current-price');
+    if (cpEl) {
+      let txt = '$' + cur.toFixed(2);
+      // after-market badge inline
+      if ((p.market_state === 'PRE' || p.market_state === 'POST') && p.extended_hours_price) {
+        const lbl = p.market_state === 'PRE' ? 'Pre' : 'Aft';
+        txt += ` <small class="text-warning">(${lbl}: $${p.extended_hours_price.toFixed(2)})</small>`;
+        cpEl.innerHTML = txt;
+      } else {
+        cpEl.textContent = txt;
+      }
+    }
+
+    const mv = qty * cur;
+    const mvEl = row.querySelector('.lot-market-value');
+    if (mvEl) mvEl.textContent = fmt$(mv);
+
+    // Günlük K/Z per lot
+    if (prev != null) {
+      const dpnl = (cur - prev) * qty;
+      const dpEl = row.querySelector('.lot-daily-pnl');
+      if (dpEl) {
+        dpEl.textContent = (dpnl >= 0 ? '+' : '-') + fmt$(dpnl);
+        dpEl.className = 'text-end lot-daily-pnl ' + (dpnl >= 0 ? 'text-success' : 'text-danger');
+      }
+    }
+
+    const totalPnl = mv - cost;
+    const tpEl = row.querySelector('.lot-total-pnl');
+    if (tpEl) {
+      tpEl.textContent = (totalPnl >= 0 ? '+' : '-') + fmt$(totalPnl);
+      tpEl.className = 'text-end lot-total-pnl fw-semibold ' + (totalPnl >= 0 ? 'text-success' : 'text-danger');
+    }
+
+    if (cost > 0) {
+      const pct = (totalPnl / cost) * 100;
+      const pctEl = row.querySelector('.lot-pnl-pct');
+      if (pctEl) {
+        pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+        pctEl.className = 'text-end lot-pnl-pct ' + (pct >= 0 ? 'text-success' : 'text-danger');
+      }
+    }
+
+    if (hedef > 0) {
+      const dist = ((hedef - cur) / cur) * 100;
+      const hpEl = row.querySelector('.lot-hedef-pct');
+      if (hpEl) {
+        hpEl.textContent = (dist >= 0 ? '↑' : '↓') + Math.abs(dist).toFixed(1) + '%';
+        hpEl.className = 'text-end lot-hedef-pct ' + (dist > 0 ? 'text-primary' : 'text-success');
+      }
+    }
+  });
+}
+
+// base.html global price engine hook
+if (typeof window !== 'undefined') {
+  const _orig = window.updatePozPrices;
+  window.updatePozPrices = updatePozPrices;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  restoreWidgetOrder();
+  initWidgetDragDrop();
+  restoreColumnOrder();
+  initColumnDragDrop();
+  initTableSort();
+
+  // Önbellekten fiyat yükle
+  try {
+    const cache = JSON.parse(localStorage.getItem(LS_PRICE_CACHE || '_priceCache') || '{}');
+    if (cache.prices) updatePozPrices(cache.prices);
+  } catch(e) {}
+
+  // Diğer sekmelerden gelen fiyat güncellemelerini dinle
+  window.addEventListener('storage', e => {
+    if (e.key === LS_PRICE_CACHE && e.newValue) {
+      try { const d = JSON.parse(e.newValue); if (d.prices) updatePozPrices(d.prices); } catch(_){}
+    }
+  });
+});
+</script>
+{% endblock %}

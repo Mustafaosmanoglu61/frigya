@@ -1,0 +1,48 @@
+# SQLite database
+webapp/tax.db
+webapp/tax.db-shm
+webapp/tax.db-wal
+*.db
+*.db-shm
+*.db-wal
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# OS
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.~lock.*
+
+# PDF/CSV kaynak dosyaları (kişisel finansal veri)
+2025/*.pdf
+2026/*.pdf
+uploads/
+*.csv
+
+# Excel çıktıları
+*.xlsx
+
+# Claude
+.claude/
+
+# Logs
+*.log
+
+# Local environment variables
+.env
+.env.local
+
+# Personal trading data — real files are gitignored, .sample.py versions are tracked
+data/transactions_2025.py
+data/carry_lots_2026.py
+data/*.csv
+data/*.xlsx
+data/*.pdf

@@ -1,0 +1,788 @@
+{% extends "base.html" %}
+{% block title %}{{ symbol }} Detay — Frigya{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <a href="/semboller" class="text-muted small text-decoration-none">
+      <i class="bi bi-arrow-left me-1"></i>Semboller
+    </a>
+    <h4 class="fw-bold text-dark mb-0 mt-1">
+      <i class="bi bi-graph-up me-2 text-primary"></i>{{ symbol }}
+    </h4>
+  </div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <!-- Year dropdown -->
+    <select id="year-filter-select" class="form-select form-select-sm" style="width:auto;min-width:120px">
+      <option value="all" selected>Tümü</option>
+      {% for y in summary %}
+      <option value="{{ y.tax_year }}">{{ y.tax_year }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addTxModal">
+      <i class="bi bi-plus-lg me-1"></i>İşlem Ekle
+    </button>
+  </div>
+</div>
+
+<!-- Year summary cards -->
+{% if summary %}
+<div class="row g-3 mb-4">
+  {% for s in summary %}
+  <div class="col-md-4" data-year="{{ s.tax_year }}">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-2">
+          <span class="fw-semibold">{{ s.tax_year }}</span>
+          <span class="badge {% if s.net_pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+            {{ "{:+.2f}".format(s.net_pnl) }}$
+          </span>
+        </div>
+        <div class="row text-center small">
+          <div class="col">
+            <div class="text-muted">Kazanan</div>
+            <div class="fw-semibold">{{ s.winning_trades }}/{{ s.total_trades }}</div>
+          </div>
+          <div class="col">
+            <div class="text-muted">Başarı</div>
+            <div class="fw-semibold">{{ "{:.0f}".format(s.success_rate * 100) }}%</div>
+          </div>
+          <div class="col">
+            <div class="text-muted">K/Z %</div>
+            <div class="fw-semibold {% if s.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+              {% if s.pnl_pct is not none %}{{ "{:+.1f}".format(s.pnl_pct * 100) }}%{% else %}—{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if overall and summary|length > 1 %}
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm bg-light">
+      <div class="card-body">
+        <div class="fw-semibold mb-2">Tüm Yıllar</div>
+        <div class="text-muted small">Gelir: <strong>${{ "{:,.2f}".format(overall.total_proceeds or 0) }}</strong></div>
+        <div class="text-muted small">Maliyet: <strong>${{ "{:,.2f}".format(overall.total_cost or 0) }}</strong></div>
+        <div class="mt-1 fw-bold {% if (overall.net_pnl or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+          Net: ${{ "{:,.2f}".format(overall.net_pnl or 0) }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="detailTabs">
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#tab-all">
+      <i class="bi bi-list-ul me-1"></i>Tüm İşlemler
+      <span class="badge bg-secondary ms-1">{{ all_tx|length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-realized">
+      <i class="bi bi-check2-circle me-1"></i>Realized K/Z
+      <span class="badge bg-secondary ms-1">{{ realized|length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-lots">
+      <i class="bi bi-layers me-1"></i>FIFO Eşleşme
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-open">
+      <i class="bi bi-wallet2 me-1"></i>Açık Pozisyon
+      {% if open_pos %}<span class="badge bg-primary ms-1">{{ open_pos|length }}</span>{% endif %}
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-unrealized">
+      <i class="bi bi-calculator me-1"></i>Unrealized K/Z
+    </a>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- Tab 1: All transactions -->
+  <div class="tab-pane fade show active" id="tab-all">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-header-custom">
+              <tr>
+                <th>Tarih</th>
+                <th class="text-center">Yön</th>
+                <th class="text-end">Adet</th>
+                <th class="text-end">Fiyat</th>
+                <th class="text-end">Tutar</th>
+                <th>Kaynak Yılı</th>
+                <th class="text-center" style="width: 80px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in all_tx %}
+              <tr>
+                <td class="text-nowrap">{{ r.tx_date }}</td>
+                <td class="text-center">
+                  {% if r.direction == 'Alış' %}
+                  <span class="badge bg-primary">Alış</span>
+                  {% else %}
+                  <span class="badge bg-warning text-dark">Satış</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">{{ r.quantity | fmtqty }}</td>
+                <td class="text-end">${{ "{:,.2f}".format(r.price) }}</td>
+                <td class="text-end">${{ "{:,.2f}".format(r.total) }}</td>
+                <td class="text-muted small">{{ r.source_year or "—" }}</td>
+                <td class="text-center">
+                  <button type="button" class="btn btn-sm btn-outline-secondary me-1" title="Düzenle"
+                          onclick="openEditModal({{ r.id }}, '{{ r.tx_date }}', '{{ r.direction }}', {{ r.quantity }}, {{ r.price }})">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                  <form action="/sembol/{{ symbol }}/sil/{{ r.id }}?portfolio={{ current_portfolio }}" method="post" style="display: inline;">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Sil"
+                            onclick="return confirm('{{ r.tx_date }} {{ r.direction }} işlemini silmek istediğinize emin misiniz?');">
+                      <i class="bi bi-trash3"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="7" class="text-center text-muted py-3">Veri yok</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 2: Realized P&L -->
+  <div class="tab-pane fade" id="tab-realized">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-header-custom">
+              <tr>
+                <th>Tarih</th>
+                <th class="text-end">Adet</th>
+                <th class="text-end">Satış Fiyatı</th>
+                <th class="text-end">Satış Geliri</th>
+                <th class="text-end">Alış Maliyeti</th>
+                <th class="text-end">K/Z</th>
+                <th class="text-center">Durum</th>
+                <th class="text-end">K/Z %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in realized %}
+              <tr class="{% if r.eksik_lot %}row-eksik{% elif r.pnl >= 0 %}row-kar{% else %}row-zarar{% endif %}">
+                <td class="text-nowrap">{{ r.tx_date }}</td>
+                <td class="text-end">{{ r.quantity | fmtqty }}</td>
+                <td class="text-end">${{ "{:,.2f}".format(r.sale_price) }}</td>
+                <td class="text-end">${{ "{:,.2f}".format(r.sale_proceeds) }}</td>
+                <td class="text-end">${{ "{:,.2f}".format(r.cost_basis) }}</td>
+                <td class="text-end fw-semibold {% if r.pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+                  ${{ "{:,.2f}".format(r.pnl) }}
+                </td>
+                <td class="text-center">
+                  <span class="badge {% if r.eksik_lot %}bg-warning text-dark{% elif r.pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                    {% if r.eksik_lot %}{{ r.status }}*{% else %}{{ r.status }}{% endif %}
+                  </span>
+                </td>
+                <td class="text-end">
+                  {% if r.pnl_pct is not none %}{{ "{:+.1f}".format(r.pnl_pct * 100) }}%{% else %}—{% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-center text-muted py-3">Veri yok</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: FIFO Lot matches -->
+  <div class="tab-pane fade" id="tab-lots">
+    {% for r in realized %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white py-2">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">
+            Satış: {{ r.tx_date }} — {{ r.quantity | fmtqty }} adet @ ${{ "{:,.2f}".format(r.sale_price) }}
+            → Gelir: ${{ "{:,.2f}".format(r.sale_proceeds) }}
+          </span>
+          <span class="badge {% if r.pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+            K/Z: ${{ "{:,.2f}".format(r.pnl) }}
+          </span>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Alış Tarihi</th>
+              <th class="text-end">Tüketilen Adet</th>
+              <th class="text-end">Alış Fiyatı</th>
+              <th class="text-end">Tüketilen Maliyet</th>
+              <th class="text-center">Tür</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set matches = lot_matches.get(r.id, []) %}
+            {% if matches %}
+              {% for m in matches %}
+              <tr>
+                <td class="text-nowrap">{{ m.buy_date or "?" }}</td>
+                <td class="text-end">{{ m.consumed_qty | fmtqty }}</td>
+                <td class="text-end">${{ "{:,.2f}".format(m.buy_price or 0) }}</td>
+                <td class="text-end">${{ "{:,.2f}".format(m.consumed_cost) }}</td>
+                <td class="text-center">
+                  {% if m.is_carry_lot %}<span class="badge bg-warning text-dark">Devir</span>
+                  {% else %}<span class="badge bg-light text-secondary">Normal</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="5" class="text-muted text-center small py-2">
+                {% if r.eksik_lot %}Eksik lot — önceki dönem verisi yok{% else %}Eşleşme verisi yok{% endif %}
+              </td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Bu sembol için satış kaydı yok.</div>
+    {% endfor %}
+  </div>
+
+  <!-- Tab 4: Open positions -->
+  <div class="tab-pane fade" id="tab-open">
+    {% if open_pos %}
+    <div class="alert alert-info py-2 small mb-3">
+      Toplam Açık: <strong>{{ total_open_qty | fmtqty }} adet</strong> —
+      Toplam Maliyet: <strong>${{ "{:,.2f}".format(total_open_cost) }}</strong> —
+      Ortalama Maliyet: <strong>${{ "{:,.2f}".format(total_open_cost / total_open_qty if total_open_qty > 0 else 0) }}</strong>
+    </div>
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-header-custom">
+            <tr>
+              <th class="text-center">Lot #</th>
+              <th>Alış Tarihi</th>
+              <th class="text-end">Adet</th>
+              <th class="text-end">Alış Fiyatı</th>
+              <th class="text-end">Maliyet Bazı</th>
+              <th class="text-end">Ortalama Maliyet</th>
+              <th class="text-center">Tür</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in open_pos %}
+            <tr class="open-lot"
+                data-qty="{{ r.quantity }}"
+                data-cost="{{ r.cost_basis }}"
+                data-seq="{{ r.lot_seq }}">
+              <td class="text-center">{{ r.lot_seq }}</td>
+              <td>{{ r.buy_date }}</td>
+              <td class="text-end">{{ r.quantity | fmtqty }}</td>
+              <td class="text-end">${{ "{:,.2f}".format(r.buy_price) }}</td>
+              <td class="text-end fw-semibold">${{ "{:,.2f}".format(r.cost_basis) }}</td>
+              <td class="text-end">${{ "{:,.2f}".format(r.cost_basis / r.quantity if r.quantity > 0 else 0) }}</td>
+              <td class="text-center">
+                {% if r.is_carry_lot %}<span class="badge bg-warning text-dark">Devir</span>
+                {% else %}<span class="badge bg-light text-secondary">Normal</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-total-row">
+            <tr class="fw-bold">
+              <td colspan="2">TOPLAM</td>
+              <td class="text-end">{{ total_open_qty | fmtqty }}</td>
+              <td></td>
+              <td class="text-end">${{ "{:,.2f}".format(total_open_cost) }}</td>
+              <td class="text-end">${{ "{:,.2f}".format(total_open_cost / total_open_qty if total_open_qty > 0 else 0) }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Bu sembol için açık pozisyon yok — tüm lotlar satılmış.</div>
+    {% endif %}
+  </div>
+
+  <!-- Tab 5: Unrealized P&L calculator -->
+  <div class="tab-pane fade" id="tab-unrealized">
+    {% if open_pos %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+          <label class="fw-semibold mb-0">Hedef Fiyat (USD)</label>
+          <span id="current-price-badge" class="badge bg-light text-secondary border">
+            <span class="spinner-border spinner-border-sm me-1" id="price-spinner"></span>
+            <span id="current-price-label">Yükleniyor...</span>
+          </span>
+        </div>
+        <div class="input-group" style="max-width:320px">
+          <span class="input-group-text">$</span>
+          <input type="number" id="currentPriceInput" class="form-control"
+                 placeholder="Güncel fiyat yükleniyor..." step="0.01" min="0"
+                 value="{{ target.get('hedef_fiyat', '') or '' }}"
+                 oninput="calcUnrealized(this.value)">
+          <button class="btn btn-outline-secondary" type="button" id="btn-reset-price" title="Güncel fiyata dön" style="display:none" onclick="resetToCurrentPrice()">
+            <i class="bi bi-arrow-counterclockwise"></i>
+          </button>
+        </div>
+
+        <!-- Taban Fiyat & Hedef Kazanç -->
+        <div class="row g-2 mt-2" style="max-width:500px">
+          <div class="col-6">
+            <label class="form-label small mb-1">Taban Fiyat ($)</label>
+            <input type="number" id="detail-taban" class="form-control form-control-sm"
+                   step="0.01" min="0" placeholder="Destek"
+                   value="{{ target.get('taban_fiyat', '') or '' }}">
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1">Hedef Kazanç ($)</label>
+            <input type="number" id="detail-kazanc" class="form-control form-control-sm"
+                   step="0.01" min="0" placeholder="Opsiyonel"
+                   value="{{ target.get('hedef_dolar_kazanci', '') or '' }}">
+          </div>
+        </div>
+        <button class="btn btn-sm btn-outline-primary mt-2" onclick="saveDetailTargets()">
+          <i class="bi bi-check-lg me-1"></i>Hedefleri Kaydet
+        </button>
+        <span id="detail-target-status" class="small ms-2"></span>
+
+        <div class="text-muted small mt-2">
+          Açık pozisyon: {{ total_open_qty | fmtqty }} adet |
+          Maliyet bazı: ${{ "{:,.2f}".format(total_open_cost) }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary boxes -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-2">
+          <div class="text-muted small">Piyasa Değeri</div>
+          <div class="fw-bold" id="totalMktValue">—</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-2">
+          <div class="text-muted small">Maliyet Bazı</div>
+          <div class="fw-bold">${{ "{:,.2f}".format(total_open_cost) }}</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-2">
+          <div class="text-muted small">Unrealized K/Z</div>
+          <div class="fw-bold" id="totalUnrPnl">—</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm text-center py-2">
+          <div class="text-muted small">Unrealized K/Z %</div>
+          <div class="fw-bold" id="totalUnrPct">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-header-custom">
+            <tr>
+              <th class="text-center">Lot #</th>
+              <th>Alış Tarihi</th>
+              <th class="text-end">Adet</th>
+              <th class="text-end">Alış Fiyatı</th>
+              <th class="text-end">Maliyet</th>
+              <th class="text-end">Ortalama Maliyet</th>
+              <th class="text-end">Piyasa Değeri</th>
+              <th class="text-end">Unrealized K/Z</th>
+              <th class="text-end">K/Z %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in open_pos %}
+            <tr class="open-lot"
+                data-qty="{{ r.quantity }}"
+                data-cost="{{ r.cost_basis }}"
+                data-seq="{{ r.lot_seq }}">
+              <td class="text-center">{{ r.lot_seq }}</td>
+              <td>{{ r.buy_date }}</td>
+              <td class="text-end">{{ r.quantity | fmtqty }}</td>
+              <td class="text-end">${{ "{:,.2f}".format(r.buy_price) }}</td>
+              <td class="text-end">${{ "{:,.2f}".format(r.cost_basis) }}</td>
+              <td class="text-end">${{ "{:,.2f}".format(r.cost_basis / r.quantity if r.quantity > 0 else 0) }}</td>
+              <td class="text-end mkt-value">—</td>
+              <td class="text-end unr-pnl fw-semibold">—</td>
+              <td class="text-end unr-pct">—</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-total-row">
+            <tr class="fw-bold">
+              <td colspan="4">TOPLAM</td>
+              <td class="text-end">${{ "{:,.2f}".format(total_open_cost) }}</td>
+              <td class="text-end">${{ "{:,.2f}".format(total_open_cost / total_open_qty if total_open_qty > 0 else 0) }}</td>
+              <td class="text-end" id="footMktValue">—</td>
+              <td class="text-end" id="footUnrPnl">—</td>
+              <td class="text-end" id="footUnrPct">—</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">Açık pozisyon yok — unrealized K/Z hesaplanamaz.</div>
+    {% endif %}
+  </div>
+
+</div><!-- tab-content -->
+
+<!-- Edit Transaction Modal -->
+<div class="modal fade" id="editTxModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="editTxForm" method="post">
+        <div class="modal-header bg-primary-custom text-white">
+          <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>İşlem Düzenle</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="portfolio" value="{{ current_portfolio }}">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Tarih</label>
+              <input type="date" name="tx_date" id="edit-tx-date" class="form-control" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Yön</label>
+              <select name="direction" id="edit-direction" class="form-select" required>
+                <option value="Alış">Alış</option>
+                <option value="Satış">Satış</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Adet</label>
+              <input type="number" name="quantity" id="edit-quantity" class="form-control"
+                     step="0.000001" min="0.000001" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Fiyat (USD)</label>
+              <input type="number" name="price" id="edit-price" class="form-control"
+                     step="0.000001" min="0.000001" required>
+            </div>
+          </div>
+          <div class="mt-3 p-2 bg-light rounded small">
+            <strong>Toplam:</strong> <span id="editCalcTotal">$0.00</span>
+            <span class="text-muted ms-2">(adet × fiyat)</span>
+          </div>
+          <div class="alert alert-warning mt-3 py-2 small mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Değişiklik kaydedilince <strong>tüm FIFO hesaplamaları yeniden yapılır</strong>.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Kaydet & FIFO Hesapla
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- İşlem Ekle Modal -->
+<div class="modal fade" id="addTxModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="addTxForm" method="post">
+        <div class="modal-header bg-primary-custom text-white">
+          <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>İşlem Ekle</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="portfolio" value="{{ current_portfolio }}">
+
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Tarih</label>
+              <input type="date" name="tx_date" class="form-control" required
+                     value="{{ today }}">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">İşlem Tipi</label>
+              <select name="direction" id="addtx-direction" class="form-select" required onchange="updateAddTxForm()">
+                <option value="Alış">Alış</option>
+                <option value="Satış">Satış</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Sembol</label>
+              <input type="text" class="form-control" value="{{ symbol }}" disabled>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Adet</label>
+              <input type="number" name="quantity" id="addtx-qty" class="form-control" step="0.000001" min="0.000001"
+                     required placeholder="36">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Fiyat (USD)</label>
+              <input type="number" name="price" id="addtx-price" class="form-control" step="0.01" min="0.01"
+                     required placeholder="16.29">
+            </div>
+          </div>
+
+          <div class="mt-3 p-2 bg-light rounded small">
+            <strong>Toplam:</strong> <span id="addtx-total">$0.00</span>
+            <span class="text-muted ms-2">(adet × fiyat, otomatik hesaplanır)</span>
+          </div>
+          <div class="alert alert-warning mt-3 py-2 small mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Değişiklik kaydedilince <strong>tüm FIFO hesaplamaları yeniden yapılır</strong>.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="submit" id="addtx-submit" class="btn btn-success">
+            <i class="bi bi-check-lg me-1"></i>Ekle & FIFO Hesapla
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TOTAL_COST = {{ total_open_cost | tojson }};
+
+function fmt(v)    { return '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function fmtPct(v) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
+function setColor(el, v) {
+  el.classList.remove('text-success','text-danger');
+  el.classList.add(v >= 0 ? 'text-success' : 'text-danger');
+}
+
+function calcUnrealized(priceStr) {
+  const price = parseFloat(priceStr);
+  if (isNaN(price) || price < 0) return;
+
+  let totalMkt = 0, totalUnr = 0;
+
+  document.querySelectorAll('#tab-unrealized .open-lot').forEach(row => {
+    const qty  = parseFloat(row.dataset.qty);
+    const cost = parseFloat(row.dataset.cost);
+    const mkt  = qty * price;
+    const unr  = mkt - cost;
+    const pct  = cost > 0 ? unr / cost : 0;
+
+    row.querySelector('.mkt-value').textContent = fmt(mkt);
+    const pnlEl = row.querySelector('.unr-pnl');
+    pnlEl.textContent = fmt(unr);
+    setColor(pnlEl, unr);
+    row.querySelector('.unr-pct').textContent = fmtPct(pct);
+
+    totalMkt += mkt;
+    totalUnr += unr;
+  });
+
+  const totalPct = TOTAL_COST > 0 ? totalUnr / TOTAL_COST : 0;
+
+  const mktEl = document.getElementById('totalMktValue');
+  const pnlEl = document.getElementById('totalUnrPnl');
+  const pctEl = document.getElementById('totalUnrPct');
+  mktEl.textContent = fmt(totalMkt);
+  pnlEl.textContent = fmt(totalUnr);
+  pctEl.textContent = fmtPct(totalPct);
+  setColor(pnlEl, totalUnr);
+  setColor(pctEl, totalUnr);
+
+  document.getElementById('footMktValue').textContent = fmt(totalMkt);
+  const footPnl = document.getElementById('footUnrPnl');
+  footPnl.textContent = fmt(totalUnr);
+  setColor(footPnl, totalUnr);
+  document.getElementById('footUnrPct').textContent = fmtPct(totalPct);
+}
+
+// Edit modal
+function openEditModal(txId, txDate, direction, quantity, price) {
+  const form = document.getElementById('editTxForm');
+  form.action = `/sembol/{{ symbol }}/duzenle/${txId}`;
+  document.getElementById('edit-tx-date').value = txDate;
+  document.getElementById('edit-direction').value = direction;
+  document.getElementById('edit-quantity').value = quantity;
+  document.getElementById('edit-price').value = price;
+  updateEditTotal();
+  new bootstrap.Modal(document.getElementById('editTxModal')).show();
+}
+
+function updateEditTotal() {
+  const qty   = parseFloat(document.getElementById('edit-quantity')?.value) || 0;
+  const price = parseFloat(document.getElementById('edit-price')?.value)    || 0;
+  const el    = document.getElementById('editCalcTotal');
+  if (el) el.textContent = '$' + (qty * price).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+document.getElementById('edit-quantity')?.addEventListener('input', updateEditTotal);
+document.getElementById('edit-price')?.addEventListener('input', updateEditTotal);
+
+// Year filter — dropdown
+document.getElementById('year-filter-select')?.addEventListener('change', function() {
+  const val = this.value;
+  document.querySelectorAll('[data-year]').forEach(el => {
+    el.style.display = (val === 'all' || el.dataset.year === val) ? '' : 'none';
+  });
+});
+
+// ── Güncel fiyat otomatik yükle ─────────────────────────────────────────────
+let _fetchedCurrentPrice = null;
+
+async function fetchCurrentPrice() {
+  const symbol = '{{ symbol }}';
+  const spinner = document.getElementById('price-spinner');
+  const label   = document.getElementById('current-price-label');
+  const badge   = document.getElementById('current-price-badge');
+  const input   = document.getElementById('currentPriceInput');
+
+  try {
+    const resp = await fetch(`/api/price/${symbol}`);
+    const data = await resp.json();
+    const p = data.price;
+
+    if (p && p.current_price != null) {
+      _fetchedCurrentPrice = p.current_price;
+
+      // Badge güncelle
+      const chg = p.change_pct != null
+        ? ` (${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%)`
+        : '';
+      label.textContent = `Güncel: $${p.current_price.toFixed(2)}${chg}`;
+      badge.classList.replace('bg-light', p.change_pct >= 0 ? 'bg-success' : 'bg-danger');
+      badge.classList.replace('text-secondary', 'text-white');
+      badge.classList.remove('border');
+
+      // Input'u doldur ve hesaplamayı tetikle
+      input.placeholder = '0.00';
+      input.value = p.current_price.toFixed(2);
+      calcUnrealized(p.current_price);
+    } else {
+      label.textContent = 'Fiyat alınamadı';
+      badge.classList.add('bg-warning', 'text-dark');
+    }
+  } catch(e) {
+    label.textContent = 'Hata';
+    badge.classList.add('bg-danger', 'text-white');
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+function resetToCurrentPrice() {
+  if (_fetchedCurrentPrice == null) return;
+  const input = document.getElementById('currentPriceInput');
+  input.value = _fetchedCurrentPrice.toFixed(2);
+  document.getElementById('btn-reset-price').style.display = 'none';
+  calcUnrealized(_fetchedCurrentPrice);
+}
+
+// Hedef fiyat girilince "geri dön" butonunu göster
+document.getElementById('currentPriceInput')?.addEventListener('input', function() {
+  const btn = document.getElementById('btn-reset-price');
+  if (!btn) return;
+  const val = parseFloat(this.value);
+  btn.style.display = (_fetchedCurrentPrice != null && val !== _fetchedCurrentPrice) ? '' : 'none';
+});
+
+// Tab açıldığında fiyat yükle (sadece bir kez)
+let _priceFetched = false;
+document.querySelector('a[href="#tab-unrealized"]')?.addEventListener('shown.bs.tab', () => {
+  if (!_priceFetched) {
+    _priceFetched = true;
+    fetchCurrentPrice();
+  }
+});
+
+// ── Hedef/Taban Kaydetme ─────────────────────────────────────────────────────
+async function saveDetailTargets() {
+  const symbol = '{{ symbol }}';
+  const hedef = document.getElementById('currentPriceInput').value;
+  const taban = document.getElementById('detail-taban').value;
+  const kazanc = document.getElementById('detail-kazanc').value;
+  const status = document.getElementById('detail-target-status');
+
+  try {
+    const resp = await fetch('/api/fiyatlar/targets', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        symbol,
+        hedef_fiyat: hedef || null,
+        taban_fiyat: taban || null,
+        hedef_dolar_kazanci: kazanc || null,
+      })
+    });
+    if (resp.ok) {
+      status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Kaydedildi</span>';
+      setTimeout(() => { status.innerHTML = ''; }, 3000);
+    } else {
+      status.innerHTML = '<span class="text-danger">Hata!</span>';
+    }
+  } catch(e) {
+    status.innerHTML = '<span class="text-danger">Hata: ' + e.message + '</span>';
+  }
+}
+
+// İşlem Ekle modal — direction'a göre form action ve buton rengi değişir
+function updateAddTxForm() {
+  const dir = document.getElementById('addtx-direction').value;
+  const form = document.getElementById('addTxForm');
+  const btn = document.getElementById('addtx-submit');
+  if (dir === 'Satış') {
+    form.action = '/sembol/{{ symbol }}/ekle-satis';
+    btn.className = 'btn btn-warning';
+  } else {
+    form.action = '/sembol/{{ symbol }}/ekle-alis';
+    btn.className = 'btn btn-success';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateAddTxForm();
+
+  // Live total calculation
+  const qty   = document.getElementById('addtx-qty');
+  const price = document.getElementById('addtx-price');
+  const total = document.getElementById('addtx-total');
+  function updateTotal() {
+    const q = parseFloat(qty?.value) || 0;
+    const p = parseFloat(price?.value) || 0;
+    if (total) total.textContent = '$' + (q * p).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  qty?.addEventListener('input', updateTotal);
+  price?.addEventListener('input', updateTotal);
+});
+</script>
+{% endblock %}

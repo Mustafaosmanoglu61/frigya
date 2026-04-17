@@ -1,0 +1,34 @@
+version: "1"
+
+services:
+  - type: web
+    name: tax-portfolio-web
+    runtime: python
+    plan: starter
+    rootDir: webapp
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    disk:
+      name: tax-db
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/tax.db
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: INITIAL_ADMIN_EMAIL
+        value: admin@tax-portfolio.local
+      - key: INITIAL_ADMIN_PASSWORD
+        generateValue: true
+      - key: DB_RESTORE_TOKEN
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false

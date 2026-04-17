@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ symbol }} — TradingView Chart</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #131722; }
+    #tv-container { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="tv-container"></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+  <script>
+    const symbol = "{{ tv_symbol }}";
+    new TradingView.widget({
+      container_id: "tv-container",
+      autosize: true,
+      symbol: symbol,
+      interval: "D",
+      timezone: "America/New_York",
+      theme: "dark",
+      style: "1",
+      locale: "tr",
+      toolbar_bg: "#1F4E79",
+      enable_publishing: false,
+      allow_symbol_change: true,
+      hide_side_toolbar: false,
+      details: true,
+      hotlist: false,
+      calendar: false,
+      studies: ["MASimple@tv-basicstudies", "RSI@tv-basicstudies"],
+      show_popup_button: true,
+      popup_width: "1000",
+      popup_height: "650",
+    });
+  </script>
+</body>
+</html>

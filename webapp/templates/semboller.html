@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Semboller {% if yil %}{{ yil }}{% else %}Tümü{% endif %} — Frigya{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h4 class="fw-bold text-dark mb-0">
+    <i class="bi bi-bar-chart-line me-2 text-primary"></i>Sembole Göre Özet
+  </h4>
+  <div>
+    <select class="form-select form-select-sm" style="width:auto;min-width:120px"
+            onchange="location.href='/semboller?yil='+this.value">
+      <option value="0" {% if yil == 0 %}selected{% endif %}>Tümü</option>
+      {% for y in available_years %}
+      <option value="{{ y }}" {% if y == yil %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+{% if totals %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Sembol</div>
+      <div class="fw-bold">{{ totals.symbol_count }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">İşlem</div>
+      <div class="fw-bold">{{ totals.total_trades }}
+        <span class="text-success small">({{ totals.winning_trades }}✓)</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Satış Geliri</div>
+      <div class="fw-bold">${{ "{:,.0f}".format(totals.total_proceeds or 0) }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Alış Maliyeti</div>
+      <div class="fw-bold">${{ "{:,.0f}".format(totals.total_cost or 0) }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Toplam KÂR</div>
+      <div class="fw-bold text-success">${{ "{:,.2f}".format(totals.total_profit or 0) }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Toplam ZARAR</div>
+      <div class="fw-bold text-danger">${{ "{:,.2f}".format(totals.total_loss or 0) }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card border-0 shadow-sm text-center py-2">
+      <div class="text-muted small">Net K/Z</div>
+      <div class="fw-bold {% if (totals.net_pnl or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+        ${{ "{:,.2f}".format(totals.net_pnl or 0) }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table id="symbols-table" class="table table-hover table-sm mb-0 align-middle">
+        <thead class="table-header-custom">
+          <tr>
+            <th>Sembol</th>
+            <th>Son Satış</th>
+            <th class="text-end">Son Fiyat</th>
+            <th class="text-end">İşlem</th>
+            <th class="text-end">Başarı %</th>
+            <th class="text-end">Toplam Adet</th>
+            <th class="text-end">Satış Geliri</th>
+            <th class="text-end">Alış Maliyeti</th>
+            <th class="text-end">Net K/Z</th>
+            <th class="text-end">K/Z %</th>
+            <th class="text-end">Toplam KÂR</th>
+            <th class="text-end">Toplam ZARAR</th>
+            <th class="text-center" style="width: 40px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr class="{% if r.net_pnl >= 0 %}row-kar{% else %}row-zarar{% endif %}">
+            <td>
+              <a href="/sembol/{{ r.symbol }}" class="symbol-link fw-bold">
+                {{ r.symbol }}
+                {% if r.eksik_lot_count %}<i class="bi bi-exclamation-triangle text-warning ms-1" title="Eksik lot"></i>{% endif %}
+              </a>
+            </td>
+            <td class="text-nowrap text-muted small">{{ r.last_sale_date or "—" }}</td>
+            <td class="text-end">${{ "{:,.2f}".format(r.last_sale_price or 0) }}</td>
+            <td class="text-end">
+              <span class="text-success">{{ r.winning_trades }}</span>/{{ r.total_trades }}
+            </td>
+            <td class="text-end">{{ "{:.1f}".format(r.success_rate * 100) }}%</td>
+            <td class="text-end">{{ r.total_quantity | fmtqty }}</td>
+            <td class="text-end">${{ "{:,.2f}".format(r.total_proceeds) }}</td>
+            <td class="text-end">${{ "{:,.2f}".format(r.total_cost) }}</td>
+            <td class="text-end fw-semibold {% if r.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+              ${{ "{:,.2f}".format(r.net_pnl) }}
+            </td>
+            <td class="text-end">
+              {% if r.pnl_pct is not none %}{{ "{:+.1f}".format(r.pnl_pct * 100) }}%{% else %}—{% endif %}
+            </td>
+            <td class="text-end text-success">${{ "{:,.2f}".format(r.total_profit) }}</td>
+            <td class="text-end text-danger">${{ "{:,.2f}".format(r.total_loss) }}</td>
+            <td class="text-center">
+              {% if r.last_tx_id %}
+              <form action="/semboller/sil/{{ r.last_tx_id }}" method="post" style="display: inline;">
+                <input type="hidden" name="yil" value="{{ yil }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Son satışı sil"
+                        onclick="return confirm('{{ r.symbol }} son satışını silmek istediğinize emin misiniz?');">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="13" class="text-center text-muted py-4">Veri yok</td></tr>
+          {% endfor %}
+        </tbody>
+        {% if totals and rows %}
+        <tfoot class="table-total-row">
+          <tr class="fw-bold">
+            <td colspan="6">TOPLAM ({{ totals.symbol_count }} sembol)</td>
+            <td class="text-end">${{ "{:,.2f}".format(totals.total_proceeds or 0) }}</td>
+            <td class="text-end">${{ "{:,.2f}".format(totals.total_cost or 0) }}</td>
+            <td class="text-end {% if (totals.net_pnl or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+              ${{ "{:,.2f}".format(totals.net_pnl or 0) }}
+            </td>
+            <td></td>
+            <td class="text-end text-success">${{ "{:,.2f}".format(totals.total_profit or 0) }}</td>
+            <td class="text-end text-danger">${{ "{:,.2f}".format(totals.total_loss or 0) }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    initTableSort('symbols-table');
+  });
+</script>
+{% endblock %}

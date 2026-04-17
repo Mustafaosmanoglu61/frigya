@@ -1,0 +1,1642 @@
+{% extends "base.html" %}
+{% block title %}Fiyatlar & İzleme Listesi — Frigya{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <h4 class="fw-bold text-dark mb-0">
+    <i class="bi bi-currency-dollar me-2 text-primary"></i>Fiyatlar & İzleme Listesi
+  </h4>
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <small class="text-muted">Son: <span id="son-guncelleme">Hiç güncellenmedi</span></small>
+    <button id="btn-guncelle" class="btn btn-primary btn-sm" onclick="guncelle()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Güncelle
+    </button>
+    <div class="d-flex align-items-center gap-2">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()">
+        <label class="form-check-label small" for="auto-refresh-toggle">Otomatik</label>
+      </div>
+      <select id="refresh-interval" class="form-select form-select-sm" style="width:auto;min-width:80px" onchange="updateRefreshInterval()">
+        <option value="30">30sn</option>
+        <option value="60" selected>1dk</option>
+        <option value="120">2dk</option>
+        <option value="300">5dk</option>
+      </select>
+      <span id="refresh-countdown" class="badge bg-light text-secondary border" style="min-width:40px;display:none">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- Nav Tabs -->
+<ul class="nav nav-tabs mb-3" id="fiyatlarTabs">
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'pozisyonlar' %}active{% endif %}"
+       href="/fiyatlar?tab=pozisyonlar">
+      <i class="bi bi-wallet2 me-1"></i>Açık Pozisyonlar
+      <span class="badge bg-secondary ms-1">{{ positions|length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'watchlist' %}active{% endif %}"
+       href="/fiyatlar?tab=watchlist">
+      <i class="bi bi-eye me-1"></i>İzleme Listesi
+      <span class="badge bg-secondary ms-1">{{ watchlist|length }}</span>
+    </a>
+  </li>
+</ul>
+
+<!-- Tab: Açık Pozisyonlar — Grid Widget -->
+<div id="tab-pozisyonlar" {% if active_tab != 'pozisyonlar' %}style="display:none"{% endif %}>
+  {% if positions %}
+  <div class="pos-grid" id="pos-grid">
+    {% for r in positions %}
+    {% set t = targets.get(r.symbol, {}) %}
+    {% set rs = realized_summary.get(r.symbol, {}) %}
+    {% set avg_price = r.avg_buy_price or (r.total_cost / r.total_qty if r.total_qty > 0 else 0) %}
+    <div class="pos-card"
+         data-symbol="{{ r.symbol }}"
+         data-qty="{{ r.total_qty }}"
+         data-cost="{{ r.total_cost }}"
+         data-avg-price="{{ "%.4f"|format(avg_price) }}"
+         data-taban="{{ t.get('taban_fiyat', '') or '' }}"
+         data-hedef="{{ t.get('hedef_fiyat', '') or '' }}"
+         data-hedef-kazanc="{{ t.get('hedef_dolar_kazanci', '') or '' }}"
+         data-stop="{{ t.get('stop_fiyat', '') or '' }}"
+         data-realized-profit="{{ rs.get('total_profit', 0) or 0 }}"
+         data-realized-loss="{{ rs.get('total_loss', 0) or 0 }}">
+
+      <!-- Üst: Sembol + durum + gear -->
+      <div class="pc-top">
+        <a href="#" class="pc-symbol" onclick="openTwChart('{{ r.symbol }}');return false">{{ r.symbol }}</a>
+        <span data-field="market-state"></span>
+        <span class="pc-spacer"></span>
+        <span class="pc-qty-badge">{{ r.total_qty | fmtqty }} adet</span>
+        <button class="pc-icon-btn" onclick="openTargetModal('{{ r.symbol }}', this.closest('.pos-card'))" title="Hedef Ayarla">
+          <i class="bi bi-gear-fill"></i>
+        </button>
+      </div>
+
+      <!-- Fiyat + Değişim + After Hours -->
+      <div class="pc-price-line">
+        <span class="pc-price" data-field="current-price">—</span>
+        <span class="pc-change" data-field="change-pct"></span>
+        <span class="pc-ext" data-field="extended-hours"></span>
+      </div>
+
+      <!-- 3-sütun metrik: Maliyet | P. Değer | Adet -->
+      <div class="pc-grid pc-grid-3">
+        <div class="pc-cell">
+          <span class="pc-cell-lbl">Maliyet</span>
+          <span class="pc-cell-val">${{ "{:,.0f}".format(r.total_cost) }}</span>
+        </div>
+        <div class="pc-cell">
+          <span class="pc-cell-lbl">P. Değer</span>
+          <span class="pc-cell-val" data-field="market-value">—</span>
+        </div>
+        <div class="pc-cell">
+          <span class="pc-cell-lbl">Adet</span>
+          <span class="pc-cell-val">{{ r.total_qty | fmtqty }}</span>
+        </div>
+      </div>
+
+      <!-- 2-sütun: Günlük Getiri | Toplam K/Z -->
+      <div class="pc-grid pc-grid-2">
+        <div class="pc-cell">
+          <span class="pc-cell-lbl">Günlük K/Z</span>
+          <span class="pc-cell-val" data-field="daily-pnl">—</span>
+        </div>
+        <div class="pc-cell">
+          <span class="pc-cell-lbl">Günlük %</span>
+          <span class="pc-cell-val" data-field="daily-pnl-pct">—</span>
+        </div>
+      </div>
+      <div class="pc-grid pc-grid-2">
+        <div class="pc-cell">
+          <span class="pc-cell-lbl">Toplam K/Z</span>
+          <span class="pc-cell-val" data-field="unrealized-pnl">—</span>
+        </div>
+        <div class="pc-cell">
+          <span class="pc-cell-lbl">Toplam %</span>
+          <span class="pc-cell-val" data-field="unrealized-pnl-pct">—</span>
+        </div>
+      </div>
+
+      <!-- Hedef/Taban progress bar -->
+      <div class="pc-target-bar">
+        {% if t.get('taban_fiyat') or t.get('hedef_fiyat') %}
+        <div class="pc-range">
+          <div class="pc-range-track">
+            <div class="pc-range-fill" data-field="range-fill"></div>
+            <div class="pc-range-dot" data-field="range-dot"></div>
+          </div>
+          <div class="pc-range-labels">
+            <span class="pc-range-lo">{% if t.get('taban_fiyat') %}${{ "%.1f"|format(t.get('taban_fiyat')) }}{% endif %}</span>
+            <span class="pc-range-hi">{% if t.get('hedef_fiyat') %}${{ "%.1f"|format(t.get('hedef_fiyat')) }}{% endif %}</span>
+          </div>
+        </div>
+        <div class="pc-dist-row">
+          {% if t.get('taban_fiyat') %}
+          <span class="pc-dist" data-field="taban-dist">↓ —</span>
+          {% endif %}
+          {% if t.get('hedef_fiyat') %}
+          <span class="pc-dist" data-field="hedef-dist">↑ —</span>
+          {% endif %}
+          <span class="pc-dist pc-dist-target" data-field="hedef-value">
+            {% if t.get('hedef_fiyat') %}
+            Hedef Kar: {{ "{:+,.0f}".format(r.total_qty * t.get('hedef_fiyat') - r.total_cost) }}$
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Gerçekleşen K/Z + Hedef Kar -->
+      <div class="pc-realized-row">
+        <div class="pc-grid pc-grid-2">
+          <div class="pc-cell">
+            <span class="pc-cell-lbl">Gerçekleşen K/Z</span>
+            {% if rs.get('net_pnl') is not none %}
+            <span class="pc-cell-val {% if rs.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ "{:+,.0f}".format(rs.net_pnl) }}$
+            </span>
+            {% else %}
+            <span class="pc-cell-val text-muted">—</span>
+            {% endif %}
+          </div>
+          <div class="pc-cell">
+            <span class="pc-cell-lbl">Hedef Kar</span>
+            <span class="pc-cell-val" data-field="hedef-kar">
+              {% if t.get('hedef_fiyat') %}
+              ${{ "{:,.0f}".format(r.total_qty * t.get('hedef_fiyat') - r.total_cost) }}
+              {% else %}—{% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Çıkış Hesapla -->
+      <div class="pc-stop-row">
+        <span class="pc-cell-lbl">Çıkış Hesapla</span>
+        {% if t.get('stop_fiyat') %}
+        <span class="pc-stop-val">${{ "%.2f"|format(t.get('stop_fiyat')) }}</span>
+        <span data-field="stop-info" class="pc-stop-info">—</span>
+        {% else %}
+        <span class="pc-stop-val text-muted">—</span>
+        {% endif %}
+        <button class="pc-calc-btn" onclick="openExitCalcModal('{{ r.symbol }}', this.closest('.pos-card'))" title="Çıkış Fiyatı Gir">
+          <i class="bi bi-calculator"></i>
+        </button>
+      </div>
+
+      <!-- Alt bilgi: Son alış | Son satış | Son işlem tarihi -->
+      <div class="pc-footer-info">
+        <span>Ort: ${{ "%.2f"|format(avg_price) }}</span>
+        {% if rs.get('last_sale_price') %}
+        <span>S.Satış: ${{ "%.2f"|format(rs.last_sale_price) }}</span>
+        {% endif %}
+        {% if rs.get('last_sale_date') %}
+        <span>{{ rs.last_sale_date }}</span>
+        {% endif %}
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>Bu portföyde açık pozisyon yok.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Tab: İzleme Listesi -->
+<div id="tab-watchlist" {% if active_tab != 'watchlist' %}style="display:none"{% endif %}>
+  <!-- Üst toolbar -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <input type="text" id="wl-symbol" class="form-control form-control-sm"
+               placeholder="Sembol gir (örn: AAPL)" style="max-width:180px;text-transform:uppercase"
+               oninput="this.value=this.value.toUpperCase()">
+        <button class="btn btn-success btn-sm" onclick="watchlistEkle()">
+          <i class="bi bi-plus-lg me-1"></i>Ekle
+        </button>
+        <span id="wl-status" class="align-self-center small"></span>
+        <button class="btn btn-outline-info btn-sm" onclick="toggleWLSplit()" title="Listeyi böle (TW tarzı)">
+          <i class="bi bi-columns-gap me-1"></i><span id="split-btn-text">Böl</span>
+        </button>
+        <!-- Kolon seçici -->
+        <div class="ms-auto dropdown" id="col-picker-dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                  data-bs-toggle="dropdown" data-bs-auto-close="outside" title="Kolonları özelleştir">
+            <i class="bi bi-layout-three-columns me-1"></i>Kolonlar
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end p-2"
+              style="min-width:200px;max-height:380px;overflow-y:auto" id="col-picker-menu">
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if watchlist %}
+  <div class="wl-container" id="wl-container">
+    <div class="wl-pane" id="wl-pane-1" data-pane-name="Pane 1">
+      <div class="wl-pane-header">
+        <h6 class="wl-pane-title" id="pane-1-title">Pane 1</h6>
+        <button class="btn btn-sm btn-link p-0 text-secondary" onclick="editPaneTitle(1)" title="İsmini düzenle">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-link p-0 text-secondary ms-2" onclick="swapPanes()" title="Pane'leri değiştir">
+          <i class="bi bi-arrow-left-right"></i>
+        </button>
+      </div>
+      <div class="wl-table-wrap">
+        <table class="table table-hover table-sm align-middle wl-table mb-0" id="wl-table">
+      <thead class="table-dark">
+        <tr>
+          <th class="wl-sticky-first">Sembol</th>
+          <th class="text-end" data-col="fiyat">Fiyat / Değişim</th>
+          <th class="text-end" data-col="aftermarket">After Market</th>
+          <th class="text-end" data-col="taban">Taban</th>
+          <th class="text-end" data-col="hedef">Hedef</th>
+          <th class="text-end" data-col="taban-dist">Tabana %</th>
+          <th class="text-end" data-col="hedef-dist">Hedefe %</th>
+          <th class="text-end" data-col="avg-cost">Ort. Maliyet</th>
+          <th class="text-end" data-col="son-alis-fiyat">Son Alış</th>
+          <th class="text-end" data-col="son-satis-fiyat">Son Satış</th>
+          <th class="text-end" data-col="satis-sonrasi">Satış Sonrası %</th>
+          <th class="text-end" data-col="alis-gun">Alıştan Gün</th>
+          <th class="text-end" data-col="satis-gun">Satıştan Gün</th>
+          <th class="text-end" data-col="son-satis-lot">S.Satış Lot</th>
+          <th class="text-end" data-col="son-alis-tutar">S.Alış Tutar</th>
+          <th class="text-end" data-col="son-satis-tutar">S.Satış Tutar</th>
+          <th class="text-end" data-col="son-alis-lot">S.Alış Lot</th>
+          <th class="text-end" data-col="son-kz-pct">Son K/Z %</th>
+          <th class="text-center" data-col="durum">Durum</th>
+          <th class="text-center wl-sticky-last" style="min-width:80px"></th>
+        </tr>
+      </thead>
+      <tbody id="wl-tbody">
+        {% for w in watchlist %}
+        {% set t = targets.get(w['symbol'], {}) %}
+        <tr data-symbol="{{ w['symbol'] }}"
+            data-wl-id="{{ w['id'] }}"
+            data-taban="{{ t.get('taban_fiyat', '') or '' }}"
+            data-hedef="{{ t.get('hedef_fiyat', '') or '' }}"
+            data-last-sell-price="{{ w['last_sell_price'] or '' }}">
+
+          <td class="wl-sticky-first">
+            <a href="#" class="fw-bold text-decoration-none symbol-link"
+               onclick="openTvModal('{{ w['symbol'] }}');return false">{{ w['symbol'] }}</a>
+            {% if w['notes'] %}
+            <span class="ms-1 note-dot" title="{{ w['notes'] }}">
+              <i class="bi bi-sticky-fill text-warning" style="font-size:0.7rem"></i>
+            </span>
+            {% endif %}
+          </td>
+
+          <td class="text-end" data-col="fiyat" data-field="wl-fiyat-cell">—</td>
+          <td class="text-end" data-col="aftermarket" data-field="extended-hours">—</td>
+
+          <td class="text-end" data-col="taban" data-field="taban-price">
+            {{ "$%.2f"|format(t.get('taban_fiyat')) if t.get('taban_fiyat') else '—' }}
+          </td>
+          <td class="text-end" data-col="hedef" data-field="hedef-price">
+            {{ "$%.2f"|format(t.get('hedef_fiyat')) if t.get('hedef_fiyat') else '—' }}
+          </td>
+
+          <td class="text-end" data-col="taban-dist" data-field="taban-dist">—</td>
+          <td class="text-end" data-col="hedef-dist" data-field="hedef-dist">—</td>
+
+          <td class="text-end" data-col="avg-cost">
+            {% if w['avg_cost'] %}
+              <span class="fw-semibold">${{ "%.2f"|format(w['avg_cost']) }}</span>
+              {% if w['total_qty'] %}<br><span class="small text-muted">{{ w['total_qty'] | fmtqty }} adet</span>{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-end" data-col="son-alis-fiyat">
+            {{ "$%.2f"|format(w['last_buy_price']) if w['last_buy_price'] else '—' }}
+          </td>
+          <td class="text-end" data-col="son-satis-fiyat">
+            {{ "$%.2f"|format(w['last_sell_price']) if w['last_sell_price'] else '—' }}
+          </td>
+
+          <td class="text-end" data-col="satis-sonrasi" data-field="satis-sonrasi">—</td>
+
+          <td class="text-end text-muted small" data-col="alis-gun">
+            {% if w['last_buy_days'] is not none %}{{ w['last_buy_days'] }}g{% else %}—{% endif %}
+          </td>
+          <td class="text-end text-muted small" data-col="satis-gun">
+            {% if w['last_sell_days'] is not none %}{{ w['last_sell_days'] }}g{% else %}—{% endif %}
+          </td>
+          <td class="text-end" data-col="son-satis-lot">
+            {{ w['last_sell_qty'] | fmtqty if w['last_sell_qty'] else '—' }}
+          </td>
+          <td class="text-end" data-col="son-alis-tutar">
+            {{ "$%.0f"|format(w['last_buy_total']) if w['last_buy_total'] else '—' }}
+          </td>
+          <td class="text-end" data-col="son-satis-tutar">
+            {{ "$%.0f"|format(w['last_sell_total']) if w['last_sell_total'] else '—' }}
+          </td>
+          <td class="text-end" data-col="son-alis-lot">
+            {{ w['last_buy_qty'] | fmtqty if w['last_buy_qty'] else '—' }}
+          </td>
+
+          <td class="text-end" data-col="son-kz-pct">
+            {% if w['last_pnl_pct'] is not none %}
+            <span class="fw-semibold {{ 'text-success' if w['last_pnl_pct'] >= 0 else 'text-danger' }}">
+              {{ "{:+.2f}".format(w['last_pnl_pct'] * 100) }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+
+          <td class="text-center" data-col="durum" data-field="durum">
+            <span class="badge bg-light text-secondary border">—</span>
+          </td>
+
+          <td class="text-center wl-sticky-last">
+            <button class="btn btn-sm btn-link p-0 me-1 wl-act-btn"
+                    onclick="openNoteModal('{{ w['symbol'] }}', {{ w['id'] }}, this)"
+                    data-note="{{ (w['notes'] or '') | replace('"', '&quot;') }}"
+                    title="Not">
+              <i class="bi bi-sticky{% if w['notes'] %}-fill text-warning{% endif %}"></i>
+            </button>
+            <button class="btn btn-sm btn-link p-0 me-1 wl-act-btn text-secondary"
+                    onclick="openTargetModal('{{ w['symbol'] }}', this.closest('tr'))"
+                    title="Hedef Ayarla">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            <button class="btn btn-sm btn-link p-0 text-danger wl-act-btn"
+                    onclick="watchlistSil({{ w['id'] }}, this)">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+      </div>
+    </div>
+    <div class="wl-pane" id="wl-pane-2" style="display:none" data-pane-name="Pane 2">
+      <div class="wl-pane-header">
+        <h6 class="wl-pane-title" id="pane-2-title">Pane 2</h6>
+        <button class="btn btn-sm btn-link p-0 text-secondary" onclick="editPaneTitle(2)" title="İsmini düzenle">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-link p-0 text-secondary ms-2" onclick="swapPanes()" title="Pane'leri değiştir">
+          <i class="bi bi-arrow-left-right"></i>
+        </button>
+      </div>
+      <div class="wl-table-wrap">
+        <table class="table table-hover table-sm align-middle wl-table mb-0" id="wl-table-2">
+          <thead class="table-dark">
+            <tr>
+              <th class="wl-sticky-first">Sembol</th>
+              <th class="text-end" data-col="fiyat">Fiyat / Değişim</th>
+              <th class="text-end" data-col="aftermarket">After Market</th>
+              <th class="text-end" data-col="taban">Taban</th>
+              <th class="text-end" data-col="hedef">Hedef</th>
+              <th class="text-end" data-col="taban-dist">Tabana %</th>
+              <th class="text-end" data-col="hedef-dist">Hedefe %</th>
+              <th class="text-end" data-col="avg-cost">Ort. Maliyet</th>
+              <th class="text-end" data-col="son-alis-fiyat">Son Alış</th>
+              <th class="text-end" data-col="son-satis-fiyat">Son Satış</th>
+              <th class="text-end" data-col="satis-sonrasi">Satış Sonrası %</th>
+              <th class="text-end" data-col="alis-gun">Alıştan Gün</th>
+              <th class="text-end" data-col="satis-gun">Satıştan Gün</th>
+              <th class="text-end" data-col="son-satis-lot">S.Satış Lot</th>
+              <th class="text-end" data-col="son-alis-tutar">S.Alış Tutar</th>
+              <th class="text-end" data-col="son-satis-tutar">S.Satış Tutar</th>
+              <th class="text-end" data-col="son-alis-lot">S.Alış Lot</th>
+              <th class="text-end" data-col="son-kz-pct">Son K/Z %</th>
+              <th class="text-center" data-col="durum">Durum</th>
+              <th class="text-center wl-sticky-last" style="min-width:80px"></th>
+            </tr>
+          </thead>
+          <tbody id="wl-tbody-2">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info" id="wl-empty">
+    <i class="bi bi-info-circle me-2"></i>İzleme listesi boş. Yukarıdan sembol ekleyebilirsiniz.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Not Modal -->
+<div class="modal fade" id="noteModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary-custom text-white py-2">
+        <h6 class="modal-title mb-0" id="noteModalLabel">— Not</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="note-wl-id">
+        <input type="hidden" id="note-symbol">
+        <textarea id="note-text" class="form-control form-control-sm" rows="4"
+                  placeholder="Not ekle (boş bırakırsan silinir)..."></textarea>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">İptal</button>
+        <button class="btn btn-primary btn-sm" onclick="saveNote()">
+          <i class="bi bi-check-lg me-1"></i>Kaydet
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hedef/Taban Modal -->
+<div class="modal fade" id="targetModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary-custom text-white py-2">
+        <h6 class="modal-title mb-0" id="targetModalLabel">— Hedef Ayarla</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tgt-symbol">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Taban Fiyat ($)</label>
+          <input type="number" id="tgt-taban" class="form-control form-control-sm" step="0.01" min="0" placeholder="Destek seviyesi">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Hedef Fiyat ($)</label>
+          <input type="number" id="tgt-hedef" class="form-control form-control-sm" step="0.01" min="0" placeholder="Direnç seviyesi">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Hedef Kazanç ($)</label>
+          <input type="number" id="tgt-kazanc" class="form-control form-control-sm" step="0.01" min="0" placeholder="Opsiyonel">
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-outline-danger btn-sm" onclick="clearTarget()">
+          <i class="bi bi-x-lg me-1"></i>Temizle
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="saveTarget()">
+          <i class="bi bi-check-lg me-1"></i>Kaydet
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Çıkış Hesapla Modal (sadece fiyat girişi) -->
+<div class="modal fade" id="exitCalcModal" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary-custom text-white py-2">
+        <h6 class="modal-title mb-0" id="exitCalcModalLabel">— Çıkış Hesapla</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="exit-symbol">
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Çıkış Fiyatı ($)</label>
+          <input type="number" id="exit-price" class="form-control form-control-sm" step="0.01" min="0" placeholder="Çıkmak istediğiniz fiyat">
+        </div>
+        <div id="exit-calc-result" class="small text-muted"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button class="btn btn-outline-danger btn-sm" onclick="clearExitPrice()">
+          <i class="bi bi-x-lg me-1"></i>Temizle
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="saveExitPrice()">
+          <i class="bi bi-check-lg me-1"></i>Kaydet
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TradingView Modal (iframe-based) -->
+<div class="modal fade" id="tvModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary-custom text-white py-2">
+        <h5 class="modal-title mb-0" id="tvModalLabel">—</h5>
+        <a id="tv-detail-link" href="#" class="btn btn-sm btn-outline-light ms-2">
+          <i class="bi bi-box-arrow-up-right me-1"></i>Detay
+        </a>
+        <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" style="height:550px">
+        <iframe id="tv-iframe" style="width:100%;height:100%;border:none" src="about:blank"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TradingView Ticker Tape Footer -->
+<div class="tv-ticker-footer">
+  <tv-ticker-tape symbols="FOREXCOM:SPXUSD,BITSTAMP:BTCUSD,BITSTAMP:ETHUSD,CMCMARKETS:GOLD,TVC:SILVER,TVC:UKOIL,PEPPERSTONE:US2000,SPREADEX:NIKKEI,CAPITALCOM:US100,TVC:VIX" item-size="compact" hover-type="performance-grid" show-hover></tv-ticker-tape>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Fiyat güncelle ──────────────────────────────────────────────────────────
+let _autoRefreshTimer = null;
+let _countdownTimer = null;
+let _countdownSec = 0;
+
+async function guncelle() {
+  const btn = document.getElementById('btn-guncelle');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Güncelleniyor...';
+  try {
+    await fetchPricesSilent();
+  } catch(e) {
+    // sessiz
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Güncelle';
+  }
+}
+
+// ── Otomatik güncelleme (Global motora bağlı) ────────────────────────────
+
+function toggleAutoRefresh() {
+  const on = document.getElementById('auto-refresh-toggle').checked;
+  const badge = document.getElementById('refresh-countdown');
+  const sec = parseInt(document.getElementById('refresh-interval').value) || 60;
+
+  // localStorage'a kaydet (base.html motoru okur)
+  localStorage.setItem(LS_PRICE_ENABLED, on ? 'true' : 'false');
+  localStorage.setItem(LS_PRICE_INTERVAL, sec);
+
+  if (on) {
+    badge.style.display = '';
+    fetchPricesSilent();  // İlk güncelleme hemen
+    startPriceEngine();   // Global motoru başlat
+    startCountdown();
+  } else {
+    if (_priceRefreshTimer) clearInterval(_priceRefreshTimer);
+    clearInterval(_countdownTimer);
+    badge.style.display = 'none';
+  }
+}
+
+function startCountdown() {
+  clearInterval(_countdownTimer);
+  const sec = parseInt(localStorage.getItem(LS_PRICE_INTERVAL)) || 60;
+  _countdownSec = sec;
+
+  updateCountdownBadge();
+  _countdownTimer = setInterval(() => {
+    _countdownSec--;
+    if (_countdownSec <= 0) _countdownSec = sec;
+    updateCountdownBadge();
+  }, 1000);
+}
+
+function updateCountdownBadge() {
+  const badge = document.getElementById('refresh-countdown');
+  if (!badge) return;
+  const m = Math.floor(_countdownSec / 60);
+  const s = _countdownSec % 60;
+  badge.textContent = m > 0 ? `${m}:${s.toString().padStart(2,'0')}` : `${s}s`;
+}
+
+function updateRefreshInterval() {
+  const sec = parseInt(document.getElementById('refresh-interval').value) || 60;
+  localStorage.setItem(LS_PRICE_INTERVAL, sec);
+
+  if (document.getElementById('auto-refresh-toggle').checked) {
+    startPriceEngine();
+    startCountdown();
+  }
+}
+
+// Sayfa açılınca: otomatik açıksa countdown'u başlat
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem(LS_PRICE_ENABLED) === 'true') {
+    startCountdown();
+  }
+});
+
+// ── DOM güncelle — hem card hem tr destekler ─────────────────────────────────
+function updatePriceRows(prices) {
+  document.querySelectorAll('[data-symbol]').forEach(el => {
+    // Sadece direkt veri taşıyan elementleri işle (tr veya .pos-card)
+    if (!el.matches('tr[data-symbol], .pos-card[data-symbol]')) return;
+
+    const sym = el.dataset.symbol;
+    const p = prices[sym];
+    if (!p || p.error) {
+      if (p && p.error) {
+        const cp = el.querySelector('[data-field="current-price"]');
+        if (cp) cp.innerHTML = '<span class="badge bg-warning text-dark">⚠ Hata</span>';
+      }
+      return;
+    }
+
+    // Watchlist TR: fiyat + değişim tek hücre
+    const wlFiyatEl = el.querySelector('[data-field="wl-fiyat-cell"]');
+    if (wlFiyatEl && p.current_price != null) {
+      const sign   = (p.change_pct ?? 0) >= 0 ? '+' : '';
+      const chgCls = (p.change_pct ?? 0) >= 0 ? 'text-success' : 'text-danger';
+      const chgTxt = p.change_pct != null ? `<span class="${chgCls} fw-semibold small">${sign}${p.change_pct.toFixed(2)}%</span>` : '';
+      wlFiyatEl.innerHTML = `$${p.current_price.toFixed(2)}<br>${chgTxt}`;
+    }
+
+    // pos-card: fiyat
+    const priceEl = el.querySelector('[data-field="current-price"]');
+    if (priceEl) {
+      priceEl.textContent = p.current_price != null ? '$' + p.current_price.toFixed(2) : '—';
+    }
+
+    // pos-card: değişim %
+    if (p.change_pct != null) {
+      const sign = p.change_pct >= 0 ? '+' : '';
+      const txt = sign + p.change_pct.toFixed(2) + '%';
+      const chgEl = el.querySelector('[data-field="change-pct"]');
+      if (chgEl) {
+        chgEl.textContent = txt;
+        chgEl.className = chgEl.className.replace(/pos-change-up|pos-change-down|text-success|text-danger/g, '').trim();
+        chgEl.classList.add(p.change_pct >= 0 ? 'pos-change-up' : 'pos-change-down');
+      }
+    }
+
+    // Piyasa Değeri + K/Z + Günlük K/Z
+    const qty  = parseFloat(el.dataset.qty  || '0');
+    const cost = parseFloat(el.dataset.cost || '0');
+    if (qty > 0 && p.current_price != null) {
+      const mv   = qty * p.current_price;
+      const upnl = mv - cost;
+      const upct = cost > 0 ? upnl / cost * 100 : null;
+
+      const mvEl = el.querySelector('[data-field="market-value"]');
+      if (mvEl) mvEl.textContent = '$' + mv.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+
+      const pnlEl = el.querySelector('[data-field="unrealized-pnl"]');
+      if (pnlEl) {
+        pnlEl.textContent = (upnl >= 0 ? '+' : '') + '$' + Math.abs(upnl).toFixed(0);
+        pnlEl.className = 'pc-cell-val ' + (upnl >= 0 ? 'text-success' : 'text-danger');
+      }
+
+      const pctEl = el.querySelector('[data-field="unrealized-pnl-pct"]');
+      if (pctEl && upct != null) {
+        pctEl.textContent = (upct >= 0 ? '+' : '') + upct.toFixed(1) + '%';
+        pctEl.className = 'pc-cell-val ' + (upct >= 0 ? 'text-success' : 'text-danger');
+      }
+
+      // Günlük K/Z (change_pct × prev market value)
+      if (p.change_pct != null && p.prev_close != null) {
+        const prevMv = qty * p.prev_close;
+        const dailyPnl = mv - prevMv;
+        const dailyPct = p.change_pct;
+
+        const dpEl = el.querySelector('[data-field="daily-pnl"]');
+        if (dpEl) {
+          dpEl.textContent = (dailyPnl >= 0 ? '+' : '') + '$' + Math.abs(dailyPnl).toFixed(0);
+          dpEl.className = 'pc-cell-val ' + (dailyPnl >= 0 ? 'text-success' : 'text-danger');
+        }
+        const dppEl = el.querySelector('[data-field="daily-pnl-pct"]');
+        if (dppEl) {
+          dppEl.textContent = (dailyPct >= 0 ? '+' : '') + dailyPct.toFixed(2) + '%';
+          dppEl.className = 'pc-cell-val ' + (dailyPct >= 0 ? 'text-success' : 'text-danger');
+        }
+      }
+    }
+
+    // Market state badge
+    const ms = el.querySelector('[data-field="market-state"]');
+    if (ms && p.market_state) {
+      const cfg = {
+        'REGULAR': ['badge-market-open',  'Açık'],
+        'PRE':     ['badge-market-pre',   'Pre'],
+        'POST':    ['badge-market-post',  'Post'],
+        'CLOSED':  ['badge-market-closed','Kapalı'],
+      };
+      const [cls, label] = cfg[p.market_state] || ['badge-market-closed', p.market_state];
+      ms.innerHTML = `<span class="pos-market-badge ${cls}">${label}</span>`;
+    }
+
+    // Extended hours
+    const ehEl = el.querySelector('[data-field="extended-hours"]');
+    if (ehEl) {
+      if (p.extended_hours_price != null && p.market_state !== 'REGULAR') {
+        const ehPrice = '$' + p.extended_hours_price.toFixed(2);
+        const ehChg = p.extended_hours_change_pct;
+        if (ehChg != null) {
+          const sign = ehChg >= 0 ? '+' : '';
+          const cls  = ehChg >= 0 ? 'text-success' : 'text-danger';
+          ehEl.innerHTML = `<span class="small">${ehPrice} <span class="${cls} fw-semibold">${sign}${ehChg.toFixed(2)}%</span></span>`;
+        } else {
+          ehEl.textContent = ehPrice;
+        }
+      } else {
+        ehEl.textContent = '';
+      }
+    }
+
+    // ── Taban / Hedef mesafe & alert ──────────────────────────────────────────
+    if (p.current_price != null) {
+      const taban = parseFloat(el.dataset.taban) || 0;
+      const hedef = parseFloat(el.dataset.hedef) || 0;
+      const price = p.current_price;
+
+      // Taban mesafesi
+      const tabanEl = el.querySelector('[data-field="taban-dist"]');
+      if (tabanEl && taban > 0) {
+        const dist   = ((price - taban) / price * 100);
+        const broken = price <= taban;
+        const txt    = broken ? '⚠ Kırıldı!' : '↓ ' + dist.toFixed(1) + '%';
+        if (tabanEl.tagName === 'TD') {
+          tabanEl.textContent = txt;
+          tabanEl.className = 'text-end fw-semibold ' +
+            (broken ? 'text-danger' : dist <= 5 ? 'text-warning' : 'text-muted');
+        } else {
+          tabanEl.textContent = txt;
+          tabanEl.className = 'pc-dist ' +
+            (broken ? 'dist-broken' : dist <= 5 ? 'dist-near-taban' : dist <= 10 ? 'dist-warn-taban' : '');
+        }
+      }
+
+      // Hedef mesafesi
+      const hedefEl = el.querySelector('[data-field="hedef-dist"]');
+      if (hedefEl && hedef > 0) {
+        const dist = ((hedef - price) / price * 100);
+        const hit  = price >= hedef;
+        const txt  = hit ? '✓ Aşıldı!' : '↑ ' + dist.toFixed(1) + '%';
+        if (hedefEl.tagName === 'TD') {
+          hedefEl.textContent = txt;
+          hedefEl.className = 'text-end fw-semibold ' +
+            (hit ? 'text-success' : dist <= 5 ? 'text-info' : 'text-muted');
+        } else {
+          hedefEl.textContent = txt;
+          hedefEl.className = 'pc-dist ' +
+            (hit ? 'dist-hit' : dist <= 5 ? 'dist-near-hedef' : dist <= 15 ? 'dist-warn-hedef' : '');
+        }
+      }
+
+      // Hedef Kar (adet × hedef fiyat - maliyet)
+      const hedefValEl = el.querySelector('[data-field="hedef-value"]');
+      if (hedefValEl && hedef > 0) {
+        const qty = parseFloat(el.dataset.qty || 0);
+        const cost = parseFloat(el.dataset.cost || 0);
+        const potentialPnl = qty * hedef - cost;
+        hedefValEl.innerHTML = 'Hedef Kar: <span class="' + (potentialPnl >= 0 ? 'text-success' : 'text-danger') + '">' +
+          (potentialPnl >= 0 ? '+' : '') + '$' + Math.abs(potentialPnl).toFixed(0) + '</span>';
+        hedefValEl.className = 'pc-dist pc-dist-target';
+      }
+
+      // Range bar
+      const fillEl = el.querySelector('[data-field="range-fill"]');
+      const dotEl  = el.querySelector('[data-field="range-dot"]');
+      if (fillEl && taban > 0 && hedef > 0 && hedef > taban) {
+        const pct = Math.max(0, Math.min(100, (price - taban) / (hedef - taban) * 100));
+        fillEl.style.width = pct + '%';
+        fillEl.className = 'pc-range-fill ' + (pct >= 100 ? 'fill-hit' : pct >= 70 ? 'fill-good' : pct >= 30 ? 'fill-mid' : 'fill-low');
+        if (dotEl) dotEl.style.left = Math.min(95, pct) + '%';
+      }
+
+      // ── Kart alert animasyonu (hedef/taban) ──────────────────────────────
+      el.classList.remove('card-alert-danger','card-alert-warning','card-alert-success','card-alert-hit');
+      if (taban > 0) {
+        const tabanDist = (price - taban) / price * 100;
+        if (price <= taban)            el.classList.add('card-alert-danger');
+        else if (tabanDist <= 5)       el.classList.add('card-alert-warning');
+      }
+      if (hedef > 0) {
+        const hedefDist = (hedef - price) / price * 100;
+        if (price >= hedef)            el.classList.add('card-alert-hit');
+        else if (hedefDist <= 5)       el.classList.add('card-alert-success');
+      }
+    }
+
+    // ── Günlük performansa göre border rengi ────────────────────────────────
+    el.classList.remove('card-day-up','card-day-up-strong','card-day-down','card-day-down-strong');
+    if (p.change_pct != null) {
+      const chg = p.change_pct;
+      if (chg >= 10)       el.classList.add('card-day-up-strong');
+      else if (chg > 0)    el.classList.add('card-day-up');
+      else if (chg <= -10) el.classList.add('card-day-down-strong');
+      else if (chg < 0)    el.classList.add('card-day-down');
+    }
+
+    // ── Günlük Stop Fiyat hesaplama ──────────────────────────────────────────
+    const stopEl = el.querySelector('[data-field="stop-info"]');
+    const stopPrice = parseFloat(el.dataset.stop) || 0;
+    if (stopEl && stopPrice > 0 && p.current_price != null) {
+      const stopDist = ((p.current_price - stopPrice) / p.current_price * 100);
+      const stopDollar = (p.current_price - stopPrice) * qty;
+      stopEl.innerHTML = `<span class="${stopDist > 0 ? 'text-success' : 'text-danger'}">${stopDist >= 0 ? '+' : ''}${stopDist.toFixed(1)}% / ${stopDollar >= 0 ? '+' : ''}$${Math.abs(stopDollar).toFixed(0)}</span>`;
+    }
+
+    // ── Satış Sonrası % (watchlist re-entry timing) ───────────────────────
+    const satisEl = el.querySelector('[data-field="satis-sonrasi"]');
+    if (satisEl && p.current_price != null) {
+      const lastSell = parseFloat(el.dataset.lastSellPrice) || 0;
+      if (lastSell > 0) {
+        const pct = (p.current_price - lastSell) / lastSell * 100;
+        satisEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+        // Negatif = fiyat satıştan düştü (iyi giriş fırsatı), pozitif = yükseldi
+        const colorCls = (pct < 0 ? 'text-success' : pct < 10 ? 'text-warning' : 'text-danger');
+        const isTd = satisEl.tagName === 'TD';
+        satisEl.className = (isTd ? 'text-end fw-semibold ' : 'fw-semibold ') + colorCls;
+      } else {
+        satisEl.textContent = '—';
+        satisEl.className = (satisEl.tagName === 'TD' ? 'text-end ' : '') + 'text-muted';
+      }
+    }
+
+    // ── Durum (watchlist state machine — mutually exclusive) ─────────────
+    const durumEl = el.querySelector('[data-field="durum"]');
+    if (durumEl && p.current_price != null) {
+      const tb = parseFloat(el.dataset.taban) || 0;
+      const hd = parseFloat(el.dataset.hedef) || 0;
+      const pr = p.current_price;
+      let html = '<span class="badge bg-light text-secondary border">—</span>';
+      if (tb > 0 || hd > 0) {
+        if (tb > 0 && pr <= tb) {
+          html = '<span class="badge bg-danger">⚠ Kırıldı</span>';
+        } else if (hd > 0 && pr >= hd) {
+          html = '<span class="badge bg-success">✓ Aşıldı</span>';
+        } else if (tb > 0 && (pr - tb) / pr * 100 <= 5) {
+          html = '<span class="badge bg-warning text-dark">Tabana Yakın</span>';
+        } else if (hd > 0 && (hd - pr) / pr * 100 <= 5) {
+          html = '<span class="badge bg-info text-dark">Hedefe Yakın</span>';
+        } else {
+          html = '<span class="badge bg-light text-secondary border">Normal</span>';
+        }
+      }
+      durumEl.innerHTML = html;
+    }
+  });
+}
+
+function setCell(row, field, text) {
+  const el = row.querySelector(`[data-field="${field}"]`);
+  if (el) el.textContent = text;
+}
+
+function setColorCell(row, field, val, text) {
+  const el = row.querySelector(`[data-field="${field}"]`);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('text-success', 'text-danger');
+  el.classList.add(val >= 0 ? 'text-success' : 'text-danger');
+  el.classList.add('fw-semibold');
+}
+
+// ── TradingView modal (iframe) ───────────────────────────────────────────────
+
+function openTwChart(symbol) {
+  document.getElementById('tvModalLabel').textContent = symbol;
+  document.getElementById('tv-iframe').src = '/widget/chart/' + symbol;
+  document.getElementById('tv-detail-link').href = '/sembol/' + symbol;
+  new bootstrap.Modal(document.getElementById('tvModal')).show();
+}
+// Eski isimle de çalışsın (watchlist'te kullanılıyor)
+function openTvModal(symbol) { openTwChart(symbol); }
+
+// Modal kapanınca iframe'i temizle (memory leak önle)
+document.getElementById('tvModal')?.addEventListener('hidden.bs.modal', () => {
+  document.getElementById('tv-iframe').src = 'about:blank';
+});
+
+// Pie verisi kaldırıldı
+
+
+// ── Watchlist CRUD ───────────────────────────────────────────────────────────
+async function watchlistEkle() {
+  const inp = document.getElementById('wl-symbol');
+  const symbol = inp.value.trim().toUpperCase();
+  const status = document.getElementById('wl-status');
+  if (!symbol) return;
+
+  try {
+    // Adım 1: Ticker'ı doğrula
+    const validateResp = await fetch('/api/fiyatlar/validate-symbol', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({symbol})
+    });
+    const validateData = await validateResp.json();
+
+    if (!validateResp.ok || !validateData.valid) {
+      status.innerHTML = `
+        <div class="alert alert-danger py-2 px-3 mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-exclamation-circle"></i>
+          <span>${validateData.error}</span>
+        </div>
+      `;
+      setTimeout(() => { status.innerHTML = ''; }, 5000);
+      return;
+    }
+
+    // Adım 2: Watchlist'e ekle
+    const addResp = await fetch('/api/fiyatlar/watchlist/ekle', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({symbol})
+    });
+    const addData = await addResp.json();
+
+    if (addResp.ok) {
+      inp.value = '';
+      status.innerHTML = `
+        <div class="alert alert-success py-2 px-3 mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-check-circle"></i>
+          <span>✓ ${validateData.name} eklendi</span>
+        </div>
+      `;
+      setTimeout(() => { location.reload(); }, 1500);
+    } else {
+      // Zaten listede vs
+      const isAlreadyExists = addResp.status === 409;
+      const alertClass = isAlreadyExists ? 'warning' : 'danger';
+      const icon = isAlreadyExists ? 'exclamation-triangle' : 'exclamation-circle';
+      status.innerHTML = `
+        <div class="alert alert-${alertClass} py-2 px-3 mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-${icon}"></i>
+          <span>${addData.error}</span>
+        </div>
+      `;
+      setTimeout(() => {
+        if (status.innerHTML.includes(addData.error)) {
+          status.innerHTML = '';
+        }
+      }, 5000);
+    }
+  } catch(e) {
+    status.innerHTML = `
+      <div class="alert alert-danger py-2 px-3 mb-0 d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-circle"></i>
+        <span>Hata: ${e.message}</span>
+      </div>
+    `;
+    setTimeout(() => { status.innerHTML = ''; }, 5000);
+  }
+}
+
+document.getElementById('wl-symbol')?.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') watchlistEkle();
+});
+
+// ── Target Modal ────────────────────────────────────────────────────────────
+let _targetRow = null;
+
+function openTargetModal(symbol, el) {
+  _targetRow = el;
+  document.getElementById('tgt-symbol').value = symbol;
+  document.getElementById('targetModalLabel').textContent = symbol + ' \u2014 Hedef Ayarla';
+  document.getElementById('tgt-taban').value = el.dataset.taban || '';
+  document.getElementById('tgt-hedef').value = el.dataset.hedef || '';
+  document.getElementById('tgt-kazanc').value = el.dataset.hedefKazanc || '';
+  new bootstrap.Modal(document.getElementById('targetModal')).show();
+}
+
+// Çıkış Hesapla — ayrı modal (sadece fiyat girişi)
+let _exitRow = null;
+function openExitCalcModal(symbol, el) {
+  _exitRow = el;
+  document.getElementById('exit-symbol').value = symbol;
+  document.getElementById('exitCalcModalLabel').textContent = symbol + ' \u2014 Çıkış Hesapla';
+  document.getElementById('exit-price').value = el.dataset.stop || '';
+  document.getElementById('exit-calc-result').innerHTML = '';
+  new bootstrap.Modal(document.getElementById('exitCalcModal')).show();
+  setTimeout(() => document.getElementById('exit-price').focus(), 300);
+
+  // Anlık hesaplama
+  document.getElementById('exit-price').oninput = function() {
+    const exitP = parseFloat(this.value) || 0;
+    const qty = parseFloat(el.dataset.qty || 0);
+    const cost = parseFloat(el.dataset.cost || 0);
+    const resultEl = document.getElementById('exit-calc-result');
+    if (exitP > 0 && qty > 0) {
+      const exitTotal = exitP * qty;
+      const exitPnl = exitTotal - cost;
+      const exitPct = cost > 0 ? (exitPnl / cost * 100) : 0;
+      resultEl.innerHTML = `<div class="mt-2 p-2 rounded ${exitPnl >= 0 ? 'bg-success bg-opacity-10' : 'bg-danger bg-opacity-10'}">
+        <div><strong>Çıkış Tutarı:</strong> $${exitTotal.toFixed(0)}</div>
+        <div><strong>K/Z:</strong> <span class="${exitPnl >= 0 ? 'text-success' : 'text-danger'}">${exitPnl >= 0 ? '+' : ''}$${exitPnl.toFixed(0)} (${exitPct >= 0 ? '+' : ''}${exitPct.toFixed(1)}%)</span></div>
+      </div>`;
+    } else {
+      resultEl.innerHTML = '';
+    }
+  };
+  // İlk açılışta mevcut değerle hesapla
+  document.getElementById('exit-price').oninput();
+}
+
+async function saveExitPrice() {
+  const symbol = document.getElementById('exit-symbol').value;
+  const exitPrice = document.getElementById('exit-price').value;
+  const el = _exitRow;
+  try {
+    const resp = await fetch('/api/fiyatlar/targets', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        symbol,
+        hedef_fiyat: el.dataset.hedef || null,
+        taban_fiyat: el.dataset.taban || null,
+        hedef_dolar_kazanci: el.dataset.hedefKazanc || null,
+        stop_fiyat: exitPrice || null,
+      })
+    });
+    if (resp.ok) {
+      document.querySelectorAll(`[data-symbol="${symbol}"]`).forEach(e => {
+        if (e.matches('.pos-card[data-symbol]')) e.dataset.stop = exitPrice || '';
+      });
+      const cache = JSON.parse(localStorage.getItem(LS_PRICE_CACHE) || '{}');
+      if (cache.prices && cache.prices[symbol]) updatePriceRows(cache.prices);
+      bootstrap.Modal.getInstance(document.getElementById('exitCalcModal')).hide();
+    }
+  } catch(e) { alert('Hata: ' + e.message); }
+}
+
+async function clearExitPrice() {
+  document.getElementById('exit-price').value = '';
+  document.getElementById('exit-calc-result').innerHTML = '';
+  await saveExitPrice();
+}
+
+async function saveTarget() {
+  const symbol = document.getElementById('tgt-symbol').value;
+  const hedef = document.getElementById('tgt-hedef').value;
+  const taban = document.getElementById('tgt-taban').value;
+  const kazanc = document.getElementById('tgt-kazanc').value;
+
+  try {
+    const resp = await fetch('/api/fiyatlar/targets', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        symbol,
+        hedef_fiyat: hedef || null,
+        taban_fiyat: taban || null,
+        hedef_dolar_kazanci: kazanc || null,
+      })
+    });
+    if (resp.ok) {
+      // DOM güncelle — hem card hem tr
+      document.querySelectorAll(`[data-symbol="${symbol}"]`).forEach(el => {
+        if (!el.matches('tr[data-symbol], .pos-card[data-symbol]')) return;
+        el.dataset.taban = taban || '';
+        el.dataset.hedef = hedef || '';
+        el.dataset.hedefKazanc = kazanc || '';
+
+        const tabanPriceEl = el.querySelector('[data-field="taban-price"]');
+        const hedefPriceEl = el.querySelector('[data-field="hedef-price"]');
+        const hedefKazancEl = el.querySelector('[data-field="hedef-kazanc"]');
+
+        if (tabanPriceEl) tabanPriceEl.textContent = taban ? '$' + parseFloat(taban).toFixed(2) : '\u2014';
+        if (hedefPriceEl) hedefPriceEl.textContent = hedef ? '$' + parseFloat(hedef).toFixed(2) : '\u2014';
+        if (hedefKazancEl) hedefKazancEl.textContent = kazanc ? '$' + parseFloat(kazanc).toFixed(2) : '\u2014';
+      });
+
+      // Uzaklık yüzdelerini yeniden hesapla (cache'den fiyat al)
+      const cache = JSON.parse(localStorage.getItem(LS_PRICE_CACHE) || '{}');
+      const prices = cache.prices || {};
+      if (prices[symbol]) {
+        updatePriceRows(prices);
+      }
+
+      bootstrap.Modal.getInstance(document.getElementById('targetModal')).hide();
+    }
+  } catch(e) {
+    alert('Hata: ' + e.message);
+  }
+}
+
+async function clearTarget() {
+  const symbol = document.getElementById('tgt-symbol').value;
+  try {
+    await fetch(`/api/fiyatlar/targets/${symbol}`, {method: 'DELETE'});
+
+    document.querySelectorAll(`[data-symbol="${symbol}"]`).forEach(el => {
+      if (!el.matches('tr[data-symbol], .pos-card[data-symbol]')) return;
+      el.dataset.taban = '';
+      el.dataset.hedef = '';
+      el.dataset.hedefKazanc = '';
+      el.classList.remove('card-alert-danger','card-alert-warning','card-alert-success','card-alert-hit');
+
+      const fields = ['taban-price', 'hedef-price', 'taban-dist', 'hedef-dist', 'hedef-kazanc'];
+      fields.forEach(f => {
+        const fel = el.querySelector(`[data-field="${f}"]`);
+        if (fel) { fel.textContent = '\u2014'; fel.className = 'text-end text-muted'; }
+      });
+    });
+
+    bootstrap.Modal.getInstance(document.getElementById('targetModal')).hide();
+  } catch(e) {
+    alert('Hata: ' + e.message);
+  }
+}
+
+async function watchlistSil(id, btn) {
+  if (!confirm('İzleme listesinden çıkarılsın mı?')) return;
+  try {
+    const resp = await fetch(`/api/fiyatlar/watchlist/${id}`, {method: 'DELETE'});
+    if (resp.ok) {
+      btn.closest('tr').remove();
+    }
+  } catch(e) {
+    alert('Silinemedi: ' + e.message);
+  }
+}
+
+// ── Watchlist Drag-Drop & Split ──────────────────────────────────────────────
+let draggedRow = null;
+
+function initWLDragDrop() {
+  setupTableDragDrop('wl-table');
+  setupTableDragDrop('wl-table-2');
+  // Arası drag-drop (pane'ler arasında taşıma)
+  setupInterPaneDragDrop();
+}
+
+function setupTableDragDrop(tableId) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  if (!tbody) return;
+
+  const rows = tbody.querySelectorAll('tr');
+  rows.forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      draggedRow = row;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', row.innerHTML);
+    });
+
+    row.addEventListener('dragend', () => {
+      draggedRow = null;
+      row.classList.remove('dragging');
+      rows.forEach(r => r.classList.remove('drag-over'));
+    });
+
+    row.addEventListener('dragover', (e) => {
+      if (row !== draggedRow) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        row.classList.add('drag-over');
+      }
+    });
+
+    row.addEventListener('dragleave', () => {
+      row.classList.remove('drag-over');
+    });
+
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if (row !== draggedRow && draggedRow) {
+        // Satırları swap et
+        const allRows = Array.from(tbody.querySelectorAll('tr'));
+        const draggedIdx = allRows.indexOf(draggedRow);
+        const targetIdx = allRows.indexOf(row);
+
+        if (draggedIdx < targetIdx) {
+          row.parentNode.insertBefore(draggedRow, row.nextSibling);
+        } else {
+          row.parentNode.insertBefore(draggedRow, row);
+        }
+        saveWLOrder();
+      }
+    });
+
+    // Tüm satirlari drag yapılabilir yap
+    row.draggable = true;
+  });
+}
+
+function setupInterPaneDragDrop() {
+  const tables = [document.getElementById('wl-table'), document.getElementById('wl-table-2')];
+  tables.forEach(table => {
+    if (!table) return;
+    table.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+
+    table.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (draggedRow) {
+        const sourceTable = draggedRow.closest('table');
+        const targetTable = table;
+        if (sourceTable !== targetTable) {
+          const targetBody = targetTable.querySelector('tbody');
+          if (targetBody) {
+            targetBody.appendChild(draggedRow.cloneNode(true));
+            draggedRow.remove();
+            saveWLOrder();
+            initWLDragDrop();  // Yeni satırlar için drag-drop'u reinit et
+          }
+        }
+      }
+    });
+  });
+}
+
+function saveWLOrder() {
+  const pane1 = document.getElementById('wl-tbody');
+  const pane2 = document.getElementById('wl-tbody-2');
+  const order1 = Array.from(pane1?.querySelectorAll('tr') || []).map(r => r.dataset.symbol);
+  const order2 = Array.from(pane2?.querySelectorAll('tr') || []).map(r => r.dataset.symbol);
+  localStorage.setItem('wl-pane-1-order', JSON.stringify(order1));
+  localStorage.setItem('wl-pane-2-order', JSON.stringify(order2));
+  console.log('WL order saved:', { pane1: order1, pane2: order2 });
+}
+
+function restoreWLOrder() {
+  const pane1Body = document.getElementById('wl-tbody');
+  const pane2Body = document.getElementById('wl-tbody-2');
+  if (!pane1Body || !pane2Body) return;
+
+  const savedOrder1 = JSON.parse(localStorage.getItem('wl-pane-1-order') || '[]');
+  const savedOrder2 = JSON.parse(localStorage.getItem('wl-pane-2-order') || '[]');
+
+  // Önce tüm satırları topla (her iki pane'den)
+  const allRows = {};
+  const pane1Rows = Array.from(pane1Body.querySelectorAll('tr'));
+  const pane2Rows = Array.from(pane2Body.querySelectorAll('tr'));
+
+  pane1Rows.forEach(row => {
+    allRows[row.dataset.symbol] = row;
+  });
+  pane2Rows.forEach(row => {
+    allRows[row.dataset.symbol] = row;
+  });
+
+  // Kayıtlı sırada olan sembolleri işaretle, geri kalan (yeni eklenenler) pane-1'e düşsün
+  const placed = new Set();
+  pane1Body.innerHTML = '';
+  savedOrder1.forEach(symbol => {
+    if (allRows[symbol] && !placed.has(symbol)) {
+      pane1Body.appendChild(allRows[symbol]);
+      placed.add(symbol);
+    }
+  });
+
+  pane2Body.innerHTML = '';
+  savedOrder2.forEach(symbol => {
+    if (allRows[symbol] && !placed.has(symbol)) {
+      pane2Body.appendChild(allRows[symbol]);
+      placed.add(symbol);
+    }
+  });
+
+  // Hiçbir kayıtlı sırada olmayan (yeni eklenen) sembolleri pane-1 sonuna ekle
+  Object.keys(allRows).forEach(symbol => {
+    if (!placed.has(symbol)) {
+      pane1Body.appendChild(allRows[symbol]);
+      placed.add(symbol);
+    }
+  });
+
+  console.log('WL order restored:', { pane1: savedOrder1, pane2: savedOrder2 });
+}
+
+function toggleWLSplit() {
+  const container = document.getElementById('wl-container');
+  const pane2 = document.getElementById('wl-pane-2');
+  const btn = document.getElementById('split-btn-text');
+
+  if (container && pane2) {
+    container.classList.toggle('split');
+    pane2.style.display = container.classList.contains('split') ? 'block' : 'none';
+    btn.textContent = container.classList.contains('split') ? 'Birleştir' : 'Böl';
+    localStorage.setItem('wl-split-mode', container.classList.contains('split') ? 'true' : 'false');
+
+    // pane-2'ye tablonun header'ını kopyala
+    if (container.classList.contains('split')) {
+      const thead2 = document.getElementById('wl-table-2').querySelector('thead');
+      if (thead2.children.length === 0) {
+        thead2.appendChild(document.querySelector('#wl-table thead tr').cloneNode(true));
+      }
+    }
+    initWLDragDrop();
+  }
+}
+
+function restoreWLSplitState() {
+  const container = document.getElementById('wl-container');
+  const pane2 = document.getElementById('wl-pane-2');
+  const splitMode = localStorage.getItem('wl-split-mode') === 'true';
+  const btn = document.getElementById('split-btn-text');
+
+  if (splitMode && container && pane2) {
+    container.classList.add('split');
+    pane2.style.display = 'block';
+    btn.textContent = 'Birleştir';
+  }
+
+  // Pane isimlerini restore et
+  const pane1Name = localStorage.getItem('wl-pane-1-name');
+  const pane2Name = localStorage.getItem('wl-pane-2-name');
+  if (pane1Name) document.getElementById('pane-1-title').textContent = pane1Name;
+  if (pane2Name) document.getElementById('pane-2-title').textContent = pane2Name;
+}
+
+function editPaneTitle(paneNum) {
+  const titleEl = document.getElementById(`pane-${paneNum}-title`);
+  const paneEl = document.getElementById(`wl-pane-${paneNum}`);
+  const currentName = titleEl.textContent;
+
+  const newName = prompt('Pane ismini gir:', currentName);
+  if (newName && newName.trim()) {
+    const name = newName.trim();
+    titleEl.textContent = name;
+    paneEl.dataset.paneName = name;
+    localStorage.setItem(`wl-pane-${paneNum}-name`, name);
+  }
+}
+
+function swapPanes() {
+  const container = document.getElementById('wl-container');
+  if (!container.classList.contains('split')) return; // Sadece split modda çalış
+
+  const pane1 = document.getElementById('wl-pane-1');
+  const pane2 = document.getElementById('wl-pane-2');
+
+  // DOM'da pane'leri swap et
+  const pane1Clone = pane1.cloneNode(true);
+  const pane2Clone = pane2.cloneNode(true);
+
+  pane1.replaceWith(pane2Clone);
+  pane2.replaceWith(pane1Clone);
+
+  // ID'leri güncelle (swap sonrası)
+  const newPane1 = container.querySelector('[data-pane-name]');
+  const newPane2 = container.querySelectorAll('[data-pane-name]')[1];
+
+  if (newPane1) newPane1.id = 'wl-pane-1';
+  if (newPane2) newPane2.id = 'wl-pane-2';
+
+  // localStorage'da swap et
+  const order1 = JSON.parse(localStorage.getItem('wl-pane-1-order') || '[]');
+  const order2 = JSON.parse(localStorage.getItem('wl-pane-2-order') || '[]');
+  const name1 = localStorage.getItem('wl-pane-1-name');
+  const name2 = localStorage.getItem('wl-pane-2-name');
+
+  localStorage.setItem('wl-pane-1-order', JSON.stringify(order2));
+  localStorage.setItem('wl-pane-2-order', JSON.stringify(order1));
+  if (name1) localStorage.setItem('wl-pane-2-name', name1);
+  if (name2) localStorage.setItem('wl-pane-1-name', name2);
+
+  // Drag-drop'u yeniden init et
+  setTimeout(() => {
+    initWLDragDrop();
+  }, 100);
+}
+
+// Sayfa yüklendiğinde drag-drop'u init et
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('wl-table')) {
+    // Önce order'ı restore et, sonra drag-drop'u init et
+    setTimeout(() => {
+      restoreWLOrder();
+      initWLDragDrop();
+      restoreWLSplitState();
+    }, 100);
+  }
+});
+
+// ── Drag & Drop Kartlar ─────────────────────────────────────────────────────
+let draggedCard = null;
+
+function initDragDrop() {
+  const grid = document.getElementById('pos-grid');
+  if (!grid) return;
+
+  const cards = grid.querySelectorAll('.pos-card');
+  cards.forEach(card => {
+    card.draggable = true;
+
+    card.addEventListener('dragstart', (e) => {
+      draggedCard = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    card.addEventListener('dragend', () => {
+      draggedCard = null;
+      card.classList.remove('dragging');
+      cards.forEach(c => c.classList.remove('drag-over'));
+    });
+
+    card.addEventListener('dragover', (e) => {
+      if (card !== draggedCard) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        card.classList.add('drag-over');
+      }
+    });
+
+    card.addEventListener('dragleave', () => {
+      card.classList.remove('drag-over');
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      if (card !== draggedCard) {
+        // Kartları swap et
+        const allCards = Array.from(grid.querySelectorAll('.pos-card'));
+        const draggedIdx = allCards.indexOf(draggedCard);
+        const targetIdx = allCards.indexOf(card);
+
+        if (draggedIdx < targetIdx) {
+          card.parentNode.insertBefore(draggedCard, card.nextSibling);
+        } else {
+          card.parentNode.insertBefore(draggedCard, card);
+        }
+
+        // localStorage'a kaydet
+        saveCardOrder();
+      }
+    });
+  });
+}
+
+function saveCardOrder() {
+  const grid = document.getElementById('pos-grid');
+  if (!grid) return;
+  const order = Array.from(grid.querySelectorAll('.pos-card')).map(c => c.dataset.symbol);
+  localStorage.setItem('pos-card-order', JSON.stringify(order));
+}
+
+function restoreCardOrder() {
+  const grid = document.getElementById('pos-grid');
+  if (!grid) return;
+  const saved = JSON.parse(localStorage.getItem('pos-card-order') || '[]');
+  if (!saved || saved.length === 0) return;
+
+  const cards = Array.from(grid.querySelectorAll('.pos-card'));
+  const cardMap = {};
+  cards.forEach(c => { cardMap[c.dataset.symbol] = c; });
+
+  // Kaydedilmiş sıraya göre yeniden düzenle
+  saved.forEach(symbol => {
+    const card = cardMap[symbol];
+    if (card) grid.appendChild(card);
+  });
+}
+
+// DOMContentLoaded'da drag-drop + kolon seçici başlat
+document.addEventListener('DOMContentLoaded', () => {
+  restoreCardOrder();
+  initDragDrop();
+  initColPicker();
+});
+
+// ── Watchlist Kolon Seçici ───────────────────────────────────────────────────
+const WL_COLUMNS = [
+  { id: 'fiyat',           label: 'Fiyat / Değişim',  def: true  },
+  { id: 'aftermarket',     label: 'After Market',      def: true  },
+  { id: 'taban',           label: 'Taban',             def: true  },
+  { id: 'hedef',           label: 'Hedef',             def: true  },
+  { id: 'taban-dist',      label: 'Tabana %',          def: true  },
+  { id: 'hedef-dist',      label: 'Hedefe %',          def: true  },
+  { id: 'avg-cost',        label: 'Ort. Maliyet',      def: true  },
+  { id: 'son-alis-fiyat',  label: 'Son Alış Fiyatı',   def: true  },
+  { id: 'son-satis-fiyat', label: 'Son Satış Fiyatı',  def: true  },
+  { id: 'satis-sonrasi',   label: 'Satış Sonrası %',   def: true  },
+  { id: 'son-kz-pct',      label: 'Son K/Z %',         def: true  },
+  { id: 'durum',           label: 'Durum',             def: true  },
+  { id: 'alis-gun',        label: 'Alıştan Gün',       def: false },
+  { id: 'satis-gun',       label: 'Satıştan Gün',      def: false },
+  { id: 'son-satis-lot',   label: 'Son Satış Lot',     def: false },
+  { id: 'son-alis-lot',    label: 'Son Alış Lot',      def: false },
+  { id: 'son-alis-tutar',  label: 'Son Alış Tutarı',   def: false },
+  { id: 'son-satis-tutar', label: 'Son Satış Tutarı',  def: false },
+];
+
+const WL_COL_KEY = 'wl-hidden-cols-v1';
+
+function initColPicker() {
+  const menu = document.getElementById('col-picker-menu');
+  if (!menu) return;
+
+  // localStorage'dan gizli kolonları oku; ilk açılışta varsayılanları uygula
+  let hidden = JSON.parse(localStorage.getItem(WL_COL_KEY) || 'null');
+  if (hidden === null) {
+    hidden = WL_COLUMNS.filter(c => !c.def).map(c => c.id);
+    localStorage.setItem(WL_COL_KEY, JSON.stringify(hidden));
+  }
+
+  menu.innerHTML = '';
+  WL_COLUMNS.forEach(col => {
+    const isHidden = hidden.includes(col.id);
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <label class="dropdown-item d-flex align-items-center gap-2 py-1" style="cursor:pointer">
+        <input type="checkbox" class="form-check-input mt-0" data-col-toggle="${col.id}"
+               ${isHidden ? '' : 'checked'}>
+        <span class="small">${col.label}</span>
+      </label>`;
+    li.querySelector('input').addEventListener('change', function () {
+      _toggleWlCol(col.id, this.checked);
+    });
+    menu.appendChild(li);
+  });
+
+  _applyColVisibility(hidden);
+}
+
+function _toggleWlCol(colId, visible) {
+  let hidden = JSON.parse(localStorage.getItem(WL_COL_KEY) || '[]');
+  if (visible)  hidden = hidden.filter(c => c !== colId);
+  else if (!hidden.includes(colId)) hidden.push(colId);
+  localStorage.setItem(WL_COL_KEY, JSON.stringify(hidden));
+  _applyColVisibility(hidden);
+}
+
+function _applyColVisibility(hidden) {
+  if (!hidden) hidden = JSON.parse(localStorage.getItem(WL_COL_KEY) || '[]');
+  WL_COLUMNS.forEach(col => {
+    const show = !hidden.includes(col.id);
+    document.querySelectorAll(`#wl-table [data-col="${col.id}"]`).forEach(el => {
+      el.style.display = show ? '' : 'none';
+    });
+  });
+}
+
+// ── Not Modal ────────────────────────────────────────────────────────────────
+function openNoteModal(symbol, wlId, btn) {
+  document.getElementById('note-symbol').value = symbol;
+  document.getElementById('note-wl-id').value = wlId;
+  document.getElementById('note-text').value = btn.dataset.note || '';
+  document.getElementById('noteModalLabel').textContent = symbol + ' \u2014 Not';
+  new bootstrap.Modal(document.getElementById('noteModal')).show();
+  setTimeout(() => document.getElementById('note-text').focus(), 300);
+}
+
+async function saveNote() {
+  const wlId  = document.getElementById('note-wl-id').value;
+  const sym   = document.getElementById('note-symbol').value;
+  const note  = document.getElementById('note-text').value.trim();
+  try {
+    const resp = await fetch(`/api/fiyatlar/watchlist/${wlId}/note`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({note}),
+    });
+    if (!resp.ok) throw new Error('Sunucu hatası');
+
+    // Satırdaki not ikonu ve data-note'u güncelle
+    const row = document.querySelector(`tr[data-wl-id="${wlId}"]`);
+    if (row) {
+      // buton data-note güncelle
+      const noteBtn = row.querySelector('[data-note]');
+      if (noteBtn) {
+        noteBtn.dataset.note = note;
+        const icon = noteBtn.querySelector('i');
+        if (icon) icon.className = note ? 'bi bi-sticky-fill text-warning' : 'bi bi-sticky';
+      }
+      // sembol hücresindeki küçük ikon
+      const cell = row.querySelector('.wl-sticky-first');
+      let dot = cell && cell.querySelector('.note-dot');
+      if (note && cell && !dot) {
+        dot = document.createElement('span');
+        dot.className = 'ms-1 note-dot';
+        dot.innerHTML = '<i class="bi bi-sticky-fill text-warning" style="font-size:0.7rem"></i>';
+        cell.appendChild(dot);
+      } else if (!note && dot) {
+        dot.remove();
+      }
+      if (dot) dot.title = note;
+    }
+    bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
+  } catch(e) {
+    alert('Kaydedilemedi: ' + e.message);
+  }
+}
+
+</script>
+
+<!-- TradingView Widget Script -->
+<script type="module" src="https://widgets.tradingview-widget.com/w/tr/tv-ticker-tape.js"></script>
+<script>
+  // Ticker footer görünür olunca body'e padding ekle (içerik kapanmasın)
+  document.body.classList.add('has-tv-ticker');
+  (function syncTickerHeight(){
+    const footer = document.querySelector('.tv-ticker-footer');
+    if (!footer) return;
+    const apply = () => {
+      const rect = footer.getBoundingClientRect();
+      const viewportBottom = window.innerHeight;
+      const occupied = Math.max(footer.offsetHeight, viewportBottom - rect.top);
+      if (occupied > 0) document.body.style.setProperty('--tv-ticker-h', occupied + 'px');
+    };
+    apply();
+    if (window.ResizeObserver) {
+      new ResizeObserver(apply).observe(footer);
+    }
+    window.addEventListener('load', apply);
+    setTimeout(apply, 1500);
+    setTimeout(apply, 4000);
+  })();
+</script>
+
+{% endblock %}

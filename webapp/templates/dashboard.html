@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Frigya{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <h4 class="fw-bold text-dark mb-0">
+    <i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard
+  </h4>
+  {% if available_years %}
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted small">Dönem:</span>
+    <select class="form-select form-select-sm" style="width:auto;min-width:110px"
+            onchange="location.href='/?portfolio={{ current_portfolio }}&year=' + this.value">
+      <option value="" {% if not selected_year %}selected{% endif %}>Tümü</option>
+      {% for y in available_years %}
+      <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    {% if selected_year %}
+    <a href="/?portfolio={{ current_portfolio }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-x"></i> Temizle
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% if not portfolios %}
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <h5 class="mb-2">Hoş geldiniz</h5>
+    <p class="text-muted mb-3">Başlamak için ilk portföyünüzü oluşturun.</p>
+    <div class="row g-2">
+      <div class="col-md-4">
+        <input id="new-portfolio-name" class="form-control" placeholder="Portföy adı">
+      </div>
+      <div class="col-md-6">
+        <input id="new-portfolio-desc" class="form-control" placeholder="Açıklama (isteğe bağlı)">
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary" onclick="createFirstPortfolio()">Oluştur</button>
+      </div>
+    </div>
+    <div id="new-portfolio-status" class="mt-2 small"></div>
+  </div>
+</div>
+{% else %}
+
+<!-- Year summary cards -->
+<div class="row g-3 mb-4">
+  {% for y in years %}
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small fw-semibold">{{ y.tax_year }} NET K/Z</span>
+          <span class="badge {% if y.net_pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+            {{ y.tax_year }}
+          </span>
+        </div>
+        <h4 class="fw-bold {% if y.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+          {{ "${:,.2f}".format(y.net_pnl or 0) }}
+        </h4>
+        <div class="text-muted small mt-1">
+          Satış: {{ "${:,.2f}".format(y.proceeds or 0) }}<br>
+          İşlem: {{ y.trades }} |
+          Başarı: {% if y.trades %}{{ "{:.1f}".format(y.wins / y.trades * 100) }}%{% else %}—{% endif %}<br>
+          <span class="text-success">KÂR: <strong>{{ "${:,.2f}".format(y.total_profit or 0) }}</strong></span> /
+          <span class="text-danger">ZARAR: <strong>{{ "${:,.2f}".format(y.total_loss or 0) }}</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small fw-semibold mb-2">TOPLAM NET K/Z</div>
+        <h4 class="fw-bold {% if kpi and kpi.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+          {{ "${:,.2f}".format(kpi.net_pnl or 0) if kpi else "—" }}
+        </h4>
+        <div class="text-muted small mt-1">
+          Açık Pozisyon: <strong>{{ open_symbols }}</strong> sembol<br>
+          Başarı Oranı: <strong>{% if success_rate is not none %}{{ success_rate }}%{% else %}—{% endif %}</strong><br>
+          <span class="text-danger">Toplam Zarar: <strong>{{ "${:,.2f}".format(kpi.total_loss or 0) if kpi else "—" }}</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts row -->
+<div class="row g-3 mb-4">
+  <div class="col-md-8">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pt-3 pb-0">
+        <span class="fw-semibold">Aylık Kâr / Zarar</span>
+      </div>
+      <div class="card-body">
+        <canvas id="monthlyChart" height="90"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pt-3 pb-0">
+        <span class="fw-semibold">Sembol Performansı (Top 15)</span>
+      </div>
+      <div class="card-body">
+        <canvas id="symbolChart" height="230"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cumulative chart -->
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pt-3 pb-0">
+        <span class="fw-semibold">Kümülatif K/Z Eğrisi</span>
+      </div>
+      <div class="card-body">
+        <canvas id="cumulativeChart" height="60"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if portfolios %}
+const months   = {{ months | tojson }};
+const mPnl     = {{ monthly_pnl | tojson }};
+const cumPnl   = {{ cumulative | tojson }};
+const topSyms  = {{ top_syms | tojson }};
+
+// Monthly bar
+initMonthlyChart('monthlyChart', months, mPnl);
+// Cumulative line
+initCumulativeChart('cumulativeChart', months, cumPnl);
+// Symbol horizontal bar
+initSymbolChart('symbolChart',
+  topSyms.map(s => s.symbol),
+  topSyms.map(s => s.pnl)
+);
+{% else %}
+async function createFirstPortfolio() {
+  const name = document.getElementById('new-portfolio-name').value.trim();
+  const description = document.getElementById('new-portfolio-desc').value.trim();
+  const status = document.getElementById('new-portfolio-status');
+
+  if (name.length < 2) {
+    status.innerHTML = '<span class="text-danger">Portföy adı en az 2 karakter olmalı.</span>';
+    return;
+  }
+
+  status.innerHTML = '<span class="text-muted">Oluşturuluyor...</span>';
+  try {
+    const resp = await fetch('/api/portfolio/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      status.innerHTML = `<span class="text-danger">${data.error || 'Portföy oluşturulamadı'}</span>`;
+      return;
+    }
+    status.innerHTML = '<span class="text-success">Portföy oluşturuldu. Sayfa yenileniyor...</span>';
+    setTimeout(() => window.location.reload(), 700);
+  } catch (e) {
+    status.innerHTML = `<span class="text-danger">${e.message}</span>`;
+  }
+}
+{% endif %}
+</script>
+{% endblock %}
