@@ -13,12 +13,13 @@ router = APIRouter()
 
 
 @router.get("/sembol/{symbol}", response_class=HTMLResponse)
-async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(None)):
+async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(None), tab: str = Query("all")):
     symbol = symbol.upper()
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     portfolios = get_portfolios(user_id)
     portfolio = resolve_portfolio(request, portfolio, user_id)
+    active_tab = tab if tab in ("all", "realized", "unrealized") else "all"
 
     if not portfolio:
         return templates.TemplateResponse("sembol_detail.html", {
@@ -36,6 +37,7 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
             "active": "semboller",
             "portfolios": portfolios,
             "current_portfolio": None,
+            "active_tab": active_tab,
             "today": date.today().isoformat(),
         })
 
@@ -143,6 +145,7 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
         "active": "semboller",
         "portfolios": portfolios,
         "current_portfolio": portfolio,
+        "active_tab": active_tab,
         "today": date.today().isoformat(),
     })
 

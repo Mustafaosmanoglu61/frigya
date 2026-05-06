@@ -79,30 +79,30 @@
 <!-- Tabs -->
 <ul class="nav nav-tabs mb-3" id="detailTabs">
   <li class="nav-item">
-    <a class="nav-link active" data-bs-toggle="tab" href="#tab-all">
+    <a class="nav-link {% if active_tab == 'all' %}active{% endif %}" data-bs-toggle="tab" href="#tab-all">
       <i class="bi bi-list-ul me-1"></i>Tüm İşlemler
       <span class="badge bg-secondary ms-1">{{ all_tx|length }}</span>
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" data-bs-toggle="tab" href="#tab-realized">
+    <a class="nav-link {% if active_tab == 'realized' %}active{% endif %}" data-bs-toggle="tab" href="#tab-realized">
       <i class="bi bi-check2-circle me-1"></i>Realized K/Z
       <span class="badge bg-secondary ms-1">{{ realized|length }}</span>
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" data-bs-toggle="tab" href="#tab-lots">
+    <a class="nav-link {% if active_tab == 'lots' %}active{% endif %}" data-bs-toggle="tab" href="#tab-lots">
       <i class="bi bi-layers me-1"></i>FIFO Eşleşme
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" data-bs-toggle="tab" href="#tab-open">
+    <a class="nav-link {% if active_tab == 'open' %}active{% endif %}" data-bs-toggle="tab" href="#tab-open">
       <i class="bi bi-wallet2 me-1"></i>Açık Pozisyon
       {% if open_pos %}<span class="badge bg-primary ms-1">{{ open_pos|length }}</span>{% endif %}
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" data-bs-toggle="tab" href="#tab-unrealized">
+    <a class="nav-link {% if active_tab == 'unrealized' %}active{% endif %}" data-bs-toggle="tab" href="#tab-unrealized">
       <i class="bi bi-calculator me-1"></i>Unrealized K/Z
     </a>
   </li>
@@ -111,7 +111,7 @@
 <div class="tab-content">
 
   <!-- Tab 1: All transactions -->
-  <div class="tab-pane fade show active" id="tab-all">
+  <div class="tab-pane fade {% if active_tab == 'all' %}show active{% endif %}" id="tab-all">
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -166,7 +166,7 @@
   </div>
 
   <!-- Tab 2: Realized P&L -->
-  <div class="tab-pane fade" id="tab-realized">
+  <div class="tab-pane fade {% if active_tab == 'realized' %}show active{% endif %}" id="tab-realized">
     <div class="card border-0 shadow-sm">
       <div class="card-body p-0">
         <div class="table-responsive">
@@ -214,7 +214,7 @@
   </div>
 
   <!-- Tab 3: FIFO Lot matches -->
-  <div class="tab-pane fade" id="tab-lots">
+  <div class="tab-pane fade {% if active_tab == 'lots' %}show active{% endif %}" id="tab-lots">
     {% for r in realized %}
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-header bg-white py-2">
@@ -269,7 +269,7 @@
   </div>
 
   <!-- Tab 4: Open positions -->
-  <div class="tab-pane fade" id="tab-open">
+  <div class="tab-pane fade {% if active_tab == 'open' %}show active{% endif %}" id="tab-open">
     {% if open_pos %}
     <div class="alert alert-info py-2 small mb-3">
       Toplam Açık: <strong>{{ total_open_qty | fmtqty }} adet</strong> —
@@ -328,7 +328,7 @@
   </div>
 
   <!-- Tab 5: Unrealized P&L calculator -->
-  <div class="tab-pane fade" id="tab-unrealized">
+  <div class="tab-pane fade {% if active_tab == 'unrealized' %}show active{% endif %}" id="tab-unrealized">
     {% if open_pos %}
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-body">

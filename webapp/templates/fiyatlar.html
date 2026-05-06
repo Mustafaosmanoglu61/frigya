@@ -290,8 +290,8 @@
             data-last-sell-price="{{ w['last_sell_price'] or '' }}">
 
           <td class="wl-sticky-first">
-            <a href="#" class="fw-bold text-decoration-none symbol-link"
-               onclick="openTvModal('{{ w['symbol'] }}');return false">{{ w['symbol'] }}</a>
+            <a href="/sembol/{{ w['symbol'] }}?portfolio={{ current_portfolio }}&tab=realized"
+               class="fw-bold text-decoration-none symbol-link">{{ w['symbol'] }}</a>
             {% if w['notes'] %}
             <span class="ms-1 note-dot" title="{{ w['notes'] }}">
               <i class="bi bi-sticky-fill text-warning" style="font-size:0.7rem"></i>
