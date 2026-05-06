@@ -255,14 +255,31 @@ async def watchlist_ekle(request: Request):
     return JSONResponse({"ok": True, "symbol": symbol})
 
 
+@router.get("/api/fiyatlar/watchlist/{item_id}/note")
+async def watchlist_note_get(item_id: int, request: Request):
+    """Watchlist sembolü için kayıtlı notu getir (HTML içerik dahil)."""
+    user = auth_service.require_current_user(request)
+    user_id = int(user["id"])
+    portfolio = request.session.get("portfolio")
+    with database.db() as conn:
+        row = conn.execute(
+            "SELECT notes FROM watchlist WHERE id=? AND user_id=? AND portfolio=?",
+            (item_id, user_id, portfolio),
+        ).fetchone()
+    return JSONResponse({"ok": True, "note": (row["notes"] if row else "") or ""})
+
+
 @router.patch("/api/fiyatlar/watchlist/{item_id}/note")
 async def watchlist_note_update(item_id: int, request: Request):
-    """Watchlist sembolü için not güncelle."""
+    """Watchlist sembolü için not güncelle (HTML içerik destekli — resimler base64 inline)."""
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
     body = await request.json()
-    note = body.get("note", "").strip() or None
+    # HTML içerik için strip yapma — sadece komple boşsa None'a çevir
+    note = body.get("note", "")
+    if not note or not note.strip():
+        note = None
     with database.db() as conn:
         conn.execute(
             "UPDATE watchlist SET notes=? WHERE id=? AND user_id=? AND portfolio=?",
