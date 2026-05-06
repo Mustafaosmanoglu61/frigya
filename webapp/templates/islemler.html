@@ -2,13 +2,13 @@
 {% block title %}İşlemler {% if yil %}{{ yil }}{% else %}Tümü{% endif %} — Frigya{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
   <h4 class="fw-bold text-dark mb-0">
-    <i class="bi bi-table me-2 text-primary"></i>Gerçekleşen Satış İşlemleri
+    <i class="bi bi-table me-2 text-primary"></i>İşlemler
   </h4>
   <div class="d-flex gap-2 align-items-center">
     <select class="form-select form-select-sm" style="width:auto;min-width:120px"
-            onchange="location.href='/islemler?yil='+this.value+'&portfolio={{ current_portfolio }}'">
+            onchange="location.href='/islemler?tab={{ active_tab }}&yil='+this.value+'&portfolio={{ current_portfolio }}'">
       <option value="0" {% if yil == 0 %}selected{% endif %}>Tümü</option>
       {% for y in available_years %}
       <option value="{{ y }}" {% if y == yil %}selected{% endif %}>{{ y }}</option>
@@ -20,12 +20,134 @@
   </div>
 </div>
 
+<!-- Nav Tabs -->
+<ul class="nav nav-tabs mb-3" id="islemlerTabs">
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'tum' %}active{% endif %}"
+       href="/islemler?tab=tum&yil={{ yil or 0 }}&portfolio={{ current_portfolio }}">
+      <i class="bi bi-list-ul me-1"></i>Tüm İşlemler
+      <span class="badge bg-secondary ms-1">{{ all_rows|length }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'satislar' %}active{% endif %}"
+       href="/islemler?tab=satislar&yil={{ yil or 0 }}&portfolio={{ current_portfolio }}">
+      <i class="bi bi-cash-coin me-1"></i>Satış İşlemleri
+      <span class="badge bg-secondary ms-1">{{ rows|length }}</span>
+    </a>
+  </li>
+</ul>
+
 {% if msg %}
 <div class="alert alert-info alert-dismissible fade show py-2 small" role="alert">
   {{ msg }}
   <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
 </div>
 {% endif %}
+
+{# ─────────────── TAB: Tüm İşlemler ─────────────── #}
+{% if active_tab == 'tum' %}
+
+<!-- Arama & Tarih Filtresi (tüm) -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2 px-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" id="all-search-symbol" class="form-control" placeholder="Sembol ara..." style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase();filterAllTable()">
+          <button class="btn btn-outline-secondary" onclick="document.getElementById('all-search-symbol').value='';filterAllTable()" title="Temizle">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+      </div>
+      <div class="col-md-2">
+        <select id="all-direction-filter" class="form-select form-select-sm" onchange="filterAllTable()">
+          <option value="">Yön: Tümü</option>
+          <option value="Alış">Alış</option>
+          <option value="Satış">Satış</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white"><i class="bi bi-calendar-event text-muted"></i></span>
+          <input type="date" id="all-filter-date-start" class="form-control" onchange="filterAllTable()">
+        </div>
+      </div>
+      <div class="col-md-3 text-end">
+        <span id="all-filter-count" class="text-muted small"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table id="all-tx-table" class="table table-hover table-sm mb-0 align-middle">
+        <thead class="table-header-custom">
+          <tr>
+            <th class="text-center">Yön</th>
+            <th>Tarih</th>
+            <th>Sembol</th>
+            <th class="text-end">Fiyat</th>
+            <th class="text-end">Adet</th>
+            <th class="text-end">Toplam</th>
+            <th class="text-center" style="width: 40px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in all_rows %}
+          <tr data-symbol="{{ r.symbol }}" data-date="{{ r.tx_date[:10] }}" data-direction="{{ r.direction }}">
+            <td class="text-center">
+              {% if r.direction == 'Alış' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                  <i class="bi bi-arrow-down-circle me-1"></i>Alış
+                </span>
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                  <i class="bi bi-arrow-up-circle me-1"></i>Satış
+                </span>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">{{ r.tx_date[:10] }}</td>
+            <td>
+              <a href="/sembol/{{ r.symbol }}?portfolio={{ current_portfolio }}" class="symbol-link fw-semibold">{{ r.symbol }}</a>
+            </td>
+            <td class="text-end">${{ "{:,.2f}".format(r.price) }}</td>
+            <td class="text-end">{{ r.quantity | fmtqty }}</td>
+            <td class="text-end fw-semibold">${{ "{:,.2f}".format(r.total) }}</td>
+            <td class="text-center text-nowrap">
+              <button type="button" class="btn btn-sm btn-outline-primary me-1" title="Düzenle"
+                      data-bs-toggle="modal" data-bs-target="#editModal"
+                      data-tx-id="{{ r.id }}"
+                      data-tx-date="{{ r.tx_date[:10] }}"
+                      data-symbol="{{ r.symbol }}"
+                      data-direction="{{ r.direction }}"
+                      data-quantity="{{ r.quantity }}"
+                      data-price="{{ r.price }}"
+                      onclick="fillEditModal(this)">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <form action="/islemler/sil/{{ r.id }}" method="post" style="display: inline;">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Sil"
+                        onclick="return confirm('{{ r.symbol }} {{ r.tx_date[:10] }} {{ r.direction }} işlemini silmek istediğinize emin misiniz?');">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">Veri yok</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% else %}
+{# ─────────────── TAB: Satış İşlemleri ─────────────── #}
 
 {% if totals %}
 <!-- Summary cards -->
@@ -178,6 +300,63 @@
   </div>
 </div>
 
+{% endif %}{# end of tab branches #}
+
+<!-- İşlem Düzenleme Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editForm" method="post">
+        <div class="modal-header bg-primary-custom text-white">
+          <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>İşlemi Düzenle</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="portfolio" value="{{ current_portfolio }}">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Tarih</label>
+              <input type="date" name="tx_date" id="edit-tx-date" class="form-control" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">İşlem Tipi</label>
+              <select name="direction" id="edit-direction" class="form-select" required>
+                <option value="Alış">Alış</option>
+                <option value="Satış">Satış</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Sembol</label>
+              <input type="text" name="symbol" id="edit-symbol" class="form-control"
+                     required style="text-transform: uppercase;" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Adet</label>
+              <input type="number" name="quantity" id="edit-quantity" class="form-control"
+                     step="0.000001" min="0.000001" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Fiyat (USD)</label>
+              <input type="number" name="price" id="edit-price" class="form-control"
+                     step="0.01" min="0.01" required>
+            </div>
+          </div>
+          <div class="mt-3 p-2 bg-light rounded small">
+            <strong>Toplam:</strong> <span id="editCalcTotal">$0.00</span>
+            <span class="text-muted ms-2">(adet × fiyat)</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1"></i>Kaydet & FIFO Hesapla
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Manuel İşlem Ekleme Modal -->
 <div class="modal fade" id="addModal" tabindex="-1">
   <div class="modal-dialog">
@@ -240,7 +419,8 @@
 {% block scripts %}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    initTableSort('transactions-table');
+    if (document.getElementById('transactions-table')) initTableSort('transactions-table');
+    if (document.getElementById('all-tx-table')) initTableSort('all-tx-table');
 
     // Live total calculation
     const qtyInput = document.querySelector('input[name="quantity"]');
@@ -257,8 +437,56 @@
     priceInput?.addEventListener('input', updateTotal);
 
     // İlk yükleme sayacı
-    filterTable();
+    if (document.getElementById('transactions-table')) filterTable();
+    if (document.getElementById('all-tx-table')) filterAllTable();
   });
+
+  function fillEditModal(btn) {
+    const id  = btn.dataset.txId;
+    const dt  = btn.dataset.txDate;
+    const sym = btn.dataset.symbol;
+    const dir = btn.dataset.direction;
+    const qty = btn.dataset.quantity;
+    const prc = btn.dataset.price;
+    document.getElementById('editForm').action = '/islemler/duzenle/' + id;
+    document.getElementById('edit-tx-date').value = dt;
+    document.getElementById('edit-symbol').value = sym;
+    document.getElementById('edit-direction').value = dir;
+    document.getElementById('edit-quantity').value = qty;
+    document.getElementById('edit-price').value = prc;
+    updateEditTotal();
+  }
+
+  function updateEditTotal() {
+    const q = parseFloat(document.getElementById('edit-quantity')?.value) || 0;
+    const p = parseFloat(document.getElementById('edit-price')?.value) || 0;
+    const el = document.getElementById('editCalcTotal');
+    if (el) el.textContent = '$' + (q * p).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('edit-quantity')?.addEventListener('input', updateEditTotal);
+    document.getElementById('edit-price')?.addEventListener('input', updateEditTotal);
+  });
+
+  function filterAllTable() {
+    const search    = (document.getElementById('all-search-symbol')?.value || '').trim().toUpperCase();
+    const direction = document.getElementById('all-direction-filter')?.value || '';
+    const dateStart = document.getElementById('all-filter-date-start')?.value || '';
+    const rows = document.querySelectorAll('#all-tx-table tbody tr[data-symbol]');
+    let visible = 0;
+    rows.forEach(row => {
+      const sym = (row.dataset.symbol || '').toUpperCase();
+      const dir = row.dataset.direction || '';
+      const date = row.dataset.date || '';
+      const ok = (!search || sym.includes(search))
+              && (!direction || dir === direction)
+              && (!dateStart || date >= dateStart);
+      row.style.display = ok ? '' : 'none';
+      if (ok) visible++;
+    });
+    const countEl = document.getElementById('all-filter-count');
+    if (countEl) countEl.textContent = visible === rows.length ? `${rows.length} işlem` : `${visible} / ${rows.length} işlem`;
+  }
 
   function filterTable() {
     const search  = (document.getElementById('search-symbol')?.value || '').trim().toUpperCase();

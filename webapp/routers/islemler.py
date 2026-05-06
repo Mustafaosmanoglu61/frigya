@@ -15,40 +15,60 @@ router = APIRouter()
 
 @router.get("/islemler", response_class=HTMLResponse)
 async def islemler(request: Request, yil: Optional[int] = Query(default=None), portfolio: str = Query(None),
-                   msg: str = Query(None)):
+                   tab: str = Query("tum"), msg: str = Query(None)):
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     portfolios = get_portfolios(user_id)
     portfolio = resolve_portfolio(request, portfolio, user_id)
+    active_tab = tab if tab in ("tum", "satislar") else "tum"
 
     with database.db() as conn:
+        # Year list: union of FIFO results + raw transactions so the dropdown
+        # shows years that may only have buys (no sales).
         available_years = []
         if portfolio:
             available_years = [
-                r["tax_year"] for r in
+                r["yil"] for r in
                 conn.execute(
-                    "SELECT DISTINCT tax_year FROM fifo_results WHERE user_id=? AND portfolio=? ORDER BY tax_year",
-                    (user_id, portfolio)
+                    """
+                    SELECT DISTINCT tax_year AS yil FROM fifo_results
+                      WHERE user_id=? AND portfolio=?
+                    UNION
+                    SELECT DISTINCT CAST(substr(tx_date, 1, 4) AS INTEGER) AS yil
+                      FROM raw_transactions
+                      WHERE user_id=? AND portfolio=?
+                    ORDER BY yil
+                    """,
+                    (user_id, portfolio, user_id, portfolio),
                 ).fetchall()
             ]
         # First load (no explicit yil) → default to latest year
         if yil is None and available_years:
             yil = max(available_years)
 
-        # Build year filter: yil=0 means "all", yil>0 means specific year
+        # Build year filters
         if yil:
-            year_sql = "AND tax_year = ?"
-            year_params = [yil]
+            year_sql_fifo = "AND tax_year = ?"
+            year_sql_raw  = "AND substr(tx_date, 1, 4) = ?"
+            year_params   = [yil]
+            year_params_raw = [str(yil)]
         else:
-            year_sql = ""
-            year_params = []
+            year_sql_fifo = ""
+            year_sql_raw  = ""
+            year_params   = []
+            year_params_raw = []
 
-        if available_years:
+        rows = []
+        totals = None
+        all_rows = []
+
+        if portfolio:
+            # Sales (FIFO results)
             rows = conn.execute(f"""
                 SELECT raw_tx_id, tx_date, symbol, quantity, sale_price, sale_proceeds,
                        cost_basis, pnl, pnl_pct, status, eksik_lot
                 FROM fifo_results
-                WHERE user_id = ? AND portfolio = ? {year_sql}
+                WHERE user_id = ? AND portfolio = ? {year_sql_fifo}
                 ORDER BY tx_date, rowid
             """, [user_id, portfolio] + year_params).fetchall()
 
@@ -61,18 +81,25 @@ async def islemler(request: Request, yil: Optional[int] = Query(default=None), p
                     SUM(CASE WHEN pnl >= 0 THEN 1 ELSE 0 END) AS wins,
                     SUM(CASE WHEN pnl >= 0 THEN pnl ELSE 0 END) AS total_profit,
                     SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END) AS total_loss
-                FROM fifo_results WHERE user_id = ? AND portfolio = ? {year_sql}
+                FROM fifo_results WHERE user_id = ? AND portfolio = ? {year_sql_fifo}
             """, [user_id, portfolio] + year_params).fetchone()
-        else:
-            rows = []
-            totals = None
+
+            # All raw transactions (alış + satış)
+            all_rows = conn.execute(f"""
+                SELECT id, tx_date, symbol, direction, quantity, price, total
+                FROM raw_transactions
+                WHERE user_id = ? AND portfolio = ? {year_sql_raw}
+                ORDER BY tx_date DESC, id DESC
+            """, [user_id, portfolio] + year_params_raw).fetchall()
 
     return templates.TemplateResponse("islemler.html", {
         "request": request,
         "rows": rows,
+        "all_rows": all_rows,
         "totals": totals,
         "yil": yil,
         "available_years": available_years,
+        "active_tab": active_tab,
         "active": "islemler",
         "portfolios": portfolios,
         "current_portfolio": portfolio,
@@ -128,6 +155,57 @@ async def islem_ekle(
     else:
         msg = f"Mükerrer işlem — zaten kayıtlı"
 
+    return RedirectResponse(
+        url=f"/islemler?yil={year}&portfolio={portfolio}&msg={msg}",
+        status_code=303,
+    )
+
+
+@router.post("/islemler/duzenle/{tx_id}")
+async def islem_duzenle(
+    request: Request,
+    tx_id: int,
+    tx_date: str = Form(...),
+    symbol: str = Form(...),
+    direction: str = Form(...),
+    quantity: float = Form(...),
+    price: float = Form(...),
+    portfolio: str = Form(""),
+):
+    """Mevcut işlemi düzenle ve FIFO'yu yeniden hesapla."""
+    user = auth_service.require_current_user(request)
+    user_id = int(user["id"])
+
+    total = round(quantity * price, 2)
+    year = int(tx_date[:4])
+    symbol_clean = symbol.strip().upper()
+
+    with database.db() as conn:
+        existing = conn.execute(
+            "SELECT id, portfolio FROM raw_transactions WHERE id=? AND user_id=?",
+            (tx_id, user_id),
+        ).fetchone()
+        if not existing:
+            return RedirectResponse(url="/islemler?msg=İşlem%20bulunamadı", status_code=303)
+
+        # FIFO sonuçları sıfırlanmalı; mevcut id'lere referans veriyor
+        conn.execute("DELETE FROM fifo_lot_matches")
+        conn.execute("DELETE FROM fifo_results")
+        conn.execute("DELETE FROM open_positions")
+        conn.execute("DELETE FROM symbol_summary")
+
+        conn.execute(
+            """UPDATE raw_transactions
+               SET tx_date=?, symbol=?, direction=?, quantity=?, price=?, total=?,
+                   source_year=?, portfolio=COALESCE(NULLIF(?, ''), portfolio)
+               WHERE id=? AND user_id=?""",
+            (tx_date, symbol_clean, direction, quantity, price, total,
+             year, portfolio, tx_id, user_id),
+        )
+
+    database.recompute_fifo()
+
+    msg = f"{symbol_clean} {direction} {quantity}@${price} güncellendi"
     return RedirectResponse(
         url=f"/islemler?yil={year}&portfolio={portfolio}&msg={msg}",
         status_code=303,
