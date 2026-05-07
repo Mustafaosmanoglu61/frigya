@@ -51,6 +51,10 @@
 <!-- Tab: Açık Pozisyonlar — Grid Widget -->
 <div id="tab-pozisyonlar" {% if active_tab != 'pozisyonlar' %}style="display:none"{% endif %}>
   {% if positions %}
+  <!-- Gizli sembol paneli — kart üzerindeki çark içinden gizlenenler buradan geri açılır -->
+  <div id="pc-hidden-wrap" class="d-none mb-2">
+    <div id="pc-hidden-bar"></div>
+  </div>
   <div class="pos-grid" id="pos-grid">
     {% for r in positions %}
     {% set t = targets.get(r.symbol, {}) %}
@@ -673,6 +677,19 @@
           <label class="form-label small fw-semibold">Hedef Kazanç ($)</label>
           <input type="number" id="tgt-kazanc" class="form-control form-control-sm" step="0.01" min="0" placeholder="Opsiyonel">
         </div>
+
+        <!-- Görünürlük (kalıcı, lokal) -->
+        <hr class="my-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="tgt-hide-card">
+          <label class="form-check-label small" for="tgt-hide-card">
+            <i class="bi bi-eye-slash me-1 text-muted"></i>
+            <strong>Bu kartı gizle</strong>
+            <span class="text-muted d-block" style="font-size:0.72rem">
+              Sadece bu cihazda saklanır · toplamlar etkilenmez
+            </span>
+          </label>
+        </div>
       </div>
       <div class="modal-footer py-2">
         <button class="btn btn-outline-danger btn-sm" onclick="clearTarget()">
@@ -848,6 +865,42 @@ body.prices-hidden .pos-price-usd {
   text-align: center;
   margin-bottom: 16px;
 }
+
+/* ── pos-card gizleme (kalıcı, lokal) ──────────────────────────────────── */
+#pos-grid .pos-card.pc-hidden { display: none !important; }
+
+#pc-hidden-wrap {
+  background: linear-gradient(135deg, #fff7e8 0%, #fdeed4 100%);
+  border: 1px solid #f5c97a;
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+#pc-hidden-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.pc-hidden-chip {
+  display: inline-flex; align-items: center;
+  padding: 2px 10px;
+  background: #fff;
+  border: 1px solid #d1dae6;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  transition: all 0.15s;
+  user-select: none;
+}
+.pc-hidden-chip:hover {
+  background: #e7f0fd;
+  border-color: var(--primary, #2e75b6);
+  color: var(--primary, #2e75b6);
+  transform: translateY(-1px);
+}
+.pc-hidden-chip i { font-size: 0.74rem; }
+[data-theme="dark"] #pc-hidden-wrap { background: linear-gradient(135deg, #3a2e1a 0%, #4a3a20 100%); border-color: #6b4f1a; }
+[data-theme="dark"] .pc-hidden-chip { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+[data-theme="dark"] .pc-hidden-chip:hover { background: #334155; }
 </style>
 <script>
 // ── Fiyat gizleme toggle ────────────────────────────────────────────────────
@@ -1356,8 +1409,74 @@ function openTargetModal(symbol, el) {
   document.getElementById('tgt-taban').value = el.dataset.taban || '';
   document.getElementById('tgt-hedef').value = el.dataset.hedef || '';
   document.getElementById('tgt-kazanc').value = el.dataset.hedefKazanc || '';
+  // G\u00f6r\u00fcn\u00fcrl\u00fck checkbox'\u0131 (lokal \u2014 localStorage)
+  const cb = document.getElementById('tgt-hide-card');
+  if (cb) cb.checked = pcGetHidden().has(symbol);
   new bootstrap.Modal(document.getElementById('targetModal')).show();
 }
+
+// \u2500\u2500 Pos-card g\u00f6r\u00fcn\u00fcrl\u00fck y\u00f6netimi (kal\u0131c\u0131 \u2014 localStorage) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+const PC_HIDDEN_KEY = 'pc-hidden-symbols';
+function pcGetHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem(PC_HIDDEN_KEY) || '[]')); }
+  catch(e) { return new Set(); }
+}
+function pcSaveHidden(set) {
+  localStorage.setItem(PC_HIDDEN_KEY, JSON.stringify([...set]));
+}
+function pcUnhide(sym) {
+  const h = pcGetHidden();
+  h.delete(sym);
+  pcSaveHidden(h);
+  pcApplyHidden();
+}
+function pcUnhideAll() {
+  pcSaveHidden(new Set());
+  pcApplyHidden();
+}
+function pcApplyHidden() {
+  const hidden = pcGetHidden();
+  document.querySelectorAll('#pos-grid .pos-card').forEach(card => {
+    card.classList.toggle('pc-hidden', hidden.has(card.dataset.symbol));
+  });
+  pcRenderHiddenBar(hidden);
+}
+function pcRenderHiddenBar(hidden) {
+  const wrap = document.getElementById('pc-hidden-wrap');
+  const bar  = document.getElementById('pc-hidden-bar');
+  if (!wrap || !bar) return;
+  if (!hidden || hidden.size === 0) {
+    wrap.classList.add('d-none');
+    bar.innerHTML = '';
+    return;
+  }
+  wrap.classList.remove('d-none');
+  bar.innerHTML = '';
+  // Etiket
+  const lbl = document.createElement('span');
+  lbl.className = 'small text-muted me-2';
+  lbl.innerHTML = `<i class="bi bi-eye-slash me-1"></i><strong>${hidden.size} gizli kart</strong> \u00b7 t\u0131kla g\u00f6ster:`;
+  bar.appendChild(lbl);
+  // Chip'ler
+  [...hidden].sort().forEach(sym => {
+    const chip = document.createElement('span');
+    chip.className = 'pc-hidden-chip';
+    chip.innerHTML = `<i class="bi bi-eye me-1"></i>${sym}`;
+    chip.title = `${sym} kart\u0131n\u0131 g\u00f6ster`;
+    chip.onclick = () => pcUnhide(sym);
+    bar.appendChild(chip);
+  });
+  if (hidden.size > 1) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-secondary py-0 ms-2';
+    btn.style.fontSize = '0.78rem';
+    btn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Hepsini G\u00f6ster';
+    btn.onclick = pcUnhideAll;
+    bar.appendChild(btn);
+  }
+}
+document.addEventListener('DOMContentLoaded', pcApplyHidden);
 
 // Çıkış Hesapla — ayrı modal (sadece fiyat girişi)
 let _exitRow = null;
@@ -1430,6 +1549,14 @@ async function saveTarget() {
   const hedef = document.getElementById('tgt-hedef').value;
   const taban = document.getElementById('tgt-taban').value;
   const kazanc = document.getElementById('tgt-kazanc').value;
+  // Görünürlük (lokal): checkbox state'ini localStorage'a yansıt
+  const hideCb = document.getElementById('tgt-hide-card');
+  if (hideCb) {
+    const h = pcGetHidden();
+    if (hideCb.checked) h.add(symbol); else h.delete(symbol);
+    pcSaveHidden(h);
+    pcApplyHidden();
+  }
 
   try {
     const resp = await fetch('/api/fiyatlar/targets', {
