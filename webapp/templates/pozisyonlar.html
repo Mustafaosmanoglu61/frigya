@@ -14,6 +14,45 @@
     <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="Fiyatları gizle / göster">
       <i class="bi bi-eye" id="price-toggle-icon"></i>
     </button>
+
+    <!-- Sembol görünürlüğü çarkı -->
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-secondary" type="button"
+              data-bs-toggle="dropdown" data-bs-auto-close="outside"
+              title="Sembol görünürlüğü (gizle / göster)">
+        <i class="bi bi-gear"></i>
+        <span id="vis-hidden-count" class="badge bg-warning text-dark ms-1 d-none" style="font-size:0.65rem">0</span>
+      </button>
+      <div class="dropdown-menu dropdown-menu-end shadow p-0" style="min-width:240px">
+        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+          <strong class="small"><i class="bi bi-eye me-1"></i>Sembol Görünürlüğü</strong>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-link p-0 small text-decoration-none" onclick="visAllOn()" title="Hepsini göster">
+              <i class="bi bi-check2-all"></i>
+            </button>
+            <button class="btn btn-link p-0 small text-decoration-none ms-2 text-muted" onclick="visAllOff()" title="Hepsini gizle">
+              <i class="bi bi-eye-slash"></i>
+            </button>
+          </div>
+        </div>
+        <ul class="list-unstyled mb-0" id="vis-list" style="max-height:60vh;overflow-y:auto">
+          {% for s in symbols %}
+          <li>
+            <label class="d-flex align-items-center px-3 py-2 mb-0 vis-row">
+              <input type="checkbox" class="form-check-input me-2 pos-vis-cb"
+                     data-symbol="{{ s.symbol }}" checked
+                     onchange="toggleSymbolVisibility('{{ s.symbol }}', this.checked)">
+              <span class="fw-semibold">{{ s.symbol }}</span>
+              <span class="ms-auto small text-muted">{{ s.lot_count }} işlem</span>
+            </label>
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="px-3 py-2 border-top small text-muted">
+          <i class="bi bi-info-circle me-1"></i>Seçim kalıcı — toplamlar etkilenmez
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -258,7 +297,35 @@ function applyHiddenSymbols() {
     const sym = tr.dataset.symbol;
     if (sym) tr.classList.toggle('pw-hidden-row', hidden.has(sym));
   });
+  // Çark dropdown checkbox'larını sync et
+  document.querySelectorAll('.pos-vis-cb').forEach(cb => {
+    cb.checked = !hidden.has(cb.dataset.symbol);
+  });
+  // Çark butonundaki rozeti güncelle
+  const badge = document.getElementById('vis-hidden-count');
+  if (badge) {
+    if (hidden.size > 0) { badge.textContent = hidden.size; badge.classList.remove('d-none'); }
+    else { badge.classList.add('d-none'); }
+  }
   renderHiddenBar(hidden);
+}
+
+// ── Çark menüsü API'si ──────────────────────────────────────────────────────
+function toggleSymbolVisibility(sym, isVisible) {
+  const hidden = getHiddenSymbols();
+  if (isVisible) hidden.delete(sym);
+  else hidden.add(sym);
+  saveHiddenSymbols(hidden);
+  applyHiddenSymbols();
+}
+function visAllOn() {
+  saveHiddenSymbols(new Set());
+  applyHiddenSymbols();
+}
+function visAllOff() {
+  const all = [...document.querySelectorAll('.pos-vis-cb')].map(cb => cb.dataset.symbol);
+  saveHiddenSymbols(new Set(all));
+  applyHiddenSymbols();
 }
 function renderHiddenBar(hidden) {
   const wrap = document.getElementById('hidden-syms-wrap');

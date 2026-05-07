@@ -436,31 +436,38 @@ th.drag-over { border-left: 3px solid #0d6efd !important; background: rgba(13,11
   position: relative;
 }
 
-/* ── Sembol gizleme: kart üstünde küçük X butonu ──────────────────────── */
+/* ── Sembol gizleme: kart üstünde her zaman görünür X butonu ──────────── */
 .pw-hide-btn {
   position: absolute;
   top: 6px;
   right: 6px;
   width: 22px; height: 22px;
   border-radius: 50%;
-  background: rgba(220, 53, 69, 0.10);
+  background: rgba(220, 53, 69, 0.12);
   color: #dc3545;
-  border: 1px solid transparent;
+  border: 1px solid rgba(220, 53, 69, 0.25);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity 0.15s, background 0.15s, transform 0.15s;
   font-size: 0.74rem;
   z-index: 3;
   line-height: 1;
+  padding: 0;
 }
-.pos-widget:hover .pw-hide-btn { opacity: 0.65; }
+.pos-widget:hover .pw-hide-btn { opacity: 0.85; }
 .pw-hide-btn:hover {
   opacity: 1 !important;
-  background: rgba(220, 53, 69, 0.22);
+  background: rgba(220, 53, 69, 0.28);
   border-color: #dc3545;
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
+[data-theme="dark"] .pw-hide-btn { background: rgba(220, 53, 69, 0.22); border-color: rgba(220, 53, 69, 0.4); }
+
+/* Çark dropdown — sembol görünürlüğü listesi */
+.vis-row { cursor: pointer; transition: background 0.1s; user-select: none; }
+.vis-row:hover { background: rgba(13,110,253,0.06); }
+[data-theme="dark"] .vis-row:hover { background: rgba(110,160,255,0.10); }
 .pos-widget.pw-hidden { display: none !important; }
 #pos-table tbody tr.pw-hidden-row { display: none; }
 
