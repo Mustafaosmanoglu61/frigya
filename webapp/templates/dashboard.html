@@ -128,45 +128,38 @@
   </div>
 </div>
 
-<!-- Açık Pozisyon Dağılımı: maliyet & mevcut değer doughnut'ları -->
+<!-- Açık Pozisyon Dağılımı: tek geniş kart, sekmeli (Maliyet / Mevcut Değer) -->
 {% if distribution %}
 <div class="row g-3">
-  <div class="col-md-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
-        <span class="fw-semibold">
-          <i class="bi bi-pie-chart-fill text-primary me-2"></i>Maliyet Dağılımı
-        </span>
-        <span class="text-muted small">Toplam: <strong id="dist-total-cost">—</strong></span>
-      </div>
-      <div class="card-body">
-        <div class="position-relative" style="height:300px">
-          <canvas id="costPieChart"></canvas>
-          <!-- Doughnut'ın ortasına özet -->
-          <div class="dist-center-label">
-            <div class="text-muted small">Açık</div>
-            <div class="fw-bold fs-5" id="dist-cost-symbol-count">—</div>
-            <div class="text-muted small">sembol</div>
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pt-3 pb-0">
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
+          <ul class="nav nav-tabs card-header-tabs" id="distTabs">
+            <li class="nav-item">
+              <a class="nav-link active" href="#" data-dist="cost" onclick="switchDistTab('cost', event)">
+                <i class="bi bi-pie-chart-fill me-1"></i>Maliyet Dağılımı
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-dist="mv" onclick="switchDistTab('mv', event)">
+                <i class="bi bi-graph-up-arrow me-1"></i>Mevcut Değer
+              </a>
+            </li>
+          </ul>
+          <div class="text-end small text-muted pb-1">
+            <span id="dist-summary-line">—</span>
           </div>
         </div>
       </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
-        <span class="fw-semibold">
-          <i class="bi bi-pie-chart text-success me-2"></i>Mevcut Değer Dağılımı
-        </span>
-        <span class="text-muted small">Toplam: <strong id="dist-total-mv">—</strong></span>
-      </div>
       <div class="card-body">
-        <div class="position-relative" style="height:300px">
-          <canvas id="mvPieChart"></canvas>
+        <div class="position-relative" style="height:380px">
+          <canvas id="distChart"></canvas>
+          <!-- Doughnut hole — özet metrik -->
           <div class="dist-center-label">
-            <div class="text-muted small">Anlık</div>
-            <div class="fw-bold fs-5" id="dist-mv-pnl">—</div>
-            <div class="text-muted small" id="dist-mv-pnl-pct">—</div>
+            <div class="text-muted small" id="dist-center-top">—</div>
+            <div class="fw-bold fs-4" id="dist-center-mid">—</div>
+            <div class="small" id="dist-center-bot">—</div>
           </div>
         </div>
       </div>
@@ -178,13 +171,19 @@
 <style>
 .dist-center-label {
   position: absolute;
-  top: 50%; left: 50%;
+  top: 50%; left: 38%;       /* legend sağda olduğu için merkezi sola kaydır */
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
-  line-height: 1.15;
+  line-height: 1.2;
+}
+@media (max-width: 768px) {
+  .dist-center-label { left: 50%; }   /* legend altta — orta */
 }
 [data-theme="dark"] .dist-center-label .text-muted { color: #94a3b8 !important; }
+
+#distTabs .nav-link { font-size: 0.92rem; padding: 6px 14px; }
+#distTabs .nav-link:not(.active) { color: #64748b; }
 </style>
 {% endif %}
 
@@ -210,39 +209,97 @@ initSymbolChart('symbolChart',
   topSyms.map(s => s.pnl)
 );
 
-// ── Açık Pozisyon Dağılımı: 2 doughnut chart ─────────────────────────────
-let _costPie = null, _mvPie = null;
+// ═══════════════════════════════════════════════════════════════════════
+// Açık Pozisyon Dağılımı — Tek doughnut, sekmeli (Maliyet | Mevcut Değer)
+// ═══════════════════════════════════════════════════════════════════════
+let _distChart = null;
+let _distMode  = 'cost';     // 'cost' | 'mv'
+let _distLastPrices = {};    // mv modunda kullanmak için son fiyat snapshot
 
-// Tutarlı renk paleti — aynı sembol her iki pastada da aynı renk olur
+// ── Renk paleti — yüksek kontrast, ayırt edilebilir (D3 / Tableau hybrid) ─
+// Tüm bitişik dilimlerin farklı tonu olsun diye renk hue çeşitlendirildi.
 const _DIST_PALETTE = [
-  '#1F4E79', '#2E75B6', '#5B9BD5', '#9DC3E6', '#BDD7EE',
-  '#70AD47', '#A9D18E', '#C5E0B4', '#E2EFDA',
-  '#ED7D31', '#F4B183', '#FFD966', '#FFE699',
-  '#C00000', '#E8A0A0', '#7030A0', '#B69DD9',
-  '#264653', '#2A9D8F', '#E76F51', '#F4A261',
-  '#6A4C93', '#1982C4', '#8AC926', '#FFCA3A',
+  '#E63946', // kırmızı
+  '#1D7AC9', // koyu mavi
+  '#F4A261', // turuncu
+  '#2A9D8F', // teal
+  '#9D4EDD', // mor
+  '#FFC93C', // sarı
+  '#06A77D', // yeşil
+  '#E07A5F', // somon
+  '#3D5A80', // lacivert
+  '#EE6C4D', // mercan
+  '#7B287D', // koyu mor
+  '#83C5BE', // açık teal
+  '#B5179E', // pembe-mor
+  '#43AA8B', // yeşilimsi
+  '#F77F00', // koyu turuncu
+  '#577590', // çelik mavi
+  '#A4036F', // fuşya
+  '#80B918', // limon yeşil
+  '#118AB2', // okyanus
+  '#EF476F', // pembe-kırmızı
+  '#06D6A0', // mint
+  '#FFD166', // krem
+  '#073B4C', // gece mavisi
+  '#8E2DE2', // canlı mor
+  '#FF6B35', // ateş turuncu
 ];
 function _distColor(i) { return _DIST_PALETTE[i % _DIST_PALETTE.length]; }
+const _SYM_INDEX = Object.fromEntries(distrib.map((d, i) => [d.symbol, i]));
 
 function _fmtUsd(v) {
   return '$' + (v || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
 }
-function _fmtPct(v) {
-  return (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
-}
+function _fmtPct(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
 
-function _doughnutOptions(symbols, totals, totalSum) {
+// ── Custom plugin: dilimlerin üzerine sembol adını yazar (hover olmadan) ─
+const _sliceLabelPlugin = {
+  id: 'sliceLabel',
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data) return;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    meta.data.forEach((arc, i) => {
+      const share = (arc.circumference || 0) / (Math.PI * 2);
+      if (share < 0.035) return;  // %3.5'tan küçük dilimleri atla (üst üste binmesin)
+      // Halka merkezinin radyal ortası
+      const inner = arc.innerRadius;
+      const outer = arc.outerRadius;
+      const angle = (arc.startAngle + arc.endAngle) / 2;
+      const r = (inner + outer) / 2;
+      const x = arc.x + Math.cos(angle) * r;
+      const y = arc.y + Math.sin(angle) * r;
+      // Dilim büyüklüğüne göre font
+      const fontSz = share >= 0.10 ? 13 : (share >= 0.06 ? 12 : 10);
+      ctx.font = 'bold ' + fontSz + 'px system-ui, -apple-system, "Segoe UI", sans-serif';
+      // Dış hat ile kontrast (hangi renk üstüne gelirse gelsin okunsun)
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillStyle = '#fff';
+      const label = chart.data.labels[i];
+      ctx.strokeText(label, x, y);
+      ctx.fillText(label, x, y);
+    });
+    ctx.restore();
+  }
+};
+
+function _doughnutOptions(totalSum) {
   return {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '65%',
+    cutout: '60%',
     animation: { animateRotate: true, animateScale: true, duration: 700 },
     plugins: {
       legend: {
         position: 'right',
         labels: {
           boxWidth: 12,
-          padding: 8,
+          padding: 7,
           font: { size: 11 },
           generateLabels: (chart) => {
             const ds = chart.data.datasets[0];
@@ -250,7 +307,7 @@ function _doughnutOptions(symbols, totals, totalSum) {
               const val = ds.data[i] || 0;
               const pct = totalSum > 0 ? (val / totalSum * 100) : 0;
               return {
-                text: `${lbl}  ${pct.toFixed(1)}%`,
+                text: `${lbl}  ${pct.toFixed(1)}%  ·  ${_fmtUsd(val)}`,
                 fillStyle: ds.backgroundColor[i],
                 strokeStyle: ds.backgroundColor[i],
                 lineWidth: 0,
@@ -274,112 +331,133 @@ function _doughnutOptions(symbols, totals, totalSum) {
   };
 }
 
-function renderCostPie() {
-  if (!distrib || !distrib.length) return;
-  const ctx = document.getElementById('costPieChart');
-  if (!ctx) return;
-  const labels  = distrib.map(d => d.symbol);
-  const values  = distrib.map(d => d.cost);
-  const colors  = labels.map((_, i) => _distColor(i));
-  const total   = values.reduce((a, b) => a + b, 0);
-
-  document.getElementById('dist-total-cost').textContent = _fmtUsd(total);
-  document.getElementById('dist-cost-symbol-count').textContent = labels.length;
-
-  if (_costPie) _costPie.destroy();
-  _costPie = new Chart(ctx, {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 14, hoverBorderWidth: 3 }] },
-    options: _doughnutOptions(labels, values, total),
-  });
+// AH efektif fiyat — PRE/POST'ta extended_hours_price kullan
+function _effPrice(p) {
+  if (!p) return null;
+  if ((p.market_state === 'PRE' || p.market_state === 'POST') && p.extended_hours_price != null) {
+    return p.extended_hours_price;
+  }
+  return p.current_price;
 }
 
-function renderMvPie(prices) {
-  if (!distrib || !distrib.length) return;
-  const ctx = document.getElementById('mvPieChart');
-  if (!ctx) return;
-
-  // AH efektif fiyat (PRE/POST'ta extended_hours_price varsa onu kullan)
-  function effPrice(p) {
-    if (!p) return null;
-    if ((p.market_state === 'PRE' || p.market_state === 'POST') && p.extended_hours_price != null) {
-      return p.extended_hours_price;
-    }
-    return p.current_price;
-  }
-
+function _buildDataset(mode, prices) {
   const items = distrib.map(d => {
-    const p = (prices || {})[d.symbol];
-    const cur = effPrice(p);
-    const mv = (cur != null) ? cur * d.qty : d.cost; // fiyat yoksa maliyetle göster
-    return { sym: d.symbol, mv, cost: d.cost, hasPrice: cur != null };
-  }).sort((a, b) => b.mv - a.mv);
+    let val;
+    if (mode === 'mv') {
+      const cur = _effPrice((prices || {})[d.symbol]);
+      val = (cur != null) ? cur * d.qty : d.cost;  // fiyat yoksa maliyetle göster
+    } else {
+      val = d.cost;
+    }
+    return { sym: d.symbol, val };
+  }).sort((a, b) => b.val - a.val);   // büyükten küçüğe
 
-  const labels = items.map(d => d.sym);
-  const values = items.map(d => Math.max(d.mv, 0));
-  const total  = values.reduce((a, b) => a + b, 0);
-  // Renk eşlemesi: orijinal sıraya göre değil, sembol bazında — pastalar arasında tutarlı
-  const symIndex = Object.fromEntries(distrib.map((d, i) => [d.symbol, i]));
-  const colors = labels.map(s => _distColor(symIndex[s] ?? 0));
+  const labels = items.map(x => x.sym);
+  const values = items.map(x => Math.max(x.val, 0));
+  const colors = labels.map(s => _distColor(_SYM_INDEX[s] ?? 0));
+  return { labels, values, colors, total: values.reduce((a, b) => a + b, 0) };
+}
 
-  // Toplam K/Z hesabı
-  const totalCost = distrib.reduce((s, d) => s + d.cost, 0);
-  const upnl = total - totalCost;
-  const upct = totalCost > 0 ? (upnl / totalCost * 100) : 0;
+function _updateCenterAndSummary(mode, ds) {
+  const top = document.getElementById('dist-center-top');
+  const mid = document.getElementById('dist-center-mid');
+  const bot = document.getElementById('dist-center-bot');
+  const sumLine = document.getElementById('dist-summary-line');
 
-  document.getElementById('dist-total-mv').textContent = _fmtUsd(total);
-  const pnlEl = document.getElementById('dist-mv-pnl');
-  const pctEl = document.getElementById('dist-mv-pnl-pct');
-  if (pnlEl) {
-    pnlEl.textContent = (upnl >= 0 ? '+' : '') + _fmtUsd(upnl);
-    pnlEl.className = 'fw-bold fs-5 ' + (upnl >= 0 ? 'text-success' : 'text-danger');
+  if (mode === 'cost') {
+    if (top) top.textContent = 'Açık';
+    if (mid) { mid.textContent = distrib.length; mid.className = 'fw-bold fs-4 text-primary'; }
+    if (bot) { bot.textContent = 'sembol'; bot.className = 'small text-muted'; }
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-cash-stack me-1"></i>Toplam Maliyet: <strong class="text-dark">${_fmtUsd(ds.total)}</strong>`;
+  } else {
+    const totalCost = distrib.reduce((s, d) => s + d.cost, 0);
+    const upnl = ds.total - totalCost;
+    const upct = totalCost > 0 ? (upnl / totalCost * 100) : 0;
+    const cls  = upnl >= 0 ? 'text-success' : 'text-danger';
+    if (top) top.textContent = 'Toplam K/Z';
+    if (mid) { mid.textContent = (upnl >= 0 ? '+' : '') + _fmtUsd(upnl); mid.className = 'fw-bold fs-4 ' + cls; }
+    if (bot) { bot.textContent = _fmtPct(upct);    bot.className = 'small ' + cls; }
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-coin me-1"></i>Toplam Mevcut: <strong class="text-dark">${_fmtUsd(ds.total)}</strong> · Maliyet: ${_fmtUsd(totalCost)}`;
   }
-  if (pctEl) {
-    pctEl.textContent = _fmtPct(upct);
-    pctEl.className = 'small ' + (upnl >= 0 ? 'text-success' : 'text-danger');
+}
+
+function renderDist(mode, prices) {
+  if (!distrib || !distrib.length) return;
+  const ctx = document.getElementById('distChart');
+  if (!ctx) return;
+  if (prices) _distLastPrices = prices;
+  const ds = _buildDataset(mode, prices || _distLastPrices);
+  _updateCenterAndSummary(mode, ds);
+
+  if (_distChart) {
+    // Mevcut chart'ı güncelle (animasyonlu transition)
+    _distChart.data.labels = ds.labels;
+    _distChart.data.datasets[0].data = ds.values;
+    _distChart.data.datasets[0].backgroundColor = ds.colors;
+    _distChart.options = _doughnutOptions(ds.total);
+    _distChart.update();
+    return;
   }
 
-  if (_mvPie) _mvPie.destroy();
-  _mvPie = new Chart(ctx, {
+  _distChart = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 14, hoverBorderWidth: 3 }] },
-    options: _doughnutOptions(labels, values, total),
+    data: {
+      labels: ds.labels,
+      datasets: [{
+        data: ds.values,
+        backgroundColor: ds.colors,
+        borderWidth: 2,
+        borderColor: '#fff',
+        hoverOffset: 16,
+        hoverBorderWidth: 3,
+      }]
+    },
+    options: _doughnutOptions(ds.total),
+    plugins: [_sliceLabelPlugin],
   });
 }
 
-// İlk render — maliyet pastasını çiz
-renderCostPie();
+function switchDistTab(mode, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  _distMode = mode;
+  document.querySelectorAll('#distTabs .nav-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.dist === mode);
+  });
+  renderDist(mode, _distLastPrices);
+}
 
-// Mevcut değer pastasını cache'ten yükle, sonra global price engine güncellemelerini dinle
+// İlk render — Maliyet tabıyla başla
 (function () {
   if (!distrib || !distrib.length) return;
-
-  // Önbellekten mevcut fiyatları al ve render et
-  let initialPrices = {};
+  // Cache'ten mevcut fiyatları yükle (mv tabı için hazır olsun)
   try {
     const cache = JSON.parse(localStorage.getItem('_priceCache') || '{}');
-    if (cache.prices) initialPrices = cache.prices;
+    if (cache.prices) _distLastPrices = cache.prices;
   } catch(e) {}
-  renderMvPie(initialPrices);
+  renderDist('cost', _distLastPrices);
+})();
 
-  // Diğer sekmelerden gelen fiyat güncellemelerini dinle
+// Global hook — fiyat motoru güncellediğinde mv tabını da tazele
+(function () {
+  if (!distrib || !distrib.length) return;
+  const _origDash = window.updateDashboardPrices;
+  window.updateDashboardPrices = function(prices) {
+    _distLastPrices = prices || _distLastPrices;
+    if (_distMode === 'mv') renderDist('mv', _distLastPrices);
+    if (typeof _origDash === 'function') _origDash(prices);
+  };
+  // Diğer tab'lerden gelen güncellemeler
   window.addEventListener('storage', (e) => {
     if (e.key === '_priceCache' && e.newValue) {
       try {
         const d = JSON.parse(e.newValue);
-        if (d.prices) renderMvPie(d.prices);
+        if (d.prices) {
+          _distLastPrices = d.prices;
+          if (_distMode === 'mv') renderDist('mv', _distLastPrices);
+        }
       } catch(_) {}
     }
   });
-
-  // Kendi sekmemizdeki güncelleme için global hook (price engine bunu çağırırsa)
-  if (typeof window !== 'undefined') {
-    const _origDash = window.updateDashboardPrices;
-    window.updateDashboardPrices = function(prices) {
-      try { renderMvPie(prices); } catch(e) {}
-      if (typeof _origDash === 'function') _origDash(prices);
-    };
-  }
 })();
 {% else %}
 async function createFirstPortfolio() {
