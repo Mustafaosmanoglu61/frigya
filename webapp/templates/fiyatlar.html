@@ -956,26 +956,65 @@ function updatePriceRows(prices) {
       }
     }
 
-    // ── Durum (watchlist state machine — mutually exclusive) ─────────────
+    // ── Durum (watchlist state machine — fiyat × yön kombinasyonu) ───────
+    // Fiyat seviyesi (taban/hedef bantları) + günlük yön bileşenleri:
+    //   FLAT_THR  : ±0.5% altı yatay
+    //   STRONG_THR: ±2.5% üstü "güçlü" hareket
     const durumEl = el.querySelector('[data-field="durum"]');
     if (durumEl && p.current_price != null) {
-      const tb = parseFloat(el.dataset.taban) || 0;
-      const hd = parseFloat(el.dataset.hedef) || 0;
-      const pr = p.current_price;
-      let html = '<span class="badge bg-light text-secondary border">—</span>';
+      const tb  = parseFloat(el.dataset.taban) || 0;
+      const hd  = parseFloat(el.dataset.hedef) || 0;
+      const pr  = p.current_price;
+      const chg = (p.change_pct == null) ? 0 : p.change_pct;
+      const FLAT_THR = 0.5, STRONG_THR = 2.5;
+      const isUp     = chg >=  FLAT_THR;
+      const isDown   = chg <= -FLAT_THR;
+      const isFlat   = !isUp && !isDown;
+      const isStrUp  = chg >=  STRONG_THR;
+      const isStrDn  = chg <= -STRONG_THR;
+
+      // Helper — badge HTML üret + tooltip ile günlük değişimi göster
+      const sign = chg >= 0 ? '+' : '';
+      const tip  = `Günlük: ${sign}${chg.toFixed(2)}%`;
+      const mk = (cls, txt) => `<span class="badge ${cls}" title="${tip}">${txt}</span>`;
+
+      let html = mk('bg-light text-secondary border', '—');
+
       if (tb > 0 || hd > 0) {
         if (tb > 0 && pr <= tb) {
-          html = '<span class="badge bg-danger">⚠ Kırıldı</span>';
-        } else if (hd > 0 && pr >= hd) {
-          html = '<span class="badge bg-success">✓ Aşıldı</span>';
-        } else if (tb > 0 && (pr - tb) / pr * 100 <= 5) {
-          html = '<span class="badge bg-warning text-dark">Tabana Yakın</span>';
-        } else if (hd > 0 && (hd - pr) / pr * 100 <= 5) {
-          html = '<span class="badge bg-info text-dark">Hedefe Yakın</span>';
-        } else {
-          html = '<span class="badge bg-light text-secondary border">Normal</span>';
+          // Taban kırıldı — yön burada kritik (toparlama mı, dipsiz kuyu mu?)
+          if (isUp)        html = mk('bg-warning text-dark', '⚠ Toparlıyor ↑');
+          else if (isDown) html = mk('bg-danger',            '⚠ Kırıldı ↓');
+          else             html = mk('bg-danger',            '⚠ Kırıldı →');
+        }
+        else if (hd > 0 && pr >= hd) {
+          // Hedef aşıldı — yön (devam mı, geri çekilme mi?)
+          if (isDown)      html = mk('bg-warning text-dark', '✓ Geri çekildi ↓');
+          else if (isUp)   html = mk('bg-success',           '✓ Aşıldı ↑');
+          else             html = mk('bg-success',           '✓ Aşıldı →');
+        }
+        else if (tb > 0 && (pr - tb) / pr * 100 <= 5) {
+          // Tabana yakın — düşüyor mu (kırılım riski) yoksa toparlanıyor mu?
+          if (isDown)      html = mk('bg-danger bg-opacity-75', '↓ Tabana iniyor');
+          else if (isUp)   html = mk('bg-success',              '↑ Tabandan dönüyor');
+          else             html = mk('bg-warning text-dark',    '→ Tabana yakın');
+        }
+        else if (hd > 0 && (hd - pr) / pr * 100 <= 5) {
+          // Hedefe yakın — yaklaşıyor mu, uzaklaşıyor mu?
+          if (isUp)        html = mk('bg-info text-dark',    '↑ Hedefe yaklaşıyor');
+          else if (isDown) html = mk('bg-warning text-dark', '↓ Hedeften uzaklaşıyor');
+          else             html = mk('bg-info text-dark',    '→ Hedefe yakın');
+        }
+        else {
+          // İki bant arasında — sadece yön/momentum
+          if      (isStrUp)  html = mk('bg-success',                       '📈 Güçlü ↑');
+          else if (isStrDn)  html = mk('bg-danger',                        '📉 Güçlü ↓');
+          else if (isUp)     html = mk('bg-light text-success border border-success', '↑ Yükseliyor');
+          else if (isDown)   html = mk('bg-light text-danger border border-danger',   '↓ Düşüyor');
+          else               html = mk('bg-light text-secondary border',   '→ Yatay');
         }
       }
+      // (taban/hedef yoksa "—" kalıyor — günlük yön zaten Fiyat/Değişim'de)
       durumEl.innerHTML = html;
     }
   });
