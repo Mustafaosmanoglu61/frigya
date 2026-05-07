@@ -415,19 +415,35 @@ function updatePozPrices(prices) {
 
     const qty  = parseFloat(w.dataset.qty)  || 0;
     const cost = parseFloat(w.dataset.cost) || 0;
-    const cur  = p.current_price;
-    const prev = p.prev_close;   // ← FIX: prev_close (not previous_close)
-    const mkt  = p.market_state;
+    const regCur = p.current_price;          // regular session price
+    const prev   = p.prev_close;
+    const mkt    = p.market_state;
+    // ── After-hours/pre-market efektif fiyat ─────────────────────────────
+    // PRE/POST modunda extended_hours_price varsa onu kullan;
+    // tüm metrikler (mevcut değer, K/Z, günlük K/Z, hedefe %) AH üzerinden hesaplanır.
+    const isExt = (mkt === 'PRE' || mkt === 'POST') && p.extended_hours_price != null;
+    const cur   = isExt ? p.extended_hours_price : regCur;
+    const extLbl = mkt === 'PRE' ? 'Pre' : 'Aft';
 
-    // Anlık fiyat
+    // Anlık fiyat — AH aktifse rozet ekle
     const priceEl = w.querySelector('[data-field="current-price"]');
-    if (priceEl && cur != null) priceEl.textContent = '$' + cur.toFixed(2);
+    if (priceEl && cur != null) {
+      if (isExt) {
+        priceEl.innerHTML = '$' + cur.toFixed(2) +
+          ` <span class="badge bg-warning text-dark" style="font-size:0.55rem;vertical-align:middle" title="${extLbl}-Market fiyatı kullanılıyor">${extLbl}</span>`;
+      } else {
+        priceEl.textContent = '$' + cur.toFixed(2);
+      }
+    }
 
-    // Değişim %
+    // Değişim % — AH aktifse prev_close → cur (total move dahil AH); değilse regular change_pct
     const chgEl = w.querySelector('[data-field="change-pct"]');
-    if (chgEl && p.change_pct != null) {
-      chgEl.textContent = (p.change_pct >= 0 ? '+' : '') + p.change_pct.toFixed(2) + '%';
-      chgEl.className = 'pw-change ' + (p.change_pct >= 0 ? 'text-success' : 'text-danger');
+    const dispChg = (isExt && prev != null && prev > 0)
+      ? ((cur - prev) / prev * 100)
+      : p.change_pct;
+    if (chgEl && dispChg != null) {
+      chgEl.textContent = (dispChg >= 0 ? '+' : '') + dispChg.toFixed(2) + '%';
+      chgEl.className = 'pw-change ' + (dispChg >= 0 ? 'text-success' : 'text-danger');
     }
 
     // After-market gösterimi
@@ -518,19 +534,21 @@ function updatePozPrices(prices) {
     const qty   = parseFloat(row.dataset.qty)   || 0;
     const cost  = parseFloat(row.dataset.cost)  || 0;
     const hedef = parseFloat(row.dataset.hedef) || 0;
-    const cur   = p.current_price;
-    const prev  = p.prev_close;  // ← FIX
+    const regCur = p.current_price;
+    const prev   = p.prev_close;
+    // ── AH efektif fiyat — tüm metrikler bunun üzerinden hesaplanır ────
+    const isExt = (p.market_state === 'PRE' || p.market_state === 'POST') && p.extended_hours_price != null;
+    const cur   = isExt ? p.extended_hours_price : regCur;
+    const extLbl = p.market_state === 'PRE' ? 'Pre' : 'Aft';
 
     const cpEl = row.querySelector('.lot-current-price');
     if (cpEl) {
-      let txt = '$' + cur.toFixed(2);
-      // after-market badge inline
-      if ((p.market_state === 'PRE' || p.market_state === 'POST') && p.extended_hours_price) {
-        const lbl = p.market_state === 'PRE' ? 'Pre' : 'Aft';
-        txt += ` <small class="text-warning">(${lbl}: $${p.extended_hours_price.toFixed(2)})</small>`;
-        cpEl.innerHTML = txt;
+      if (isExt) {
+        // AH aktif: efektif fiyat ana, regular küçük etiketle yanında
+        cpEl.innerHTML = '$' + cur.toFixed(2) +
+          ` <small class="text-warning" title="${extLbl}-Market fiyatı kullanılıyor (Reg: $${regCur.toFixed(2)})">${extLbl}</small>`;
       } else {
-        cpEl.textContent = txt;
+        cpEl.textContent = '$' + cur.toFixed(2);
       }
     }
 
