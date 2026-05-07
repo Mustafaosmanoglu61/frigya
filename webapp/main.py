@@ -39,7 +39,7 @@ if load_dotenv:
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 IS_PRODUCTION = APP_ENV == "production"
 DEFAULT_DEV_SESSION_SECRET = "frigya-dev-secret"
-SESSION_TIMEOUT = 20 * 60  # 20 dakika
+SESSION_TIMEOUT = 60 * 60  # 1 saat
 
 
 def get_session_secret() -> str:
