@@ -28,6 +28,7 @@ async def dashboard(request: Request, portfolio: str = Query(None), year: int = 
             "monthly_pnl": [],
             "cumulative": [],
             "top_syms": [],
+            "distribution": [],
             "active": "dashboard",
             "portfolios": portfolios,
             "current_portfolio": None,
@@ -60,6 +61,28 @@ async def dashboard(request: Request, portfolio: str = Query(None), year: int = 
             "SELECT COUNT(DISTINCT symbol) AS cnt FROM open_positions WHERE user_id = ? AND portfolio = ?",
             (user_id, portfolio)
         ).fetchone()["cnt"]
+
+        # Açık pozisyon dağılımı — sembol bazında qty + maliyet
+        # Pasta grafiği için: bir taraf maliyete göre (statik), diğer taraf
+        # mevcut piyasa değerine göre (JS tarafında fiyat cache'i ile güncellenir).
+        distribution_rows = conn.execute("""
+            SELECT symbol,
+                   SUM(quantity)   AS qty,
+                   SUM(cost_basis) AS cost
+            FROM open_positions
+            WHERE user_id = ? AND portfolio = ?
+            GROUP BY symbol
+            HAVING qty > 0
+            ORDER BY cost DESC
+        """, (user_id, portfolio)).fetchall()
+        distribution = [
+            {
+                "symbol": r["symbol"],
+                "qty":    round(r["qty"], 6),
+                "cost":   round(r["cost"], 2),
+            }
+            for r in distribution_rows
+        ]
 
         monthly = conn.execute(f"""
             SELECT
@@ -126,6 +149,7 @@ async def dashboard(request: Request, portfolio: str = Query(None), year: int = 
         "monthly_pnl": monthly_pnl,
         "cumulative": cumulative,
         "top_syms": [{"symbol": r["symbol"], "pnl": round(r["sym_pnl"], 2)} for r in top_syms],
+        "distribution": distribution,
         "active": "dashboard",
         "portfolios": portfolios,
         "current_portfolio": portfolio,

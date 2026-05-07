@@ -462,6 +462,10 @@ function applyPricesToPage(prices, fetched_at) {
   if (typeof updatePozPrices === 'function') {
     updatePozPrices(prices);
   }
+  // dashboard.html dağılım pastaları (updateDashboardPrices varsa çağır)
+  if (typeof updateDashboardPrices === 'function') {
+    updateDashboardPrices(prices);
+  }
 }
 
 /** Otomatik güncelleme motorunu başlat/durdur */
