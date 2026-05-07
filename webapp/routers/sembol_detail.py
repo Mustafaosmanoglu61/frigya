@@ -50,14 +50,14 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
             ORDER BY tx_date, id
         """, (user_id, symbol, portfolio)).fetchall()
 
-        # Realized P&L (all years) for this portfolio
+        # Realized P&L (all years) for this portfolio — yeniden eskiye sırala
         realized = conn.execute("""
             SELECT fr.id, fr.tx_date, fr.quantity, fr.sale_price, fr.sale_proceeds,
                    fr.cost_basis, fr.pnl, fr.pnl_pct, fr.status, fr.eksik_lot,
                    fr.tax_year
             FROM fifo_results fr
             WHERE fr.user_id = ? AND upper(fr.symbol) = ? AND fr.portfolio = ?
-            ORDER BY fr.tx_date, fr.rowid
+            ORDER BY fr.tx_date DESC, fr.rowid DESC
         """, (user_id, symbol, portfolio)).fetchall()
 
         # FIFO lot match details for each sale
