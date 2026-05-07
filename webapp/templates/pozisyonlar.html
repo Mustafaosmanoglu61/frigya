@@ -22,12 +22,24 @@
 {% else %}
 
 <!-- Symbol Widget Cards -->
-<div class="pos-widget-grid" id="pos-widget-grid">
+<!-- Gizlenmiş semboller paneli — kalıcı (localStorage) -->
+<div id="hidden-syms-wrap" class="d-none">
+  <div id="hidden-syms-bar"></div>
+</div>
+
+<div class="pos-widget-grid mt-2" id="pos-widget-grid">
   {% for s in symbols %}
   <div class="pos-widget" draggable="true" data-symbol="{{ s.symbol }}"
        data-qty="{{ s.total_qty }}" data-cost="{{ s.total_cost }}"
        onclick="toggleSymbolFilter('{{ s.symbol }}', event)"
        title="Tabloda filtrele (Shift ile çoklu seçim)">
+
+    <!-- Gizle butonu (hover'da görünür) -->
+    <button type="button" class="pw-hide-btn"
+            onclick="hideSymbol('{{ s.symbol }}', event)"
+            title="Bu sembolü gizle">
+      <i class="bi bi-eye-slash-fill"></i>
+    </button>
 
     <!-- Header -->
     <div class="pw-header">
@@ -203,12 +215,98 @@ if (localStorage.getItem('pos-prices-hidden') === '1') {
 }
 </script>
 <script>
+// ── Sembol Gizleme (kalıcı — localStorage) ────────────────────────────────
+const LS_HIDDEN = 'pos-hidden-symbols';
+
+function getHiddenSymbols() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_HIDDEN) || '[]')); }
+  catch(e) { return new Set(); }
+}
+function saveHiddenSymbols(set) {
+  localStorage.setItem(LS_HIDDEN, JSON.stringify([...set]));
+}
+function hideSymbol(sym, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  const hidden = getHiddenSymbols();
+  hidden.add(sym);
+  saveHiddenSymbols(hidden);
+  // Aktif filtrede ise filtreden de düş
+  if (typeof _selectedSymbols !== 'undefined' && _selectedSymbols.has(sym)) {
+    _selectedSymbols.delete(sym);
+    if (typeof applySymbolFilter === 'function') applySymbolFilter();
+  }
+  applyHiddenSymbols();
+}
+function unhideSymbol(sym) {
+  const hidden = getHiddenSymbols();
+  hidden.delete(sym);
+  saveHiddenSymbols(hidden);
+  applyHiddenSymbols();
+}
+function unhideAll() {
+  saveHiddenSymbols(new Set());
+  applyHiddenSymbols();
+}
+function applyHiddenSymbols() {
+  const hidden = getHiddenSymbols();
+  // Widget'ları gizle
+  document.querySelectorAll('.pos-widget').forEach(w => {
+    w.classList.toggle('pw-hidden', hidden.has(w.dataset.symbol));
+  });
+  // Lot tablosu satırlarını da gizle
+  document.querySelectorAll('#pos-table tbody tr').forEach(tr => {
+    const sym = tr.dataset.symbol;
+    if (sym) tr.classList.toggle('pw-hidden-row', hidden.has(sym));
+  });
+  renderHiddenBar(hidden);
+}
+function renderHiddenBar(hidden) {
+  const wrap = document.getElementById('hidden-syms-wrap');
+  const bar  = document.getElementById('hidden-syms-bar');
+  if (!wrap || !bar) return;
+  if (!hidden || hidden.size === 0) {
+    wrap.classList.add('d-none');
+    bar.innerHTML = '';
+    return;
+  }
+  wrap.classList.remove('d-none');
+  bar.innerHTML = '';
+  // Etiket
+  const lbl = document.createElement('span');
+  lbl.className = 'small text-muted me-1';
+  lbl.innerHTML = `<i class="bi bi-eye-slash me-1"></i><strong>${hidden.size} gizli</strong> · tıkla göster:`;
+  bar.appendChild(lbl);
+  // Chip'ler
+  [...hidden].sort().forEach(sym => {
+    const chip = document.createElement('span');
+    chip.className = 'hidden-sym-chip';
+    chip.innerHTML = `<i class="bi bi-eye"></i> ${sym}`;
+    chip.title = `${sym} göster`;
+    chip.onclick = () => unhideSymbol(sym);
+    bar.appendChild(chip);
+  });
+  // Hepsini göster butonu
+  if (hidden.size > 1) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-secondary py-0 ms-1';
+    btn.style.fontSize = '0.78rem';
+    btn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Hepsini Göster';
+    btn.onclick = unhideAll;
+    bar.appendChild(btn);
+  }
+}
+// Sayfa yüklenince gizleme durumunu uygula
+document.addEventListener('DOMContentLoaded', applyHiddenSymbols);
+
 // ── Widget Filtre (tek veya çoklu seçim) ──────────────────────────────────
 let _selectedSymbols = new Set();
 
 function toggleSymbolFilter(symbol, event) {
   // Drag başladıysa filtre açma
   if (event && event.target.closest('a')) return;
+  // Hide butonu tıklandıysa filtre tetikleme
+  if (event && event.target.closest('.pw-hide-btn')) return;
 
   const isShift = event && event.shiftKey;
   if (!isShift) {
