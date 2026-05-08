@@ -673,21 +673,41 @@ async function fetchCurrentPrice() {
     const p = data.price;
 
     if (p && p.current_price != null) {
-      _fetchedCurrentPrice = p.current_price;
+      // ── Efektif fiyat seçimi ───────────────────────────────────────────
+      // PRE/POST sessionda extended_hours_price varsa onu referans al,
+      // yoksa (AH'da hareket yoksa) regular kapanışa düş.
+      const isExt = (p.market_state === 'PRE' || p.market_state === 'POST')
+                    && p.extended_hours_price != null;
+      const cur   = isExt ? p.extended_hours_price : p.current_price;
+      _fetchedCurrentPrice = cur;
 
-      // Badge güncelle
-      const chg = p.change_pct != null
-        ? ` (${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%)`
+      // Etiket (badge) — etkin oturumu net göster
+      // Yön yüzdesi: AH'daysa prev_close → AH (toplam hareket), aksi hâlde regular change_pct
+      let chgVal = null;
+      if (isExt && p.prev_close != null && p.prev_close > 0) {
+        chgVal = (cur - p.prev_close) / p.prev_close * 100;
+      } else if (p.change_pct != null) {
+        chgVal = p.change_pct;
+      }
+      const chgStr = chgVal != null
+        ? ` (${chgVal >= 0 ? '+' : ''}${chgVal.toFixed(2)}%)`
         : '';
-      label.textContent = `Güncel: $${p.current_price.toFixed(2)}${chg}`;
-      badge.classList.replace('bg-light', p.change_pct >= 0 ? 'bg-success' : 'bg-danger');
-      badge.classList.replace('text-secondary', 'text-white');
-      badge.classList.remove('border');
+      let prefix = 'Güncel';
+      if (isExt) prefix = (p.market_state === 'PRE') ? 'Pre-Market' : 'After-Market';
+      label.textContent = `${prefix}: $${cur.toFixed(2)}${chgStr}`;
 
-      // Input'u doldur ve hesaplamayı tetikle
+      // Renklendirme — yön yönlü
+      badge.classList.remove('bg-light', 'bg-success', 'bg-danger', 'bg-warning', 'text-dark', 'text-secondary', 'border');
+      if (chgVal != null) {
+        badge.classList.add(chgVal >= 0 ? 'bg-success' : 'bg-danger', 'text-white');
+      } else {
+        badge.classList.add('bg-secondary', 'text-white');
+      }
+
+      // Input'u efektif fiyatla doldur ve hesaplamayı tetikle
       input.placeholder = '0.00';
-      input.value = p.current_price.toFixed(2);
-      calcUnrealized(p.current_price);
+      input.value = cur.toFixed(2);
+      calcUnrealized(cur);
     } else {
       label.textContent = 'Fiyat alınamadı';
       badge.classList.add('bg-warning', 'text-dark');
