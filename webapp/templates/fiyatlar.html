@@ -74,7 +74,7 @@
 
       <!-- Üst: Sembol + durum + gear -->
       <div class="pc-top">
-        <a href="#" class="pc-symbol" onclick="openTwChart('{{ r.symbol }}');return false">{{ r.symbol }}</a>
+        <a href="/sembol/{{ r.symbol }}?portfolio={{ current_portfolio }}&tab=unrealized" class="pc-symbol">{{ r.symbol }}</a>
         <span data-field="market-state"></span>
         <span class="pc-spacer"></span>
         <span class="pc-qty-badge">{{ r.total_qty | fmtqty }} adet</span>
