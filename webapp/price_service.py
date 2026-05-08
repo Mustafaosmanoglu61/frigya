@@ -72,23 +72,40 @@ class YFinanceProvider(PriceProvider):
                 # Extended hours: ticker.info'dan al (fast_info'da yok)
                 ext_price = None
                 ext_change_pct = None
+                ext_phase = None        # AH fazı: 'PRE' / 'POST' / None
                 try:
                     info = ticker_obj.info
                     post_price = info.get("postMarketPrice")
                     pre_price  = info.get("preMarketPrice")
-                    ext_price  = post_price or pre_price
-
-                    post_chg = info.get("postMarketChangePercent")
-                    pre_chg  = info.get("preMarketChangePercent")
-                    ext_change_pct = post_chg if post_price else pre_chg
+                    if post_price:
+                        ext_price = post_price
+                        ext_phase = "POST"
+                        ext_change_pct = info.get("postMarketChangePercent")
+                    elif pre_price:
+                        ext_price = pre_price
+                        ext_phase = "PRE"
+                        ext_change_pct = info.get("preMarketChangePercent")
                 except Exception:
                     pass
+
+                # AH fiyatı regular ile birebir aynıysa "değişim yok" sayalım
+                if (ext_price is not None and cur is not None
+                        and abs(ext_price - cur) < 0.001):
+                    ext_price = None
+                    ext_change_pct = None
+                    ext_phase = None
+
+                # market_state null geliyorsa AH phase'inden çıkar (yfinance
+                # fast_info bazen state alanını boş bırakır — frontend "PRE/POST"
+                # kontrollerini tutarlı yapsın diye doldur)
+                ms_raw = getattr(fi, "market_state", None)
+                market_state = ms_raw or ext_phase
 
                 results[sym] = {
                     "current_price": round(cur, 4)  if cur  is not None else None,
                     "prev_close":    round(prev, 4) if prev is not None else None,
                     "change_pct":    round(chg, 2)  if chg  is not None else None,
-                    "market_state":  getattr(fi, "market_state", None),
+                    "market_state":  market_state,
                     "currency":      getattr(fi, "currency", "USD"),
                     "extended_hours_price": round(ext_price, 4) if ext_price is not None else None,
                     "extended_hours_change_pct": round(ext_change_pct, 2) if ext_change_pct is not None else None,

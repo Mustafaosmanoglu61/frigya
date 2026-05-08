@@ -674,12 +674,23 @@ async function fetchCurrentPrice() {
 
     if (p && p.current_price != null) {
       // ── Efektif fiyat seçimi ───────────────────────────────────────────
-      // PRE/POST sessionda extended_hours_price varsa onu referans al,
-      // yoksa (AH'da hareket yoksa) regular kapanışa düş.
-      const isExt = (p.market_state === 'PRE' || p.market_state === 'POST')
-                    && p.extended_hours_price != null;
-      const cur   = isExt ? p.extended_hours_price : p.current_price;
+      // Kural: extended_hours_price varsa (regular close'tan farklıysa)
+      // onu referans al — market_state etiketi PRE / POST / POSTPOST /
+      // PREPRE / CLOSED olabilir, ona güvenmiyoruz. AH fiyatı yoksa
+      // veya regular ile aynıysa, regular kapanışa düşeriz.
+      const ahP   = p.extended_hours_price;
+      const sameAsReg = (ahP != null && p.current_price != null
+                        && Math.abs(ahP - p.current_price) < 0.001);
+      const isExt = (ahP != null) && !sameAsReg;
+      const cur   = isExt ? ahP : p.current_price;
       _fetchedCurrentPrice = cur;
+
+      // PRE mi POST mu? market_state baş harflerinden çıkar; emin değilsek "Ext"
+      let phase = '';
+      const ms = (p.market_state || '').toUpperCase();
+      if (ms.startsWith('PRE'))       phase = 'PRE';
+      else if (ms.startsWith('POST')) phase = 'POST';
+      else if (isExt)                 phase = 'EXT';   // bilinmeyen ama AH var
 
       // Etiket (badge) — etkin oturumu net göster
       // Yön yüzdesi: AH'daysa prev_close → AH (toplam hareket), aksi hâlde regular change_pct
@@ -693,7 +704,11 @@ async function fetchCurrentPrice() {
         ? ` (${chgVal >= 0 ? '+' : ''}${chgVal.toFixed(2)}%)`
         : '';
       let prefix = 'Güncel';
-      if (isExt) prefix = (p.market_state === 'PRE') ? 'Pre-Market' : 'After-Market';
+      if (isExt) {
+        if (phase === 'PRE')       prefix = 'Pre-Market';
+        else if (phase === 'POST') prefix = 'After-Market';
+        else                       prefix = 'Ext-Hours';
+      }
       label.textContent = `${prefix}: $${cur.toFixed(2)}${chgStr}`;
 
       // Renklendirme — yön yönlü
