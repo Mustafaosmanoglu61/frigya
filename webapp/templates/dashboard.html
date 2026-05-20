@@ -88,6 +88,30 @@
       </div>
     </div>
   </div>
+
+  <!-- AÇIK POZİSYONLAR GERÇEKLEŞMEMİŞ K/Z — async, 1dk'da bir yenilenir -->
+  {% if distribution %}
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small fw-semibold">GERÇEKLEŞMEMİŞ K/Z</span>
+          <span id="unr-kpi-spinner" class="spinner-border spinner-border-sm text-muted" role="status" style="width:0.85rem;height:0.85rem"></span>
+        </div>
+        <h4 class="fw-bold text-muted" id="unr-kpi-net">—</h4>
+        <div class="text-muted small mt-1">
+          Açık: <strong id="unr-kpi-count">{{ distribution|length }}</strong> sembol ·
+          <span id="unr-kpi-pct" class="text-muted">—</span><br>
+          <span class="text-success">Kâr: <strong id="unr-kpi-profit">—</strong></span> /
+          <span class="text-danger">Zarar: <strong id="unr-kpi-loss">—</strong></span><br>
+          <span class="text-muted" style="font-size:0.7rem">
+            <i class="bi bi-arrow-clockwise me-1"></i>Son: <span id="unr-kpi-time">—</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Charts row -->
@@ -435,6 +459,131 @@ function switchDistTab(mode, ev) {
     if (cache.prices) _distLastPrices = cache.prices;
   } catch(e) {}
   renderDist('cost', _distLastPrices);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// Açık Poz. Gerçekleşmemiş K/Z KPI kartı — async, 60s'de bir yenilenir
+// ═══════════════════════════════════════════════════════════════════════
+function _updateUnrealizedKpi(prices) {
+  if (!distrib || !distrib.length) return;
+  const netEl   = document.getElementById('unr-kpi-net');
+  const pctEl   = document.getElementById('unr-kpi-pct');
+  const profEl  = document.getElementById('unr-kpi-profit');
+  const lossEl  = document.getElementById('unr-kpi-loss');
+  const timeEl  = document.getElementById('unr-kpi-time');
+  if (!netEl) return;
+
+  // Fiyat yoksa daha önceki cache'ten dene
+  prices = prices || _distLastPrices || {};
+
+  let totalCost = 0, totalMv = 0, profit = 0, loss = 0, priced = 0;
+  for (const d of distrib) {
+    totalCost += d.cost;
+    const p = prices[d.symbol];
+    const eff = _effPrice(p);    // AH-aware (yukarıda tanımlı)
+    if (eff == null) continue;
+    priced++;
+    const mv  = eff * d.qty;
+    const upn = mv - d.cost;
+    totalMv += mv;
+    if (upn >= 0) profit += upn; else loss += upn;
+  }
+  // Hiç fiyat çekememişsek "—" bırak (kafa karıştırıcı 0 göstermeyelim)
+  if (priced === 0) {
+    netEl.textContent = '—';
+    netEl.className   = 'fw-bold text-muted';
+    if (profEl) profEl.textContent = '—';
+    if (lossEl) lossEl.textContent = '—';
+    if (pctEl)  pctEl.textContent  = 'fiyat yükleniyor…';
+    return;
+  }
+
+  const net = totalMv - totalCost;
+  const pct = totalCost > 0 ? (net / totalCost * 100) : 0;
+  const cls = net >= 0 ? 'text-success' : 'text-danger';
+
+  netEl.textContent = (net >= 0 ? '+' : '') + _fmtUsd(net);
+  netEl.className   = 'fw-bold ' + cls;
+  if (pctEl) {
+    pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    pctEl.className   = cls;
+  }
+  if (profEl) profEl.textContent = _fmtUsd(profit);
+  if (lossEl) lossEl.textContent = _fmtUsd(Math.abs(loss));
+
+  if (timeEl) {
+    const now = new Date();
+    timeEl.textContent = now.toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }
+  // Spinner gizle (ilk yüklemeden sonra)
+  const sp = document.getElementById('unr-kpi-spinner');
+  if (sp) sp.style.display = 'none';
+}
+
+// Async price fetch — sayfayı kilitleme, sadece KPI'yı taze tut
+async function _refreshUnrealizedKpiAsync() {
+  if (!distrib || !distrib.length) return;
+  const sp = document.getElementById('unr-kpi-spinner');
+  if (sp) sp.style.display = '';
+  try {
+    // base.html'in helper'ını kullan (varsa) — broadcast'i de tetikler
+    if (typeof fetchPricesSilent === 'function') {
+      await fetchPricesSilent();
+    } else {
+      // fallback: doğrudan endpoint
+      const resp = await fetch('/api/fiyatlar/guncelle', { method: 'POST' });
+      const data = await resp.json();
+      if (data.ok && data.prices) {
+        _distLastPrices = data.prices;
+      }
+    }
+    // Cache'i tekrar oku → KPI ve mv pasta güncellensin
+    try {
+      const c = JSON.parse(localStorage.getItem('_priceCache') || '{}');
+      if (c.prices) _distLastPrices = c.prices;
+    } catch(e) {}
+    _updateUnrealizedKpi(_distLastPrices);
+    if (_distMode === 'mv') renderDist('mv', _distLastPrices);
+  } catch (e) {
+    // Sessiz başarısızlık — bir sonraki tick'te tekrar dener
+  } finally {
+    if (sp) sp.style.display = 'none';
+  }
+}
+
+// İlk yükleme: cache'ten anında çiz + arka planda taze veri çek
+(function startUnrealizedKpi() {
+  if (!distrib || !distrib.length) return;
+
+  // 1) Cache'ten anında render (varsa)
+  _updateUnrealizedKpi(_distLastPrices);
+
+  // 2) Sayfa açılır açılmaz arka planda taze fiyat çek
+  setTimeout(_refreshUnrealizedKpiAsync, 250);
+
+  // 3) Her 60sn'de bir tazele (sayfa açık kaldığı sürece)
+  setInterval(_refreshUnrealizedKpiAsync, 60 * 1000);
+
+  // 4) Diğer sekmelerden gelen güncellemeyi yakala (storage event)
+  window.addEventListener('storage', (e) => {
+    if (e.key === '_priceCache' && e.newValue) {
+      try {
+        const d = JSON.parse(e.newValue);
+        if (d.prices) {
+          _distLastPrices = d.prices;
+          _updateUnrealizedKpi(d.prices);
+        }
+      } catch(_) {}
+    }
+  });
+
+  // 5) Global price engine hook'una bağlan (önceki tanımı koruyalım)
+  const _origDash2 = window.updateDashboardPrices;
+  window.updateDashboardPrices = function(prices) {
+    if (prices) _distLastPrices = prices;
+    _updateUnrealizedKpi(_distLastPrices);
+    if (typeof _origDash2 === 'function') _origDash2(prices);
+  };
 })();
 
 // Global hook — fiyat motoru güncellediğinde mv tabını da tazele
