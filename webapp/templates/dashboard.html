@@ -222,6 +222,8 @@ const mPnl     = {{ monthly_pnl | tojson }};
 const cumPnl   = {{ cumulative | tojson }};
 const topSyms  = {{ top_syms | tojson }};
 const distrib  = {{ distribution | tojson }};
+// Test-friendly expose (Playwright spec'leri için; production'a zararsız)
+if (typeof window !== 'undefined') { window.__distrib = distrib; }
 
 // Monthly bar
 initMonthlyChart('monthlyChart', months, mPnl);
@@ -549,6 +551,12 @@ async function _refreshUnrealizedKpiAsync() {
   } finally {
     if (sp) sp.style.display = 'none';
   }
+}
+
+// Test-friendly expose (Playwright spec'leri için)
+if (typeof window !== 'undefined') {
+  window._updateUnrealizedKpi      = _updateUnrealizedKpi;
+  window._refreshUnrealizedKpiAsync = _refreshUnrealizedKpiAsync;
 }
 
 // İlk yükleme: cache'ten anında çiz + arka planda taze veri çek

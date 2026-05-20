@@ -1,0 +1,16 @@
+{
+  "name": "frigya-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end tests for Frigya (Playwright)",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "PWDEBUG=1 playwright test",
+    "playwright:install": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

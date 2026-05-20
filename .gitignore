@@ -46,3 +46,10 @@ data/carry_lots_2026.py
 data/*.csv
 data/*.xlsx
 data/*.pdf
+
+# Playwright
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+tests/.auth/
