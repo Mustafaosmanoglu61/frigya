@@ -6,13 +6,16 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.concurrency import run_in_threadpool
 import os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import auth_service
 import database
 from templates_config import templates
-from portfolio_helper import get_portfolios, resolve_portfolio
+from portfolio_helper import (
+    get_portfolios, resolve_portfolio, get_selectable_portfolios, is_super, pf_clause,
+)
 
 router = APIRouter()
 
@@ -27,35 +30,45 @@ async def fiyatlar(
 ):
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
-    portfolios = get_portfolios(user_id)
+    portfolios = get_selectable_portfolios(user_id)
     portfolio = resolve_portfolio(request, portfolio, user_id)
+    super_mode = is_super(portfolio)
+    pf_sql, pf_params = pf_clause(portfolio)
+    pf_sql_op, pf_params_op = pf_clause(portfolio, alias="op")
+
+    def _days_since(date_str):
+        if not date_str:
+            return None
+        try:
+            return (date.today() - datetime.strptime(date_str[:10], '%Y-%m-%d').date()).days
+        except Exception:
+            return None
 
     with database.db() as conn:
         if portfolio:
-            # Açık pozisyonlar — zenginleştirilmiş sorgu
+            # Açık pozisyonlar — portföyler arası sembol bazında toplama
             positions = conn.execute(
-                """
+                f"""
                 SELECT op.symbol,
                        SUM(op.quantity)   AS total_qty,
                        SUM(op.cost_basis) AS total_cost,
                        SUM(op.cost_basis) / NULLIF(SUM(op.quantity), 0) AS avg_buy_price,
                        MAX(op.buy_date)   AS last_buy_date,
                        (SELECT op2.buy_price FROM open_positions op2
-                        WHERE op2.user_id = op.user_id AND op2.portfolio = op.portfolio
-                              AND op2.symbol = op.symbol
+                        WHERE op2.user_id = op.user_id AND op2.symbol = op.symbol
                         ORDER BY op2.buy_date DESC, op2.lot_seq DESC LIMIT 1) AS last_buy_price
                 FROM open_positions op
-                WHERE op.user_id = ? AND op.portfolio = ?
+                WHERE op.user_id = ? {pf_sql_op}
                 GROUP BY op.symbol
                 ORDER BY total_cost DESC
                 """,
-                (user_id, portfolio),
+                tuple([user_id] + pf_params_op),
             ).fetchall()
 
             # Gerçekleşen K/Z özeti (sembol bazlı, tüm yıllar)
             realized_summary = {}
             for row in conn.execute(
-                """
+                f"""
                 SELECT symbol,
                        SUM(net_pnl)        AS net_pnl,
                        SUM(total_profit)    AS total_profit,
@@ -67,90 +80,133 @@ async def fiyatlar(
                        MAX(last_sale_date)  AS last_sale_date,
                        MAX(last_sale_price) AS last_sale_price
                 FROM symbol_summary
-                WHERE user_id = ? AND portfolio = ?
+                WHERE user_id = ? {pf_sql}
                 GROUP BY symbol
                 """,
-                (user_id, portfolio),
+                tuple([user_id] + pf_params),
             ).fetchall():
                 realized_summary[row["symbol"]] = dict(row)
 
             # Portföy toplam gerçekleşen K/Z (pie chart için)
             portfolio_pnl = conn.execute(
-                """
+                f"""
                 SELECT COALESCE(SUM(total_profit), 0) AS total_profit,
                        COALESCE(SUM(total_loss), 0)   AS total_loss,
                        COALESCE(SUM(net_pnl), 0)      AS net_pnl,
                        COALESCE(SUM(total_trades), 0)  AS total_trades,
                        COALESCE(SUM(winning_trades), 0) AS winning_trades
                 FROM symbol_summary
-                WHERE user_id = ? AND portfolio = ?
+                WHERE user_id = ? {pf_sql}
                 """,
-                (user_id, portfolio),
+                tuple([user_id] + pf_params),
             ).fetchone()
 
-            # Watchlist — geçmiş işlem verisiyle zenginleştirilmiş
-            watchlist_raw = conn.execute(
-                """
-                SELECT
-                    w.id, w.symbol, w.notes, w.added_at,
-                    (SELECT rt.price FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Alış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_price,
-                    (SELECT rt.quantity FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Alış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_qty,
-                    (SELECT rt.total FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Alış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_total,
-                    (SELECT rt.tx_date FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Alış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_date,
-                    (SELECT rt.price FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Satış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_price,
-                    (SELECT rt.quantity FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Satış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_qty,
-                    (SELECT rt.total FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Satış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_total,
-                    (SELECT rt.tx_date FROM raw_transactions rt
-                     WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
-                       AND rt.symbol=w.symbol AND rt.direction='Satış'
-                     ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_date,
-                    (SELECT fr.pnl_pct FROM fifo_results fr
-                     WHERE fr.user_id=w.user_id AND fr.portfolio=w.portfolio
-                       AND fr.symbol=w.symbol
-                     ORDER BY fr.tx_date DESC LIMIT 1) AS last_pnl_pct,
-                    (SELECT SUM(op.cost_basis) / NULLIF(SUM(op.quantity), 0)
-                     FROM open_positions op
-                     WHERE op.user_id=w.user_id AND op.portfolio=w.portfolio
-                       AND op.symbol=w.symbol) AS avg_cost,
-                    (SELECT SUM(op.quantity)
-                     FROM open_positions op
-                     WHERE op.user_id=w.user_id AND op.portfolio=w.portfolio
-                       AND op.symbol=w.symbol) AS total_qty
-                FROM watchlist w
-                WHERE w.user_id = ? AND w.portfolio = ?
-                ORDER BY w.added_at DESC
-                """,
-                (user_id, portfolio),
-            ).fetchall()
-
-            def _days_since(date_str):
-                if not date_str:
-                    return None
-                try:
-                    return (date.today() - datetime.strptime(date_str[:10], '%Y-%m-%d').date()).days
-                except Exception:
-                    return None
+            if super_mode:
+                # Süper: tüm portföylerin watchlist'i birleşik (sembol bazında tekil),
+                # hangi portföylerde olduğu etiketle. Alış/satış/pozisyon bilgileri user
+                # genelinde son kayıttan (portföyden bağımsız) alınır.
+                watchlist_raw = conn.execute(
+                    """
+                    SELECT
+                        MIN(w.id) AS id, w.symbol,
+                        GROUP_CONCAT(DISTINCT w.portfolio) AS portfolios,
+                        MAX(w.notes) AS notes, MIN(w.added_at) AS added_at,
+                        (SELECT rt.price FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_price,
+                        (SELECT rt.quantity FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_qty,
+                        (SELECT rt.total FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_total,
+                        (SELECT rt.tx_date FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_date,
+                        (SELECT rt.price FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_price,
+                        (SELECT rt.quantity FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_qty,
+                        (SELECT rt.total FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_total,
+                        (SELECT rt.tx_date FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_date,
+                        (SELECT fr.pnl_pct FROM fifo_results fr
+                         WHERE fr.user_id=w.user_id AND fr.symbol=w.symbol
+                         ORDER BY fr.tx_date DESC LIMIT 1) AS last_pnl_pct,
+                        (SELECT SUM(op.cost_basis) / NULLIF(SUM(op.quantity), 0)
+                         FROM open_positions op
+                         WHERE op.user_id=w.user_id AND op.symbol=w.symbol) AS avg_cost,
+                        (SELECT SUM(op.quantity)
+                         FROM open_positions op
+                         WHERE op.user_id=w.user_id AND op.symbol=w.symbol) AS total_qty
+                    FROM watchlist w
+                    WHERE w.user_id = ?
+                    GROUP BY w.symbol
+                    ORDER BY MIN(w.added_at) DESC
+                    """,
+                    (user_id,),
+                ).fetchall()
+            else:
+                # Watchlist — geçmiş işlem verisiyle zenginleştirilmiş (tek portföy)
+                watchlist_raw = conn.execute(
+                    """
+                    SELECT
+                        w.id, w.symbol, w.notes, w.added_at,
+                        (SELECT rt.price FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_price,
+                        (SELECT rt.quantity FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_qty,
+                        (SELECT rt.total FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_total,
+                        (SELECT rt.tx_date FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Alış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_buy_date,
+                        (SELECT rt.price FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_price,
+                        (SELECT rt.quantity FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_qty,
+                        (SELECT rt.total FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_total,
+                        (SELECT rt.tx_date FROM raw_transactions rt
+                         WHERE rt.user_id=w.user_id AND rt.portfolio=w.portfolio
+                           AND rt.symbol=w.symbol AND rt.direction='Satış'
+                         ORDER BY rt.tx_date DESC LIMIT 1) AS last_sell_date,
+                        (SELECT fr.pnl_pct FROM fifo_results fr
+                         WHERE fr.user_id=w.user_id AND fr.portfolio=w.portfolio
+                           AND fr.symbol=w.symbol
+                         ORDER BY fr.tx_date DESC LIMIT 1) AS last_pnl_pct,
+                        (SELECT SUM(op.cost_basis) / NULLIF(SUM(op.quantity), 0)
+                         FROM open_positions op
+                         WHERE op.user_id=w.user_id AND op.portfolio=w.portfolio
+                           AND op.symbol=w.symbol) AS avg_cost,
+                        (SELECT SUM(op.quantity)
+                         FROM open_positions op
+                         WHERE op.user_id=w.user_id AND op.portfolio=w.portfolio
+                           AND op.symbol=w.symbol) AS total_qty
+                    FROM watchlist w
+                    WHERE w.user_id = ? AND w.portfolio = ?
+                    ORDER BY w.added_at DESC
+                    """,
+                    (user_id, portfolio),
+                ).fetchall()
 
             watchlist = []
             for w in watchlist_raw:
@@ -164,8 +220,16 @@ async def fiyatlar(
             portfolio_pnl = None
             watchlist = []
 
-    # Hedef/taban fiyatlar
-    targets = database.get_symbol_targets(user_id, portfolio) if portfolio else {}
+    # Hedef/taban fiyatlar — süperde portföy etiketli liste (read-only)
+    if not portfolio:
+        targets = {}
+        targets_all = {}
+    elif super_mode:
+        targets = {}
+        targets_all = database.get_symbol_targets_all_portfolios(user_id)
+    else:
+        targets = database.get_symbol_targets(user_id, portfolio)
+        targets_all = {}
 
     return templates.TemplateResponse(
         "fiyatlar.html",
@@ -174,12 +238,14 @@ async def fiyatlar(
             "positions":          positions,
             "watchlist":          watchlist,
             "targets":            targets,
+            "targets_all":        targets_all,
             "realized_summary":   realized_summary if portfolio else {},
             "portfolio_pnl":      portfolio_pnl,
             "active_tab":         tab,
             "active":             "fiyatlar",
             "portfolios":         portfolios,
             "current_portfolio":  portfolio,
+            "is_super":           super_mode,
         },
     )
 
@@ -195,17 +261,20 @@ async def fiyatlar_guncelle(request: Request):
     if not portfolio:
         return JSONResponse({"ok": True, "prices": {}, "fetched_at": _now()})
 
+    # Süperde tüm portföylerin sembolleri çekilir (portföy filtresi düşer)
+    pf_sql, pf_params = pf_clause(portfolio)
+
     with database.db() as conn:
         pos_syms = [
             r["symbol"] for r in conn.execute(
-                "SELECT DISTINCT symbol FROM open_positions WHERE user_id = ? AND portfolio = ?",
-                (user_id, portfolio),
+                f"SELECT DISTINCT symbol FROM open_positions WHERE user_id = ? {pf_sql}",
+                tuple([user_id] + pf_params),
             ).fetchall()
         ]
         wl_syms = [
             r["symbol"] for r in conn.execute(
-                "SELECT symbol FROM watchlist WHERE user_id = ? AND portfolio = ?",
-                (user_id, portfolio),
+                f"SELECT symbol FROM watchlist WHERE user_id = ? {pf_sql}",
+                tuple([user_id] + pf_params),
             ).fetchall()
         ]
 
@@ -214,8 +283,12 @@ async def fiyatlar_guncelle(request: Request):
     if not all_symbols:
         return JSONResponse({"ok": True, "prices": {}, "fetched_at": _now()})
 
+    # yfinance senkron ve sembol başına ağ isteği yapar; thread'e atarak
+    # event loop'u bloke etmesini önle (yoksa diğer istekler — sekme geçişleri
+    # dahil — bu çağrı bitene kadar kilitlenir, özellikle süper modda sembol
+    # sayısı katlandığında).
     from price_service import get_prices
-    prices = get_prices(all_symbols)
+    prices = await run_in_threadpool(get_prices, all_symbols)
 
     return JSONResponse({
         "ok":        True,
@@ -239,6 +312,8 @@ async def watchlist_ekle(request: Request):
         return JSONResponse({"error": "Sembol boş olamaz"}, status_code=400)
     if not portfolio:
         return JSONResponse({"error": "Önce portföy oluşturun veya seçin"}, status_code=400)
+    if is_super(portfolio):
+        return JSONResponse({"error": "Süper portföyde ekleme yapılamaz, gerçek bir portföy seçin"}, status_code=400)
 
     with database.db() as conn:
         existing = conn.execute(
@@ -280,6 +355,8 @@ async def watchlist_note_update(item_id: int, request: Request):
     note = body.get("note", "")
     if not note or not note.strip():
         note = None
+    if is_super(portfolio):
+        return JSONResponse({"error": "Süper portföyde düzenleme yapılamaz"}, status_code=400)
     with database.db() as conn:
         conn.execute(
             "UPDATE watchlist SET notes=? WHERE id=? AND user_id=? AND portfolio=?",
@@ -296,6 +373,8 @@ async def watchlist_sil(item_id: int, request: Request):
     portfolio = request.session.get("portfolio")
     if not portfolio:
         return JSONResponse({"ok": True})
+    if is_super(portfolio):
+        return JSONResponse({"error": "Süper portföyde silme yapılamaz"}, status_code=400)
     with database.db() as conn:
         conn.execute(
             "DELETE FROM watchlist WHERE id=? AND user_id=? AND portfolio=?",
@@ -314,6 +393,8 @@ async def targets_upsert(request: Request):
     portfolio = request.session.get("portfolio")
     if not portfolio:
         return JSONResponse({"error": "Portföy seçilmedi"}, status_code=400)
+    if is_super(portfolio):
+        return JSONResponse({"error": "Süper portföyde hedef kaydedilemez, gerçek bir portföy seçin"}, status_code=400)
 
     body = await request.json()
     symbol = body.get("symbol", "").strip().upper()
@@ -344,8 +425,40 @@ async def targets_delete(symbol: str, request: Request):
     portfolio = request.session.get("portfolio")
     if not portfolio:
         return JSONResponse({"ok": True})
+    if is_super(portfolio):
+        return JSONResponse({"error": "Süper portföyde silme yapılamaz"}, status_code=400)
     database.delete_symbol_target(user_id, portfolio, symbol.upper())
     return JSONResponse({"ok": True})
+
+
+# ─── Symbol tags (sektör/klasman) ────────────────────────────────────────────
+
+@router.post("/api/fiyatlar/symbol-tag")
+async def symbol_tag_upsert(request: Request):
+    """Sembol için tek tag (sektör/klasman) kaydet. Tag boş → sil.
+    User-scoped (portfolyodan bağımsız)."""
+    user = auth_service.require_current_user(request)
+    user_id = int(user["id"])
+    body = await request.json()
+    symbol = (body.get("symbol") or "").strip().upper()
+    if not symbol:
+        return JSONResponse({"error": "Sembol boş olamaz"}, status_code=400)
+    tag = body.get("tag")
+    if tag is not None:
+        tag = str(tag).strip()
+    database.upsert_symbol_tag(user_id, symbol, tag)
+    return JSONResponse({"ok": True, "symbol": symbol, "tag": tag or None})
+
+
+@router.get("/api/fiyatlar/symbol-tags")
+async def symbol_tags_list(request: Request):
+    """{tags: {SYMBOL: 'tag'}, distinct: ['Fintech', 'AI', ...]}"""
+    user = auth_service.require_current_user(request)
+    user_id = int(user["id"])
+    return JSONResponse({
+        "tags": database.get_symbol_tags(user_id),
+        "distinct": database.get_distinct_tags(user_id),
+    })
 
 
 # ─── TradingView Widget ──────────────────────────────────────────────────────
@@ -402,7 +515,7 @@ async def get_single_price(symbol: str):
     """Tek sembol için anlık fiyat döndür."""
     symbol = symbol.upper().strip()
     from price_service import get_prices
-    prices = get_prices([symbol])
+    prices = await run_in_threadpool(get_prices, [symbol])
     p = prices.get(symbol, {})
     return JSONResponse({"ok": True, "symbol": symbol, "price": p})
 
@@ -418,7 +531,8 @@ async def validate_symbol(request: Request):
     if not symbol:
         return JSONResponse({"valid": False, "error": "Sembol boş olamaz"}, status_code=400)
 
-    try:
+    def _validate():
+        # yfinance senkron + ağ; event loop'u bloke etmemek için thread'de çalışır.
         import yfinance as yf
         ticker = yf.Ticker(symbol)
         info = ticker.fast_info
@@ -430,25 +544,29 @@ async def validate_symbol(request: Request):
         # Ya da history'de en az 1 satır varsa geçerli
         hist = ticker.history(period="1d")
         has_history = len(hist) > 0
-
         if not (has_exchange or has_history):
-            return JSONResponse({
-                "valid": False,
-                "error": f"{symbol} geçerli bir ticker değil veya kalktı"
-            }, status_code=400)
+            return None
 
         # Fiyatı al: fast_info ya da history'den
         price = info.get("last_price") if info else None
         if price is None and len(hist) > 0:
             price = float(hist["Close"].iloc[-1])
-
         name = info.get("longName", symbol) if info else symbol
+        return {"price": price, "name": name}
+
+    try:
+        res = await run_in_threadpool(_validate)
+        if res is None:
+            return JSONResponse({
+                "valid": False,
+                "error": f"{symbol} geçerli bir ticker değil veya kalktı"
+            }, status_code=400)
 
         return JSONResponse({
             "valid": True,
             "symbol": symbol,
-            "price": price,
-            "name": name
+            "price": res["price"],
+            "name": res["name"],
         })
     except Exception as e:
         return JSONResponse({
@@ -501,7 +619,7 @@ async def fiyatlar_chart(symbol: str, interval: str = Query("1d")):
 
     try:
         from price_service import get_historical_data
-        data = get_historical_data(symbol, interval=interval)
+        data = await run_in_threadpool(get_historical_data, symbol, interval=interval)
         return JSONResponse({"ok": True, "symbol": symbol, "interval": interval, "data": data})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)

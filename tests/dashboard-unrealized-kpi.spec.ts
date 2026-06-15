@@ -7,7 +7,7 @@
  *   2. Async fetch — sayfa yüklenir yüklenmez başlar, kitlemez
  *   3. Mock fiyatlarla net K/Z, Kâr, Zarar doğru hesaplanır
  *   4. After-hours fiyatı varsa o kullanılır (extended_hours_price)
- *   5. 60s'de bir otomatik refresh yapar (clock.fastForward ile doğrulanır)
+ *   5. Açılışta bir kez fetch eder, kendi periyodik polling yapmaz (clock ile doğrulanır)
  *   6. Negatif/pozitif renk kodlaması doğru
  *   7. "Son: HH:MM:SS" timestamp her refresh'te yenilenir
  *
@@ -202,7 +202,7 @@ test.describe('Dashboard — Gerçekleşmemiş K/Z KPI', () => {
     expect(Math.abs(netNum - wrongIfRegular)).toBeGreaterThan(10);
   });
 
-  test('60s interval ile otomatik refresh — yeni fetch tetiklenir', async ({ page }) => {
+  test('açılışta bir kez fetch eder, kendi periyodik polling yapmaz', async ({ page }) => {
     // Saati sabitlemeden önce route'u koy ki ilk fetch'i de yakalayalım
     await page.clock.install({ time: new Date('2026-05-09T12:00:00Z') });
 
@@ -230,17 +230,15 @@ test.describe('Dashboard — Gerçekleşmemiş K/Z KPI', () => {
       (r) => r.url().includes('/api/fiyatlar/guncelle'),
       { timeout: 5_000 }
     );
-    const fetchesBefore = fetchCount;
-    expect(fetchesBefore).toBeGreaterThanOrEqual(1);
+    const fetchesAfterLoad = fetchCount;
+    expect(fetchesAfterLoad).toBeGreaterThanOrEqual(1);
 
-    // 60s ileri sar → setInterval tetiklenmeli
-    await page.clock.fastForward('60s');
-    await page.waitForResponse(
-      (r) => r.url().includes('/api/fiyatlar/guncelle'),
-      { timeout: 5_000 }
-    );
-
-    expect(fetchCount).toBeGreaterThan(fetchesBefore);
+    // Dashboard artık kendi 60sn timer'ıyla polling yapmaz: zamanı çok ileri
+    // sarsak da yeni fetch tetiklenmemeli (gerçekleşmemiş K/Z sık güncellenmez;
+    // tazeleme Fiyatlar sayfasının global motorundan storage event ile gelir).
+    await page.clock.fastForward('5m');
+    await page.waitForTimeout(500);
+    expect(fetchCount).toBe(fetchesAfterLoad);
   });
 
   test('hiç fiyat çekilemezse "—" gösterir (defensive)', async ({ page }) => {

@@ -26,8 +26,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import database
 import auth_service
-from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth
-from portfolio_helper import get_portfolios, create_portfolio
+from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai
+from portfolio_helper import get_portfolios, create_portfolio, is_super, SUPER_PORTFOLIO
 
 if load_dotenv:
     WEBAPP_DIR = os.path.dirname(__file__)
@@ -39,7 +39,7 @@ if load_dotenv:
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 IS_PRODUCTION = APP_ENV == "production"
 DEFAULT_DEV_SESSION_SECRET = "frigya-dev-secret"
-SESSION_TIMEOUT = 60 * 60  # 1 saat
+SESSION_TIMEOUT = 24 * 60 * 60  # 1 gün
 
 
 def get_session_secret() -> str:
@@ -120,6 +120,10 @@ app.include_router(ingest_api.router)
 app.include_router(admin.router)
 app.include_router(fiyatlar.router)
 app.include_router(auth.router)
+app.include_router(symbol_notes.router)
+app.include_router(symbol_notes.pf_router)
+app.include_router(ai.router)
+app.include_router(frigya_ai.router)
 
 
 @app.post("/api/session/portfolio")
@@ -129,10 +133,23 @@ async def set_session_portfolio(request: Request):
     body = await request.json()
     portfolio = body.get("portfolio", "").strip()
     portfolios = get_portfolios(int(user["id"]))
-    if portfolio not in portfolios:
+    # Süper sentinel yalnızca ≥2 portföyde geçerli
+    valid = portfolio in portfolios or (is_super(portfolio) and len(portfolios) > 1)
+    if not valid:
         return JSONResponse({"error": "Geçersiz portföy"}, status_code=400)
     request.session["portfolio"] = portfolio
     return JSONResponse({"ok": True, "portfolio": portfolio})
+
+
+@app.post("/api/session/lang")
+async def set_session_lang(request: Request):
+    """Arayüz dilini session'a kaydet (tr | en)."""
+    import i18n
+    auth_service.require_current_user(request)
+    body = await request.json()
+    lang = i18n.normalize_lang(body.get("lang"))
+    request.session["lang"] = lang
+    return JSONResponse({"ok": True, "lang": lang})
 
 
 @app.get("/api/session/info")
@@ -141,10 +158,14 @@ async def get_session_info(request: Request):
     user = auth_service.require_current_user(request)
     portfolio = request.session.get("portfolio")
     portfolios = get_portfolios(int(user["id"]))
+    valid = portfolio is not None and (
+        portfolio in portfolios or (is_super(portfolio) and len(portfolios) > 1)
+    )
     return JSONResponse({
         "portfolio": portfolio,
         "portfolios": portfolios,
-        "has_session": portfolio is not None and portfolio in portfolios,
+        "has_session": valid,
+        "is_super": is_super(portfolio),
     })
 
 

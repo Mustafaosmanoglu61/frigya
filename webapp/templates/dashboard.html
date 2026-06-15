@@ -3,22 +3,33 @@
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-  <h4 class="fw-bold text-dark mb-0">
-    <i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard
+  <h4 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+    <i class="bi bi-speedometer2 me-2 text-primary"></i>{{ tr('Dashboard') }}
+    {% if current_portfolio and not is_super %}
+    <button type="button" class="btn btn-link btn-sm p-1 note-btn position-relative align-baseline"
+            data-scope="portfolio" data-key="{{ current_portfolio }}"
+            onclick="openPortfolioNotes('{{ current_portfolio|replace("'", "\\'") }}')"
+            title="{{ current_portfolio }} portföyü notları">
+      <i class="bi bi-journal-text text-muted"></i>
+      <span class="badge bg-primary note-count-badge d-none position-absolute top-0 start-100 translate-middle"
+            style="font-size:.6rem;padding:.15rem .3rem"></span>
+    </button>
+    <span class="text-muted small fw-normal">{{ current_portfolio }}</span>
+    {% endif %}
   </h4>
   {% if available_years %}
   <div class="d-flex align-items-center gap-2">
-    <span class="text-muted small">Dönem:</span>
+    <span class="text-muted small">{{ tr('Dönem:') }}</span>
     <select class="form-select form-select-sm" style="width:auto;min-width:110px"
             onchange="location.href='/?portfolio={{ current_portfolio }}&year=' + this.value">
-      <option value="" {% if not selected_year %}selected{% endif %}>Tümü</option>
+      <option value="" {% if not selected_year %}selected{% endif %}>{{ tr('Tümü') }}</option>
       {% for y in available_years %}
       <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
       {% endfor %}
     </select>
     {% if selected_year %}
     <a href="/?portfolio={{ current_portfolio }}" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-x"></i> Temizle
+      <i class="bi bi-x"></i> {{ tr('Temizle') }}
     </a>
     {% endif %}
   </div>
@@ -28,17 +39,17 @@
 {% if not portfolios %}
 <div class="card border-0 shadow-sm">
   <div class="card-body">
-    <h5 class="mb-2">Hoş geldiniz</h5>
-    <p class="text-muted mb-3">Başlamak için ilk portföyünüzü oluşturun.</p>
+    <h5 class="mb-2">{{ tr('Hoş geldiniz') }}</h5>
+    <p class="text-muted mb-3">{{ tr('Başlamak için ilk portföyünüzü oluşturun.') }}</p>
     <div class="row g-2">
       <div class="col-md-4">
-        <input id="new-portfolio-name" class="form-control" placeholder="Portföy adı">
+        <input id="new-portfolio-name" class="form-control" placeholder="{{ tr('Portföy adı') }}">
       </div>
       <div class="col-md-6">
-        <input id="new-portfolio-desc" class="form-control" placeholder="Açıklama (isteğe bağlı)">
+        <input id="new-portfolio-desc" class="form-control" placeholder="{{ tr('Açıklama (isteğe bağlı)') }}">
       </div>
       <div class="col-md-2 d-grid">
-        <button class="btn btn-primary" onclick="createFirstPortfolio()">Oluştur</button>
+        <button class="btn btn-primary" onclick="createFirstPortfolio()">{{ tr('Oluştur') }}</button>
       </div>
     </div>
     <div id="new-portfolio-status" class="mt-2 small"></div>
@@ -49,11 +60,12 @@
 <!-- Year summary cards -->
 <div class="row g-3 mb-4">
   {% for y in years %}
+  {% if not selected_year or y.tax_year == selected_year %}
   <div class="col-md-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <span class="text-muted small fw-semibold">{{ y.tax_year }} NET K/Z</span>
+          <span class="text-muted small fw-semibold">{{ y.tax_year }} {{ tr('NET K/Z') }}</span>
           <span class="badge {% if y.net_pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
             {{ y.tax_year }}
           </span>
@@ -62,28 +74,29 @@
           {{ "${:,.2f}".format(y.net_pnl or 0) }}
         </h4>
         <div class="text-muted small mt-1">
-          Satış: {{ "${:,.2f}".format(y.proceeds or 0) }}<br>
-          İşlem: {{ y.trades }} |
-          Başarı: {% if y.trades %}{{ "{:.1f}".format(y.wins / y.trades * 100) }}%{% else %}—{% endif %}<br>
-          <span class="text-success">KÂR: <strong>{{ "${:,.2f}".format(y.total_profit or 0) }}</strong></span> /
-          <span class="text-danger">ZARAR: <strong>{{ "${:,.2f}".format(y.total_loss or 0) }}</strong></span>
+          {{ tr('Satış:') }} {{ "${:,.2f}".format(y.proceeds or 0) }}<br>
+          {{ tr('İşlem:') }} {{ y.trades }} |
+          {{ tr('Başarı:') }} {% if y.trades %}{{ "{:.1f}".format(y.wins / y.trades * 100) }}%{% else %}—{% endif %}<br>
+          <span class="text-success">{{ tr('KÂR:') }} <strong>{{ "${:,.2f}".format(y.total_profit or 0) }}</strong></span> /
+          <span class="text-danger">{{ tr('ZARAR:') }} <strong>{{ "${:,.2f}".format(y.total_loss or 0) }}</strong></span>
         </div>
       </div>
     </div>
   </div>
+  {% endif %}
   {% endfor %}
 
   <div class="col-md-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
-        <div class="text-muted small fw-semibold mb-2">TOPLAM NET K/Z</div>
+        <div class="text-muted small fw-semibold mb-2">{{ tr('TOPLAM NET K/Z') }}</div>
         <h4 class="fw-bold {% if kpi and kpi.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
           {{ "${:,.2f}".format(kpi.net_pnl or 0) if kpi else "—" }}
         </h4>
         <div class="text-muted small mt-1">
-          Açık Pozisyon: <strong>{{ open_symbols }}</strong> sembol<br>
-          Başarı Oranı: <strong>{% if success_rate is not none %}{{ success_rate }}%{% else %}—{% endif %}</strong><br>
-          <span class="text-danger">Toplam Zarar: <strong>{{ "${:,.2f}".format(kpi.total_loss or 0) if kpi else "—" }}</strong></span>
+          {{ tr('Açık Pozisyon:') }} <strong>{{ open_symbols }}</strong> {{ tr('sembol') }}<br>
+          {{ tr('Başarı Oranı:') }} <strong>{% if success_rate is not none %}{{ success_rate }}%{% else %}—{% endif %}</strong><br>
+          <span class="text-danger">{{ tr('Toplam Zarar:') }} <strong>{{ "${:,.2f}".format(kpi.total_loss or 0) if kpi else "—" }}</strong></span>
         </div>
       </div>
     </div>
@@ -114,25 +127,29 @@
   {% endif %}
 </div>
 
-<!-- Charts row -->
+<!-- Charts row — Aylık/Haftalık K/Z (full width) -->
 <div class="row g-3 mb-4">
-  <div class="col-md-8">
+  <div class="col-12">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white border-0 pt-3 pb-0">
-        <span class="fw-semibold">Aylık Kâr / Zarar</span>
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
+          <span class="fw-semibold" id="pnlPeriodTitle">Haftalık Kâr / Zarar</span>
+          <ul class="nav nav-tabs card-header-tabs" id="pnlPeriodTabs">
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-period="month" onclick="switchPnlPeriod('month', event)">
+                <i class="bi bi-calendar3 me-1"></i>Aylık
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="#" data-period="week" onclick="switchPnlPeriod('week', event)">
+                <i class="bi bi-calendar-week me-1"></i>Haftalık
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
       <div class="card-body">
         <canvas id="monthlyChart" height="90"></canvas>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white border-0 pt-3 pb-0">
-        <span class="fw-semibold">Sembol Performansı (Top 15)</span>
-      </div>
-      <div class="card-body">
-        <canvas id="symbolChart" height="230"></canvas>
       </div>
     </div>
   </div>
@@ -143,7 +160,21 @@
   <div class="col-12">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white border-0 pt-3 pb-0">
-        <span class="fw-semibold">Kümülatif K/Z Eğrisi</span>
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
+          <span class="fw-semibold" id="cumPeriodTitle">Kümülatif K/Z Eğrisi — Haftalık</span>
+          <ul class="nav nav-tabs card-header-tabs" id="cumPeriodTabs">
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-period="month" onclick="switchCumPeriod('month', event)">
+                <i class="bi bi-calendar3 me-1"></i>Aylık
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="#" data-period="week" onclick="switchCumPeriod('week', event)">
+                <i class="bi bi-calendar-week me-1"></i>Haftalık
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
       <div class="card-body">
         <canvas id="cumulativeChart" height="60"></canvas>
@@ -152,17 +183,18 @@
   </div>
 </div>
 
-<!-- Açık Pozisyon Dağılımı: tek geniş kart, sekmeli (Maliyet / Mevcut Değer) -->
+<!-- Açık Pozisyon Dağılımı (sol) + Sembol Performansı (sağ) -->
 {% if distribution %}
 <div class="row g-3">
-  <div class="col-12">
-    <div class="card border-0 shadow-sm">
+  <!-- SOL: Pasta grafiği + info/legend -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-white border-0 pt-3 pb-0">
         <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
           <ul class="nav nav-tabs card-header-tabs" id="distTabs">
             <li class="nav-item">
               <a class="nav-link active" href="#" data-dist="cost" onclick="switchDistTab('cost', event)">
-                <i class="bi bi-pie-chart-fill me-1"></i>Maliyet Dağılımı
+                <i class="bi bi-pie-chart-fill me-1"></i>Maliyet
               </a>
             </li>
             <li class="nav-item">
@@ -177,38 +209,235 @@
         </div>
       </div>
       <div class="card-body">
-        <div class="position-relative" style="height:380px">
-          <canvas id="distChart"></canvas>
-          <!-- Doughnut hole — özet metrik -->
-          <div class="dist-center-label">
-            <div class="text-muted small" id="dist-center-top">—</div>
-            <div class="fw-bold fs-4" id="dist-center-mid">—</div>
-            <div class="small" id="dist-center-bot">—</div>
+        <div class="dist-flex">
+          <div class="dist-chart-wrap">
+            <canvas id="distChart"></canvas>
+            <!-- Doughnut hole — özet metrik -->
+            <div class="dist-center-label">
+              <div class="text-muted small" id="dist-center-top">—</div>
+              <div class="fw-bold fs-4" id="dist-center-mid">—</div>
+              <div class="small" id="dist-center-bot">—</div>
+            </div>
           </div>
+          <div class="dist-legend" id="distLegend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- SAĞ: Sembol Performansı — Realized | Unrealized -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0">
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
+          <ul class="nav nav-tabs card-header-tabs" id="symPnlTabs">
+            <li class="nav-item" id="symPnlUnrealizedTab">
+              <a class="nav-link active" href="#" data-sympnl="unrealized" onclick="switchSymPnlTab('unrealized', event)">
+                <i class="bi bi-hourglass-split me-1"></i>Sembol — Unrealized
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-sympnl="realized" onclick="switchSymPnlTab('realized', event)">
+                <i class="bi bi-check2-circle me-1"></i>Realized
+                <span class="badge bg-light text-secondary border ms-1" style="font-weight:500">
+                  {% if selected_year %}{{ selected_year }}{% else %}Tümü{% endif %}
+                </span>
+              </a>
+            </li>
+          </ul>
+          <div class="text-end small text-muted pb-1" id="sym-pnl-summary">—</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="height:380px">
+          <canvas id="symbolChart"></canvas>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Doughnut center label CSS -->
+<!-- Doughnut center label + custom HTML legend CSS -->
 <style>
 .dist-center-label {
   position: absolute;
-  top: 50%; left: 38%;       /* legend sağda olduğu için merkezi sola kaydır */
+  top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
   line-height: 1.2;
 }
-@media (max-width: 768px) {
-  .dist-center-label { left: 50%; }   /* legend altta — orta */
-}
 [data-theme="dark"] .dist-center-label .text-muted { color: #94a3b8 !important; }
 
 #distTabs .nav-link { font-size: 0.92rem; padding: 6px 14px; }
 #distTabs .nav-link:not(.active) { color: #64748b; }
+
+/* Custom HTML legend layout — chart sola, legend sağa flex */
+.dist-flex { display: flex; gap: 12px; height: 380px; }
+.dist-flex .dist-chart-wrap { flex: 1 1 60%; min-width: 0; position: relative; }
+.dist-flex .dist-legend {
+  flex: 0 0 38%; max-width: 320px;
+  overflow-y: auto; font-size: 0.78rem;
+  padding-left: 6px;
+}
+.dist-legend-item {
+  display: flex; align-items: center;
+  padding: 2px 0; line-height: 1.3;
+}
+.dist-legend-swatch {
+  display: inline-block; width: 11px; height: 11px;
+  border-radius: 2px; margin-right: 6px; flex-shrink: 0;
+}
+.dist-legend-name { color: #1f2937; font-weight: 500; }
+.dist-legend-meta {
+  margin-left: auto; padding-left: 8px;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+  color: #1f2937;
+}
+.dist-legend-meta .pct, .dist-legend-meta .amt { font-weight: 500; }
+.dist-legend-sep { color: #9ca3af; margin: 0 3px; }
+
+[data-theme="dark"] .dist-legend-name,
+[data-theme="dark"] .dist-legend-meta { color: #e2e8f0; }
+
+@media (max-width: 768px) {
+  .dist-flex { flex-direction: column; height: auto; }
+  .dist-flex .dist-chart-wrap { height: 280px; }
+  .dist-flex .dist-legend { flex: 1 1 auto; max-width: none; max-height: 220px; padding-left: 0; }
+}
+/* Yarım genişlik kartlar dar kaldığında (lg breakpoint civarı) legend'i alta indir */
+@media (min-width: 992px) and (max-width: 1399px) {
+  .dist-flex { flex-direction: column; height: auto; }
+  .dist-flex .dist-chart-wrap { height: 300px; }
+  .dist-flex .dist-legend {
+    flex: 1 1 auto; max-width: none; max-height: 180px;
+    padding-left: 0;
+    display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px;
+  }
+}
 </style>
+
+<style>
+#tagDistTabs .nav-link { font-size: 0.92rem; padding: 6px 14px; }
+#tagDistTabs .nav-link:not(.active) { color: #64748b; }
+#tagPnlTabs  .nav-link { font-size: 0.92rem; padding: 6px 14px; }
+#tagPnlTabs  .nav-link:not(.active) { color: #64748b; }
+#symPnlTabs  .nav-link { font-size: 0.92rem; padding: 6px 14px; }
+#symPnlTabs  .nav-link:not(.active) { color: #64748b; }
+</style>
+
+<!-- Sektör dağılımı (sol) + Sektör Realized/Unrealized (sağ) -->
+<div class="row g-3 mt-1">
+  <!-- SOL: Sektör pasta grafiği + info/legend -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0">
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
+          <ul class="nav nav-tabs card-header-tabs" id="tagDistTabs">
+            <li class="nav-item">
+              <a class="nav-link active" href="#" data-tagdist="cost" onclick="switchTagDistTab('cost', event)">
+                <i class="bi bi-tags-fill me-1"></i>Sektör — Maliyet
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-tagdist="mv" onclick="switchTagDistTab('mv', event)">
+                <i class="bi bi-graph-up-arrow me-1"></i>Mevcut Değer
+              </a>
+            </li>
+          </ul>
+          <div class="text-end small text-muted pb-1">
+            <span id="tag-untagged-line"></span>
+            <span id="tag-summary-line" class="ms-2"></span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="dist-flex">
+          <div class="dist-chart-wrap">
+            <canvas id="tagDistChart"></canvas>
+            <div class="dist-center-label">
+              <div class="text-muted small" id="tag-center-top">—</div>
+              <div class="fw-bold fs-4" id="tag-center-mid">—</div>
+              <div class="small" id="tag-center-bot">—</div>
+            </div>
+          </div>
+          <div class="dist-legend" id="tagDistLegend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- SAĞ: Sektör bazında K/Z bar — Realized | Unrealized -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0">
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2">
+          <ul class="nav nav-tabs card-header-tabs" id="tagPnlTabs">
+            <li class="nav-item">
+              <a class="nav-link active" href="#" data-tagpnl="realized" onclick="switchTagPnlTab('realized', event)">
+                <i class="bi bi-check2-circle me-1"></i>Realized
+                <span class="badge bg-light text-secondary border ms-1" style="font-weight:500">
+                  {% if selected_year %}{{ selected_year }}{% else %}Tümü{% endif %}
+                </span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-tagpnl="unrealized" onclick="switchTagPnlTab('unrealized', event)">
+                <i class="bi bi-hourglass-split me-1"></i>Unrealized
+              </a>
+            </li>
+          </ul>
+          <div class="text-end small text-muted pb-1" id="tag-pnl-summary">—</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="height:380px">
+          <canvas id="tagPnlBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EN ALT: Sektör özet tablosu -->
+<div class="row g-3 mt-1">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-0 pt-3 pb-2">
+        <span class="fw-semibold"><i class="bi bi-table me-1"></i>Sektör Özet Tablosu</span>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 align-middle" id="tagSummaryTable">
+            <thead class="table-light">
+              <tr>
+                <th>{{ tr('Tag') }}</th>
+                <th class="text-end">{{ tr('Sembol') }}</th>
+                <th class="text-end">{{ tr('Maliyet') }}</th>
+                <th class="text-end" title="Sektörün maliyetinin portföy toplam maliyetine oranı">{{ tr('Maliyet %') }}</th>
+                <th class="text-end" title="Sektörün mevcut değerinin portföy toplam mevcut değerine oranı">{{ tr('Mevcut Değer %') }}</th>
+                <th class="text-end" title="Sektörün gerçekleşmiş getirisi: realized K/Z ÷ realized maliyet bazı">
+                  {{ tr('K/Z %') }}
+                  <span class="badge bg-light text-secondary border ms-1" style="font-weight:500">
+                    {% if selected_year %}{{ selected_year }}{% else %}{{ tr('Tümü') }}{% endif %}
+                  </span>
+                </th>
+                <th class="text-end">
+                  {{ tr('Realized K/Z') }}
+                  <span class="badge bg-light text-secondary border ms-1" style="font-weight:500"
+                        title="Seçili dönemdeki gerçekleşmiş kâr/zarar — dashboard üst kısmındaki yıl filtresine bağlıdır">
+                    {% if selected_year %}{{ selected_year }}{% else %}{{ tr('Tümü') }}{% endif %}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="tagSummaryBody">
+              <tr><td colspan="7" class="text-center text-muted py-3">{{ tr('Yükleniyor…') }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 {% endif %}
@@ -219,21 +448,170 @@
 {% if portfolios %}
 const months   = {{ months | tojson }};
 const mPnl     = {{ monthly_pnl | tojson }};
+const weeks    = {{ weeks | tojson }};
+const wPnl     = {{ weekly_pnl | tojson }};
 const cumPnl   = {{ cumulative | tojson }};
 const topSyms  = {{ top_syms | tojson }};
 const distrib  = {{ distribution | tojson }};
+let symTags    = {{ sym_tags | tojson }};   // {SYMBOL: 'tag'} — değiştirilebilir (sembol detayında güncellenince burada da tazelenir)
+const realizedBySymbol = {{ realized_by_symbol | tojson }};   // {SYMBOL: realized_pnl} — seçili yıla göre filtrelenmiş
+const realizedCostBySymbol = {{ realized_cost_by_symbol | tojson }};   // {SYMBOL: realized_cost_basis} — realized % için
+const realizedYearLabel = {{ (selected_year if selected_year else 'Tümü') | tojson }};
 // Test-friendly expose (Playwright spec'leri için; production'a zararsız)
-if (typeof window !== 'undefined') { window.__distrib = distrib; }
+if (typeof window !== 'undefined') {
+  window.__distrib = distrib;
+  window.__symTags = symTags;
+  window.__realized = realizedBySymbol;
+}
 
-// Monthly bar
-initMonthlyChart('monthlyChart', months, mPnl);
-// Cumulative line
-initCumulativeChart('cumulativeChart', months, cumPnl);
-// Symbol horizontal bar
-initSymbolChart('symbolChart',
-  topSyms.map(s => s.symbol),
-  topSyms.map(s => s.pnl)
-);
+// Aylık / Haftalık bar — tab ile geçişli
+let _pnlPeriodChart = null;
+let _pnlPeriod = 'week';   // 'month' | 'week' — default haftalık
+
+function _renderPnlPeriodChart(period) {
+  const ctx = document.getElementById('monthlyChart');
+  if (!ctx) return;
+  const labels = period === 'week' ? weeks : months;
+  const values = period === 'week' ? wPnl  : mPnl;
+  const title  = document.getElementById('pnlPeriodTitle');
+  if (title) title.textContent = (period === 'week' ? 'Haftalık' : 'Aylık') + ' Kâr / Zarar';
+
+  if (_pnlPeriodChart) { _pnlPeriodChart.destroy(); _pnlPeriodChart = null; }
+  _pnlPeriodChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: (period === 'week' ? 'Haftalık' : 'Aylık') + ' K/Z (USD)',
+        data: values,
+        backgroundColor: values.map(v => v >= 0 ? 'rgba(40,167,69,0.8)' : 'rgba(220,53,69,0.8)'),
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => {
+              const lbl = items[0].label;
+              // Haftalık etiketleri "Hafta: 2026-03-23" şeklinde göster
+              return period === 'week' ? ('Hafta başı: ' + lbl) : lbl;
+            },
+            label: ctx => '$' + ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2})
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxRotation: period === 'week' ? 60 : 0,
+            autoSkip: true,
+            autoSkipPadding: 8,
+          }
+        },
+        y: {
+          ticks: { callback: v => '$' + v.toLocaleString('en-US') }
+        }
+      }
+    }
+  });
+}
+
+function switchPnlPeriod(period, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  _pnlPeriod = period;
+  document.querySelectorAll('#pnlPeriodTabs .nav-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.period === period);
+  });
+  _renderPnlPeriodChart(period);
+}
+
+// İlk render — Haftalık (default)
+_renderPnlPeriodChart('week');
+
+// ─── Kümülatif K/Z — Aylık / Haftalık tab geçişli ───────────────────────────
+function _runningSum(arr) {
+  const out = [];
+  let s = 0;
+  for (const v of arr) { s += v; out.push(Math.round(s * 100) / 100); }
+  return out;
+}
+const wCum = _runningSum(wPnl);   // haftalık kümülatif (JS tarafında hesaplanır)
+
+let _cumPeriodChart = null;
+let _cumPeriod = 'week';   // 'month' | 'week' — default haftalık
+
+function _renderCumPeriodChart(period) {
+  const ctx = document.getElementById('cumulativeChart');
+  if (!ctx) return;
+  const labels = period === 'week' ? weeks : months;
+  const values = period === 'week' ? wCum  : cumPnl;
+  const title  = document.getElementById('cumPeriodTitle');
+  if (title) title.textContent = 'Kümülatif K/Z Eğrisi — ' + (period === 'week' ? 'Haftalık' : 'Aylık');
+
+  const lastVal = values.length ? values[values.length - 1] : 0;
+  const lineColor = lastVal >= 0 ? 'rgba(46,117,182,1)' : 'rgba(220,53,69,1)';
+  const fillColor = lastVal >= 0 ? 'rgba(46,117,182,0.08)' : 'rgba(220,53,69,0.08)';
+
+  if (_cumPeriodChart) { _cumPeriodChart.destroy(); _cumPeriodChart = null; }
+  _cumPeriodChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: (period === 'week' ? 'Haftalık' : 'Aylık') + ' Kümülatif K/Z (USD)',
+        data: values,
+        borderColor: lineColor,
+        backgroundColor: fillColor,
+        fill: true,
+        tension: 0.35,
+        pointRadius: period === 'week' ? 2 : 3,
+        pointHoverRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => {
+              const lbl = items[0].label;
+              return period === 'week' ? ('Hafta başı: ' + lbl) : lbl;
+            },
+            label: ctx => '$' + ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2})
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxRotation: period === 'week' ? 60 : 0,
+            autoSkip: true,
+            autoSkipPadding: 8,
+          }
+        },
+        y: {
+          ticks: { callback: v => '$' + v.toLocaleString('en-US') }
+        }
+      }
+    }
+  });
+}
+
+function switchCumPeriod(period, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  _cumPeriod = period;
+  document.querySelectorAll('#cumPeriodTabs .nav-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.period === period);
+  });
+  _renderCumPeriodChart(period);
+}
+
+// İlk render — Haftalık (default)
+_renderCumPeriodChart('week');
 
 // ═══════════════════════════════════════════════════════════════════════
 // Açık Pozisyon Dağılımı — Tek doughnut, sekmeli (Maliyet | Mevcut Değer)
@@ -314,47 +692,69 @@ const _sliceLabelPlugin = {
   }
 };
 
-function _doughnutOptions(totalSum) {
+// Built-in chart.js legend artık devre dışı — özel HTML legend kullanıyoruz
+// (sadece % ve $ rakamını renklendirebilmek için).
+// pnlByLabel sadece tooltip için tutuluyor.
+function _doughnutOptions(totalSum, pnlByLabel) {
   return {
     responsive: true,
     maintainAspectRatio: false,
     cutout: '60%',
     animation: { animateRotate: true, animateScale: true, duration: 700 },
     plugins: {
-      legend: {
-        position: 'right',
-        labels: {
-          boxWidth: 12,
-          padding: 7,
-          font: { size: 11 },
-          generateLabels: (chart) => {
-            const ds = chart.data.datasets[0];
-            return chart.data.labels.map((lbl, i) => {
-              const val = ds.data[i] || 0;
-              const pct = totalSum > 0 ? (val / totalSum * 100) : 0;
-              return {
-                text: `${lbl}  ${pct.toFixed(1)}%  ·  ${_fmtUsd(val)}`,
-                fillStyle: ds.backgroundColor[i],
-                strokeStyle: ds.backgroundColor[i],
-                lineWidth: 0,
-                hidden: false,
-                index: i,
-              };
-            });
-          }
-        }
-      },
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: ctx => {
             const v = ctx.parsed || 0;
             const pct = totalSum > 0 ? (v / totalSum * 100) : 0;
-            return `${ctx.label}: ${_fmtUsd(v)} (${pct.toFixed(1)}%)`;
+            let extra = '';
+            if (pnlByLabel) {
+              const pnl = pnlByLabel[ctx.label];
+              if (pnl != null) {
+                const sign = pnl >= 0 ? '+' : '';
+                extra = `  ·  Toplam K/Z: ${sign}${_fmtUsd(pnl)}`;
+              }
+            }
+            return `${ctx.label}: ${_fmtUsd(v)} (${pct.toFixed(1)}%)${extra}`;
           }
         }
       }
     }
   };
+}
+
+// Custom HTML legend — etiket adı siyah, % + tutar mode'a göre renklenir
+// mode='mv'+pnlByLabel verilirse → pozitifte yeşil, negatifte kırmızı
+// mode='cost' (veya pnlByLabel yok) → her şey siyah
+function _renderHtmlLegend(targetId, labels, colors, values, totalSum, pnlByLabel, colorize) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  if (!labels || !labels.length) { el.innerHTML = ''; return; }
+  const html = labels.map((lbl, i) => {
+    const val = values[i] || 0;
+    const pct = totalSum > 0 ? (val / totalSum * 100) : 0;
+    let numStyle = '';
+    if (colorize && pnlByLabel) {
+      const pnl = pnlByLabel[lbl];
+      if (pnl != null && pnl > 0)      numStyle = ' style="color:#16a34a"';
+      else if (pnl != null && pnl < 0) numStyle = ' style="color:#dc2626"';
+    }
+    return `<div class="dist-legend-item" title="${_escapeAttr(lbl)}">
+      <span class="dist-legend-swatch" style="background:${colors[i]}"></span>
+      <span class="dist-legend-name text-truncate">${_escapeAttr(lbl)}</span>
+      <span class="dist-legend-meta"${numStyle}>
+        <span class="pct">${pct.toFixed(1)}%</span>
+        <span class="dist-legend-sep">·</span>
+        <span class="amt">${_fmtUsd(val)}</span>
+      </span>
+    </div>`;
+  }).join('');
+  el.innerHTML = html;
+}
+
+function _escapeAttr(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 // AH efektif fiyat — PRE/POST'ta extended_hours_price kullan
@@ -382,6 +782,19 @@ function _buildDataset(mode, prices) {
   const values = items.map(x => Math.max(x.val, 0));
   const colors = labels.map(s => _distColor(_SYM_INDEX[s] ?? 0));
   return { labels, values, colors, total: values.reduce((a, b) => a + b, 0) };
+}
+
+// Sembol bazında toplam K/Z = realized (seçili dönem) + unrealized (açık pozisyon)
+// Legend renklendirmesi için kullanılır
+function _pnlBySymbol(prices) {
+  const out = {};
+  for (const d of distrib) {
+    const eff = _effPrice((prices || {})[d.symbol]);
+    const unrealized = (eff != null) ? (eff * d.qty - d.cost) : 0;
+    const realized = (realizedBySymbol || {})[d.symbol] || 0;
+    out[d.symbol] = realized + unrealized;
+  }
+  return out;
 }
 
 function _updateCenterAndSummary(mode, ds) {
@@ -414,13 +827,16 @@ function renderDist(mode, prices) {
   if (prices) _distLastPrices = prices;
   const ds = _buildDataset(mode, prices || _distLastPrices);
   _updateCenterAndSummary(mode, ds);
+  const pnlMap = _pnlBySymbol(prices || _distLastPrices);
+  const colorize = (mode === 'mv');   // sadece Mevcut Değer modunda renkli rakam
+
+  _renderHtmlLegend('distLegend', ds.labels, ds.colors, ds.values, ds.total, pnlMap, colorize);
 
   if (_distChart) {
-    // Mevcut chart'ı güncelle (animasyonlu transition)
     _distChart.data.labels = ds.labels;
     _distChart.data.datasets[0].data = ds.values;
     _distChart.data.datasets[0].backgroundColor = ds.colors;
-    _distChart.options = _doughnutOptions(ds.total);
+    _distChart.options = _doughnutOptions(ds.total, pnlMap);
     _distChart.update();
     return;
   }
@@ -438,7 +854,7 @@ function renderDist(mode, prices) {
         hoverBorderWidth: 3,
       }]
     },
-    options: _doughnutOptions(ds.total),
+    options: _doughnutOptions(ds.total, pnlMap),
     plugins: [_sliceLabelPlugin],
   });
 }
@@ -464,7 +880,8 @@ function switchDistTab(mode, ev) {
 })();
 
 // ═══════════════════════════════════════════════════════════════════════
-// Açık Poz. Gerçekleşmemiş K/Z KPI kartı — async, 60s'de bir yenilenir
+// Açık Poz. Gerçekleşmemiş K/Z KPI kartı — açılışta bir kez çekilir, sonrası
+// için Fiyatlar sayfasının global motorundan gelen güncellemelerle tazelenir
 // ═══════════════════════════════════════════════════════════════════════
 function _updateUnrealizedKpi(prices) {
   if (!distrib || !distrib.length) return;
@@ -566,13 +983,15 @@ if (typeof window !== 'undefined') {
   // 1) Cache'ten anında render (varsa)
   _updateUnrealizedKpi(_distLastPrices);
 
-  // 2) Sayfa açılır açılmaz arka planda taze fiyat çek
+  // 2) Sayfa açılır açılmaz arka planda BİR KEZ taze fiyat çek
   setTimeout(_refreshUnrealizedKpiAsync, 250);
 
-  // 3) Her 60sn'de bir tazele (sayfa açık kaldığı sürece)
-  setInterval(_refreshUnrealizedKpiAsync, 60 * 1000);
+  // Not: Dashboard kendi periyodik polling'ini yapmaz — gerçekleşmemiş K/Z
+  // sık güncellenmesi gereken bir veri değil. Açılışta bir kez çekilir; sonrası
+  // için Fiyatlar sayfasındaki global motorun broadcast/storage event'leri
+  // (aşağıdaki dinleyici) KPI'yı taze tutar.
 
-  // 4) Diğer sekmelerden gelen güncellemeyi yakala (storage event)
+  // 3) Diğer sekmelerden gelen güncellemeyi yakala (storage event)
   window.addEventListener('storage', (e) => {
     if (e.key === '_priceCache' && e.newValue) {
       try {
@@ -585,7 +1004,7 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 5) Global price engine hook'una bağlan (önceki tanımı koruyalım)
+  // 4) Global price engine hook'una bağlan (önceki tanımı koruyalım)
   const _origDash2 = window.updateDashboardPrices;
   window.updateDashboardPrices = function(prices) {
     if (prices) _distLastPrices = prices;
@@ -616,6 +1035,488 @@ if (typeof window !== 'undefined') {
     }
   });
 })();
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tag / Sektör bazlı dağılım — tek doughnut, sekmeli (Maliyet | Mevcut Değer)
+// ═══════════════════════════════════════════════════════════════════════
+const UNTAGGED_LABEL = 'Etiketsiz';
+let _tagDistChart = null;
+let _tagDistMode  = 'cost';   // 'cost' | 'mv'
+
+function _aggregateByTag(prices) {
+  // {tag: {cost, mv, realized, symbols, allPriced}}
+  // Açık pozisyonlar ⇒ cost/mv; realized ise sadece açık sektörlere ait sembollerden
+  // (açık olmayan sektörleri gizlemek için).
+  const agg = {};
+  function _ensure(tag) {
+    if (!agg[tag]) agg[tag] = { cost: 0, mv: 0, realized: 0, realizedCost: 0, symbols: [], symbolSet: new Set(), allPriced: true };
+    return agg[tag];
+  }
+
+  // 1) Açık pozisyonlar
+  const openTags = new Set();  // açık sembollerden gelen sektörler
+  for (const d of distrib) {
+    const tag = (symTags[d.symbol] || '').trim() || UNTAGGED_LABEL;
+    openTags.add(tag);
+    const a = _ensure(tag);
+    a.cost += d.cost;
+    if (!a.symbolSet.has(d.symbol)) { a.symbols.push(d.symbol); a.symbolSet.add(d.symbol); }
+    const eff = _effPrice((prices || {})[d.symbol]);
+    if (eff != null) {
+      a.mv += eff * d.qty;
+    } else {
+      a.mv += d.cost;
+      a.allPriced = false;
+    }
+  }
+
+  // 2) Realized (pnl + maliyet bazı) — sadece AÇIK sektörlere ait sembollerden
+  for (const [sym, pnl] of Object.entries(realizedBySymbol || {})) {
+    const tag = (symTags[sym] || '').trim() || UNTAGGED_LABEL;
+    if (!openTags.has(tag)) continue;  // açık olmayan sektörü atla
+    const a = _ensure(tag);
+    a.realized += pnl;
+    a.realizedCost += (realizedCostBySymbol || {})[sym] || 0;
+    if (!a.symbolSet.has(sym)) { a.symbols.push(sym); a.symbolSet.add(sym); }
+  }
+  return agg;
+}
+
+function _buildTagDataset(mode, prices) {
+  const agg = _aggregateByTag(prices);
+  const entries = Object.entries(agg).map(([tag, v]) => ({
+    tag, val: mode === 'mv' ? v.mv : v.cost, cost: v.cost, mv: v.mv,
+    realized: v.realized || 0, realizedCost: v.realizedCost || 0,
+    symbols: v.symbols, allPriced: v.allPriced,
+  })).sort((a, b) => b.val - a.val);
+  const labels = entries.map(e => e.tag);
+  const values = entries.map(e => Math.max(e.val, 0));
+  const colors = labels.map((_, i) => _distColor(i));
+  return { labels, values, colors, entries, total: values.reduce((a, b) => a + b, 0) };
+}
+
+function _updateTagCenterAndSummary(mode, ds) {
+  const top = document.getElementById('tag-center-top');
+  const mid = document.getElementById('tag-center-mid');
+  const bot = document.getElementById('tag-center-bot');
+  const sumLine = document.getElementById('tag-summary-line');
+
+  if (mode === 'cost') {
+    if (top) top.textContent = 'Sektör';
+    if (mid) { mid.textContent = ds.entries.length; mid.className = 'fw-bold fs-4 text-primary'; }
+    if (bot) { bot.textContent = ds.entries.length === 1 ? 'kategori' : 'kategori'; bot.className = 'small text-muted'; }
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-cash-stack me-1"></i>Toplam Maliyet: <strong class="text-dark">${_fmtUsd(ds.total)}</strong>`;
+  } else {
+    const totalCost = distrib.reduce((s, d) => s + d.cost, 0);
+    const upnl = ds.total - totalCost;
+    const upct = totalCost > 0 ? (upnl / totalCost * 100) : 0;
+    const cls  = upnl >= 0 ? 'text-success' : 'text-danger';
+    if (top) top.textContent = 'Toplam K/Z';
+    if (mid) { mid.textContent = (upnl >= 0 ? '+' : '') + _fmtUsd(upnl); mid.className = 'fw-bold fs-4 ' + cls; }
+    if (bot) { bot.textContent = _fmtPct(upct); bot.className = 'small ' + cls; }
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-coin me-1"></i>Mevcut: <strong class="text-dark">${_fmtUsd(ds.total)}</strong> · Maliyet: ${_fmtUsd(totalCost)}`;
+  }
+}
+
+function _updateTagSummaryTable(prices) {
+  // Tablo her zaman cost + mv'nin ikisini de gösterir, mode'dan bağımsız
+  const costDs = _buildTagDataset('cost', prices);
+  const mvDs   = _buildTagDataset('mv',   prices);
+  const totalCost = costDs.total;
+  const totalMv   = mvDs.total;
+
+  const body = document.getElementById('tagSummaryBody');
+  if (!body) return;
+  if (!costDs.entries.length) {
+    body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Açık pozisyon yok</td></tr>';
+    return;
+  }
+  const mvMap = Object.fromEntries(mvDs.entries.map(e => [e.tag, e]));
+  body.innerHTML = costDs.entries.map(e => {
+    const mvE = mvMap[e.tag] || e;
+    // Maliyet % = sektör maliyeti / toplam maliyet (portföy ağırlığı)
+    const costPct = totalCost > 0 ? (e.cost / totalCost * 100) : 0;
+    // Mevcut Değer % = sektör mv / toplam mv
+    const mvPct   = totalMv > 0 ? (mvE.mv / totalMv * 100) : 0;
+    // K/Z % = sektörün gerçekleşmiş getirisi = realized / realized maliyet bazı
+    const realized = e.realized || 0;
+    const realizedCost = e.realizedCost || 0;
+    const realizedPct = realizedCost > 0.001 ? (realized / realizedCost * 100) : null;
+    const rgCls = realized > 0 ? 'text-success' : (realized < 0 ? 'text-danger' : 'text-muted');
+    const rgStr = realized === 0 ? '—' : (realized > 0 ? '+' : '') + _fmtUsd(realized);
+    const rpCls = realizedPct == null ? 'text-muted' : (realizedPct >= 0 ? 'text-success' : 'text-danger');
+    const rpStr = realizedPct == null ? '—' : _fmtPct(realizedPct);
+    const tagDisplay = e.tag === UNTAGGED_LABEL
+      ? `<span class="text-muted fst-italic">${e.tag}</span>`
+      : `<span class="badge bg-primary-subtle text-primary border">${_escape(e.tag)}</span>`;
+    const symList = e.symbols.slice(0, 6).join(', ') + (e.symbols.length > 6 ? ` +${e.symbols.length - 6}` : '');
+    return `<tr>
+      <td>${tagDisplay} <span class="text-muted small ms-2">${_escape(symList)}</span></td>
+      <td class="text-end">${e.symbols.length}</td>
+      <td class="text-end">${_fmtUsd(e.cost)}</td>
+      <td class="text-end">${costPct.toFixed(1)}%</td>
+      <td class="text-end">${mvPct.toFixed(1)}%${mvE.allPriced ? '' : ' <i class="bi bi-asterisk text-warning small" title="Bazı semboller için fiyat alınamadı; maliyetle gösteriliyor"></i>'}</td>
+      <td class="text-end fw-semibold ${rpCls}">${rpStr}</td>
+      <td class="text-end fw-semibold ${rgCls}">${rgStr}</td>
+    </tr>`;
+  }).join('');
+
+  // Etiketsiz uyarı satırı (header)
+  const untagged = costDs.entries.find(e => e.tag === UNTAGGED_LABEL);
+  const line = document.getElementById('tag-untagged-line');
+  if (line) {
+    if (untagged) {
+      line.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-1"></i>` +
+        `<strong>${untagged.symbols.length}</strong> sembol etiketsiz ` +
+        `(<a href="/semboller">listede etiketle</a>)`;
+    } else {
+      line.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>Tüm açık pozisyonlar etiketli';
+    }
+  }
+}
+
+function _escape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderTagDist(mode, prices) {
+  if (!distrib || !distrib.length) return;
+  const ctx = document.getElementById('tagDistChart');
+  if (!ctx) return;
+  const ds = _buildTagDataset(mode, prices);
+  _updateTagCenterAndSummary(mode, ds);
+  _updateTagSummaryTable(prices);
+
+  // Tag bazında toplam K/Z = realized + unrealized (mv - cost) — legend renklendirmesi için
+  const pnlMap = {};
+  for (const e of ds.entries) {
+    pnlMap[e.tag] = (e.realized || 0) + (e.mv - e.cost);
+  }
+  const colorize = (mode === 'mv');   // sadece Mevcut Değer modunda renkli rakam
+
+  _renderHtmlLegend('tagDistLegend', ds.labels, ds.colors, ds.values, ds.total, pnlMap, colorize);
+
+  if (_tagDistChart) {
+    _tagDistChart.data.labels = ds.labels;
+    _tagDistChart.data.datasets[0].data = ds.values;
+    _tagDistChart.data.datasets[0].backgroundColor = ds.colors;
+    _tagDistChart.options = _doughnutOptions(ds.total, pnlMap);
+    _tagDistChart.update();
+    return;
+  }
+  _tagDistChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ds.labels,
+      datasets: [{
+        data: ds.values, backgroundColor: ds.colors,
+        borderWidth: 2, borderColor: '#fff',
+        hoverOffset: 16, hoverBorderWidth: 3,
+      }]
+    },
+    options: _doughnutOptions(ds.total, pnlMap),
+    plugins: [_sliceLabelPlugin],
+  });
+}
+
+function switchTagDistTab(mode, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  _tagDistMode = mode;
+  document.querySelectorAll('#tagDistTabs .nav-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.tagdist === mode);
+  });
+  renderTagDist(mode, _distLastPrices);
+}
+
+// İlk render
+(function startTagDist() {
+  if (!distrib || !distrib.length) return;
+  renderTagDist('cost', _distLastPrices);
+})();
+
+// Fiyat güncellemeleriyle senkron
+(function () {
+  if (!distrib || !distrib.length) return;
+  const _orig = window.updateDashboardPrices;
+  window.updateDashboardPrices = function(prices) {
+    if (prices) _distLastPrices = prices;
+    renderTagDist(_tagDistMode, _distLastPrices);
+    if (typeof _orig === 'function') _orig(prices);
+  };
+})();
+
+// Diğer sekmelerden tag değişikliği geldiyse
+window.addEventListener('storage', (e) => {
+  if (e.key === '_symTagsCache' && e.newValue) {
+    try { symTags = JSON.parse(e.newValue); renderTagDist(_tagDistMode, _distLastPrices); } catch(_) {}
+  }
+});
+
+if (typeof window !== 'undefined') {
+  window.renderTagDist = renderTagDist;
+  window.switchTagDistTab = switchTagDistTab;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sektör bazında K/Z bar — Realized | Unrealized
+// ═══════════════════════════════════════════════════════════════════════
+let _tagPnlBarChart = null;
+let _tagPnlMode     = 'realized';   // 'realized' | 'unrealized'
+
+function _buildTagPnlBars(mode, prices) {
+  // Tüm tag'leri agg'la (realized + unrealized birlikte)
+  const agg = _aggregateByTag(prices);
+  const items = Object.entries(agg).map(([tag, v]) => {
+    const realized   = v.realized || 0;
+    const unrealized = (v.mv - v.cost) || 0;
+    return { tag, val: mode === 'realized' ? realized : unrealized };
+  })
+  .filter(x => Math.abs(x.val) > 0.005)   // 0'ları gizle
+  .sort((a, b) => b.val - a.val);          // büyük artıdan büyük zarara
+
+  const labels = items.map(x => x.tag);
+  const values = items.map(x => x.val);
+  const colors = values.map(v => v >= 0 ? 'rgba(40,167,69,0.85)' : 'rgba(220,53,69,0.85)');
+  const total  = values.reduce((a, b) => a + b, 0);
+  return { labels, values, colors, total };
+}
+
+function _updateTagPnlSummary(mode, ds) {
+  const el = document.getElementById('tag-pnl-summary');
+  if (!el) return;
+  const cls = ds.total >= 0 ? 'text-success' : 'text-danger';
+  const sign = ds.total >= 0 ? '+' : '';
+  const lbl = mode === 'realized' ? 'Toplam Realized' : 'Toplam Unrealized';
+  el.innerHTML = `${lbl}: <strong class="${cls}">${sign}${_fmtUsd(ds.total)}</strong>`;
+}
+
+function renderTagPnlBar(mode, prices) {
+  const ctx = document.getElementById('tagPnlBarChart');
+  if (!ctx) return;
+  const ds = _buildTagPnlBars(mode, prices);
+  _updateTagPnlSummary(mode, ds);
+
+  if (_tagPnlBarChart) { _tagPnlBarChart.destroy(); _tagPnlBarChart = null; }
+  _tagPnlBarChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ds.labels,
+      datasets: [{
+        label: (mode === 'realized' ? 'Realized' : 'Unrealized') + ' K/Z (USD)',
+        data: ds.values,
+        backgroundColor: ds.colors,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',   // yatay bar; sektörler dikey eksende (Y)
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.x;
+              const sign = v >= 0 ? '+' : '';
+              return sign + '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2});
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { callback: v => '$' + v.toLocaleString('en-US') },
+          grid: { color: (ctx) => ctx.tick.value === 0 ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.05)' }
+        },
+        y: { ticks: { autoSkip: false } }
+      }
+    }
+  });
+}
+
+function switchTagPnlTab(mode, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  _tagPnlMode = mode;
+  document.querySelectorAll('#tagPnlTabs .nav-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.tagpnl === mode);
+  });
+  renderTagPnlBar(mode, _distLastPrices);
+}
+
+// İlk render
+(function startTagPnlBar() {
+  if (!distrib || !distrib.length) return;
+  renderTagPnlBar('realized', _distLastPrices);
+})();
+
+// Fiyat güncellemesi geldiğinde unrealized barını da yenile (realized fiyattan bağımsız ama gene tazele)
+(function () {
+  if (!distrib || !distrib.length) return;
+  const _orig = window.updateDashboardPrices;
+  window.updateDashboardPrices = function(prices) {
+    if (prices) _distLastPrices = prices;
+    if (_tagPnlMode === 'unrealized') renderTagPnlBar('unrealized', _distLastPrices);
+    if (typeof _orig === 'function') _orig(prices);
+  };
+})();
+
+// Tag düzenleme storage event'ine de tepki ver
+window.addEventListener('storage', (e) => {
+  if (e.key === '_symTagsCache' && e.newValue) {
+    try { symTags = JSON.parse(e.newValue); renderTagPnlBar(_tagPnlMode, _distLastPrices); } catch(_) {}
+  }
+});
+
+if (typeof window !== 'undefined') {
+  window.renderTagPnlBar = renderTagPnlBar;
+  window.switchTagPnlTab = switchTagPnlTab;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sembol Performansı — Realized | Unrealized (dikey bar, semboller X)
+// ═══════════════════════════════════════════════════════════════════════
+let _symPnlChart = null;
+let _symPnlMode  = 'unrealized';   // default unrealized (veri yoksa realized'a düşer)
+
+function _buildSymPnlBars(mode, prices) {
+  let items = [];
+  if (mode === 'realized') {
+    // Seçili dönemdeki realized — tüm semboller (kapanmış dahil)
+    items = Object.entries(realizedBySymbol || {})
+      .map(([sym, v]) => ({ sym, val: v }));
+  } else {
+    // Unrealized — sadece açık pozisyonlar (mv - cost)
+    items = distrib.map(d => {
+      const eff = _effPrice((prices || {})[d.symbol]);
+      const unr = (eff != null) ? (eff * d.qty - d.cost) : 0;
+      return { sym: d.symbol, val: unr };
+    });
+  }
+  items = items
+    .filter(x => Math.abs(x.val) > 0.005)
+    .sort((a, b) => b.val - a.val);
+
+  const labels = items.map(x => x.sym);
+  const values = items.map(x => x.val);
+  const colors = values.map(v => v >= 0 ? 'rgba(40,167,69,0.85)' : 'rgba(220,53,69,0.85)');
+  const total  = values.reduce((a, b) => a + b, 0);
+  return { labels, values, colors, total };
+}
+
+// Unrealized verisi var mı? (açık pozisyon + en az 1 fiyatlanmış) → yoksa tab gizle
+function _hasUnrealizedData(prices) {
+  if (!distrib || !distrib.length) return false;
+  return distrib.some(d => _effPrice((prices || {})[d.symbol]) != null);
+}
+
+function _updateSymPnlSummary(mode, ds) {
+  const el = document.getElementById('sym-pnl-summary');
+  if (!el) return;
+  const cls = ds.total >= 0 ? 'text-success' : 'text-danger';
+  const sign = ds.total >= 0 ? '+' : '';
+  const lbl = mode === 'realized' ? 'Toplam Realized' : 'Toplam Unrealized';
+  el.innerHTML = `${lbl}: <strong class="${cls}">${sign}${_fmtUsd(ds.total)}</strong>`;
+}
+
+function renderSymPnlBar(mode, prices) {
+  const ctx = document.getElementById('symbolChart');
+  if (!ctx) return;
+  const ds = _buildSymPnlBars(mode, prices);
+  _updateSymPnlSummary(mode, ds);
+
+  if (_symPnlChart) { _symPnlChart.destroy(); _symPnlChart = null; }
+  _symPnlChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ds.labels,
+      datasets: [{
+        label: (mode === 'realized' ? 'Realized' : 'Unrealized') + ' K/Z (USD)',
+        data: ds.values,
+        backgroundColor: ds.colors,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',   // semboller dikey eksende (Y), yatay barlar
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.x;
+              const sign = v >= 0 ? '+' : '';
+              return sign + '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2});
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { callback: v => '$' + v.toLocaleString('en-US') },
+          grid: { color: (ctx) => ctx.tick.value === 0 ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.05)' }
+        },
+        y: { ticks: { autoSkip: false } }
+      }
+    }
+  });
+}
+
+function _refreshSymUnrealizedTabVisibility(prices) {
+  const tab = document.getElementById('symPnlUnrealizedTab');
+  if (!tab) return;
+  tab.style.display = _hasUnrealizedData(prices) ? '' : 'none';
+}
+
+let _symPnlUserPicked = false;   // kullanıcı manuel tab seçti mi?
+
+function switchSymPnlTab(mode, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  _symPnlUserPicked = true;
+  _symPnlMode = mode;
+  document.querySelectorAll('#symPnlTabs .nav-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.sympnl === mode);
+  });
+  renderSymPnlBar(mode, _distLastPrices);
+}
+
+// İlk render — default Unrealized (veri yoksa Realized'a düş)
+(function startSymPnlBar() {
+  _refreshSymUnrealizedTabVisibility(_distLastPrices);
+  if (!_hasUnrealizedData(_distLastPrices)) {
+    _symPnlMode = 'realized';
+  }
+  document.querySelectorAll('#symPnlTabs .nav-link').forEach(a => {
+    a.classList.toggle('active', a.dataset.sympnl === _symPnlMode);
+  });
+  renderSymPnlBar(_symPnlMode, _distLastPrices);
+})();
+
+// Fiyat güncellemesi → unrealized tab görünürlüğü + aktifse barı yenile
+(function () {
+  const _orig = window.updateDashboardPrices;
+  window.updateDashboardPrices = function(prices) {
+    if (prices) _distLastPrices = prices;
+    _refreshSymUnrealizedTabVisibility(_distLastPrices);
+    // Soğuk açılışta realized'a düşmüştük; kullanıcı manuel seçmediyse ve
+    // artık unrealized verisi geldiyse default'a (unrealized) geri dön.
+    if (!_symPnlUserPicked && _symPnlMode === 'realized' && _hasUnrealizedData(_distLastPrices)) {
+      _symPnlMode = 'unrealized';
+      document.querySelectorAll('#symPnlTabs .nav-link').forEach(a => {
+        a.classList.toggle('active', a.dataset.sympnl === 'unrealized');
+      });
+    }
+    if (_symPnlMode === 'unrealized') renderSymPnlBar('unrealized', _distLastPrices);
+    if (typeof _orig === 'function') _orig(prices);
+  };
+})();
+
+if (typeof window !== 'undefined') {
+  window.renderSymPnlBar = renderSymPnlBar;
+  window.switchSymPnlTab = switchSymPnlTab;
+}
 {% else %}
 async function createFirstPortfolio() {
   const name = document.getElementById('new-portfolio-name').value.trim();
