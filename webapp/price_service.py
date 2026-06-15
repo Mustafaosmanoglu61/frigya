@@ -66,27 +66,36 @@ class YFinanceProvider(PriceProvider):
                 ticker_obj = tickers.tickers[sym]
                 fi = ticker_obj.fast_info
                 cur  = fi.last_price
-                prev = fi.previous_close
-                chg  = ((cur - prev) / prev * 100) if (prev and prev > 0) else None
+
+                # info'yu bir kez çek — hem önceki kapanış hem AH için kullanılır.
+                try:
+                    info = ticker_obj.info or {}
+                except Exception:
+                    info = {}
+
+                # Önceki kapanış: fast_info.previous_close GÜVENİLMEZ — gerçek son
+                # seans kapanışıyla uyuşmuyor (örn. GDXU fast=108.88 iken gerçek
+                # kapanış 107.21). info'daki regularMarketPreviousClose doğru değeri
+                # verir; bu yüzden onu baz al, yoksa fast_info'ya düş.
+                prev = (info.get("regularMarketPreviousClose")
+                        or info.get("previousClose")
+                        or fi.previous_close)
+                chg  = ((cur - prev) / prev * 100) if (cur is not None and prev and prev > 0) else None
 
                 # Extended hours: ticker.info'dan al (fast_info'da yok)
                 ext_price = None
                 ext_change_pct = None
                 ext_phase = None        # AH fazı: 'PRE' / 'POST' / None
-                try:
-                    info = ticker_obj.info
-                    post_price = info.get("postMarketPrice")
-                    pre_price  = info.get("preMarketPrice")
-                    if post_price:
-                        ext_price = post_price
-                        ext_phase = "POST"
-                        ext_change_pct = info.get("postMarketChangePercent")
-                    elif pre_price:
-                        ext_price = pre_price
-                        ext_phase = "PRE"
-                        ext_change_pct = info.get("preMarketChangePercent")
-                except Exception:
-                    pass
+                post_price = info.get("postMarketPrice")
+                pre_price  = info.get("preMarketPrice")
+                if post_price:
+                    ext_price = post_price
+                    ext_phase = "POST"
+                    ext_change_pct = info.get("postMarketChangePercent")
+                elif pre_price:
+                    ext_price = pre_price
+                    ext_phase = "PRE"
+                    ext_change_pct = info.get("preMarketChangePercent")
 
                 # AH fiyatı regular ile birebir aynıysa "değişim yok" sayalım
                 if (ext_price is not None and cur is not None

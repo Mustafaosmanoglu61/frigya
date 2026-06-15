@@ -4,12 +4,15 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h4 class="fw-bold text-dark mb-0">
-    <i class="bi bi-wallet2 me-2 text-primary"></i>Açık Pozisyonlar
+    <i class="bi bi-wallet2 me-2 text-primary"></i>{{ tr('Açık Pozisyonlar') }}
   </h4>
   <div class="d-flex align-items-center gap-3">
     <div class="text-end">
-      <div class="text-muted small">Toplam Maliyet: <strong class="text-dark price-sensitive">${{ "{:,.2f}".format(total_cost) }}</strong></div>
-      <div class="small mt-1">Gerçekleşmemiş K/Z: <strong id="hdr-unrealized" class="text-muted price-sensitive">—</strong></div>
+      <div class="text-muted small">{{ tr('Toplam Maliyet:') }} <strong class="text-dark price-sensitive">${{ "{:,.2f}".format(total_cost) }}</strong></div>
+      <div class="small mt-1">{{ tr('Gerçekleşmemiş K/Z:') }} <strong id="hdr-unrealized" class="text-muted price-sensitive">—</strong></div>
+      <div class="small mt-1">{{ tr('Günlük K/Z:') }} <strong id="hdr-daily" class="text-muted price-sensitive">—</strong>
+        <span id="hdr-daily-pct" class="text-muted small ms-1"></span>
+      </div>
     </div>
     <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="Fiyatları gizle / göster">
       <i class="bi bi-eye" id="price-toggle-icon"></i>
@@ -18,7 +21,7 @@
 </div>
 
 {% if not symbols %}
-<div class="alert alert-info">Açık pozisyon bulunmuyor.</div>
+<div class="alert alert-info">{{ tr('Açık pozisyon bulunmuyor.') }}</div>
 {% else %}
 
 <!-- Symbol Widget Cards -->
@@ -39,7 +42,7 @@
       </div>
       <div class="d-flex align-items-center gap-1">
         <span class="pw-total-pct badge bg-secondary" data-symbol="{{ s.symbol }}" data-field="total-pct">—</span>
-        <span class="badge bg-secondary">{{ s.lot_count }} işlem</span>
+        <span class="badge bg-secondary">{{ s.lot_count }} {{ tr('işlem') }}</span>
       </div>
     </div>
 
@@ -51,19 +54,19 @@
     <!-- Stats -->
     <div class="pw-stats">
       <div class="pw-stat">
-        <span class="pw-stat-label">Adet</span>
+        <span class="pw-stat-label">{{ tr('Adet') }}</span>
         <span class="pw-stat-value">{{ s.total_qty | fmtqty }}</span>
       </div>
       <div class="pw-stat">
-        <span class="pw-stat-label">Ort Maliyet</span>
+        <span class="pw-stat-label">{{ tr('Ort Maliyet') }}</span>
         <span class="pw-stat-value price-sensitive">${{ "{:,.2f}".format(s.avg_price) }}</span>
       </div>
       <div class="pw-stat">
-        <span class="pw-stat-label">Maliyet</span>
+        <span class="pw-stat-label">{{ tr('Maliyet') }}</span>
         <span class="pw-stat-value price-sensitive">${{ "{:,.0f}".format(s.total_cost) }}</span>
       </div>
       <div class="pw-stat">
-        <span class="pw-stat-label">Mevcut</span>
+        <span class="pw-stat-label">{{ tr('Mevcut') }}</span>
         <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="market-value">—</span>
       </div>
     </div>
@@ -71,11 +74,11 @@
     <!-- K/Z -->
     <div class="pw-pnl-row">
       <div class="pw-stat">
-        <span class="pw-stat-label">Günlük K/Z</span>
+        <span class="pw-stat-label">{{ tr('Günlük K/Z') }}</span>
         <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="daily-pnl">—</span>
       </div>
       <div class="pw-stat">
-        <span class="pw-stat-label">Gerçekleşmemiş K/Z</span>
+        <span class="pw-stat-label">{{ tr('Gerçekleşmemiş K/Z') }}</span>
         <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="unrealized-pnl">—</span>
       </div>
     </div>
@@ -91,12 +94,12 @@
     <!-- Tarih -->
     <div class="pw-date-row">
       <span>{{ s.earliest_buy }}{% if s.earliest_buy != s.latest_buy %} → {{ s.latest_buy }}{% endif %}</span>
-      <span>{{ s.days_open }}g açık</span>
+      <span>{{ s.days_open }}{{ tr('g açık') }}</span>
     </div>
 
     {% if s.realized %}
     <div class="pw-realized-row">
-      Ger. K/Z:&nbsp;<strong class="price-sensitive {% if s.realized.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+      {{ tr('Ger. K/Z:') }}&nbsp;<strong class="price-sensitive {% if s.realized.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
         ${{ "{:+,.0f}".format(s.realized.net_pnl) }}</strong>
     </div>
     {% endif %}
@@ -108,32 +111,32 @@
 <!-- Active filter banner -->
 <div id="filter-banner" class="alert alert-info py-2 mt-2 mb-0 d-none small">
   <i class="bi bi-funnel-fill me-1"></i>
-  Filtre: <strong id="filter-banner-syms"></strong>
-  <button class="btn btn-sm btn-outline-secondary ms-2 py-0" onclick="clearSymbolFilter()">Tümünü Göster</button>
+  {{ tr('Filtre:') }} <strong id="filter-banner-syms"></strong>
+  <button class="btn btn-sm btn-outline-secondary ms-2 py-0" onclick="clearSymbolFilter()">{{ tr('Tümünü Göster') }}</button>
 </div>
 
 <!-- Lot Detail Table -->
 <div class="card border-0 shadow-sm mt-3">
-  <div class="card-header bg-white border-0 pt-3 pb-0 fw-semibold">Açık İşlem Detayı</div>
+  <div class="card-header bg-white border-0 pt-3 pb-0 fw-semibold">{{ tr('Açık İşlem Detayı') }}</div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover table-sm mb-0 align-middle" id="pos-table">
         <thead class="table-header-custom">
           <tr>
-            <th draggable="true" class="col-draggable">Sembol</th>
-            <th draggable="true" class="col-draggable text-center">İşlem #</th>
-            <th draggable="true" class="col-draggable">Alış Tarihi</th>
-            <th draggable="true" class="col-draggable text-end">Gün</th>
-            <th draggable="true" class="col-draggable text-end">Adet</th>
-            <th draggable="true" class="col-draggable text-end">Alış Fiyatı</th>
-            <th draggable="true" class="col-draggable text-end">Maliyet</th>
-            <th draggable="true" class="col-draggable text-end">Anlık Fiyat</th>
-            <th draggable="true" class="col-draggable text-end">Mevcut Değer</th>
-            <th draggable="true" class="col-draggable text-end">Günlük K/Z</th>
-            <th draggable="true" class="col-draggable text-end">Toplam K/Z</th>
-            <th draggable="true" class="col-draggable text-end">K/Z %</th>
-            <th draggable="true" class="col-draggable text-end">Hedef</th>
-            <th draggable="true" class="col-draggable text-end">Hedefe %</th>
+            <th draggable="true" class="col-draggable">{{ tr('Sembol') }}</th>
+            <th draggable="true" class="col-draggable text-center">{{ tr('İşlem #') }}</th>
+            <th draggable="true" class="col-draggable">{{ tr('Alış Tarihi') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Gün') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Adet') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Alış Fiyatı') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Maliyet') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Anlık Fiyat') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Mevcut Değer') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Günlük K/Z') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Toplam K/Z') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('K/Z %') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Hedef') }}</th>
+            <th draggable="true" class="col-draggable text-end">{{ tr('Hedefe %') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -407,6 +410,7 @@ function fmt$(v) { return '$' + Math.abs(v).toFixed(0).replace(/\B(?=(\d{3})+(?!
 function updatePozPrices(prices) {
   _cachedPrices = prices;
   let totalUnrealized = 0, totalUnrValid = true;
+  let totalDaily = 0, totalPrevValue = 0, totalDailyValid = true;
 
   document.querySelectorAll('.pos-widget').forEach(w => {
     const sym = w.dataset.symbol;
@@ -491,11 +495,15 @@ function updatePozPrices(prices) {
       // Günlük K/Z
       if (prev != null) {
         const dpnl = (cur - prev) * qty;
+        totalDaily += dpnl;
+        totalPrevValue += prev * qty;
         const dpEl = w.querySelector('[data-field="daily-pnl"]');
         if (dpEl) {
           dpEl.textContent = (dpnl >= 0 ? '+' : '-') + fmt$(dpnl);
           dpEl.className = 'pw-stat-value ' + (dpnl >= 0 ? 'text-success' : 'text-danger');
         }
+      } else {
+        totalDailyValid = false;  // bir sembolün önceki kapanışı yoksa toplam eksik
       }
 
       // Hedefe mesafe
@@ -522,6 +530,26 @@ function updatePozPrices(prices) {
     } else {
       hdrEl.textContent = '—';
       hdrEl.className = 'text-muted';
+    }
+  }
+
+  // Header toplam günlük K/Z (bugünkü değişim — prev_close referanslı)
+  const hdrDaily = document.getElementById('hdr-daily');
+  const hdrDailyPct = document.getElementById('hdr-daily-pct');
+  if (hdrDaily) {
+    if (totalDailyValid && totalPrevValue > 0) {
+      const dpct = totalDaily / totalPrevValue * 100;
+      const cls = totalDaily >= 0 ? 'text-success' : 'text-danger';
+      hdrDaily.textContent = (totalDaily >= 0 ? '+' : '-') + fmt$(totalDaily);
+      hdrDaily.className = 'fw-bold ' + cls;
+      if (hdrDailyPct) {
+        hdrDailyPct.textContent = '(' + (dpct >= 0 ? '+' : '') + dpct.toFixed(2) + '%)';
+        hdrDailyPct.className = 'small ms-1 ' + cls;
+      }
+    } else {
+      hdrDaily.textContent = '—';
+      hdrDaily.className = 'text-muted';
+      if (hdrDailyPct) hdrDailyPct.textContent = '';
     }
   }
 
