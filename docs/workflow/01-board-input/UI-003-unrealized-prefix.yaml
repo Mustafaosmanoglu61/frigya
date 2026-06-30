@@ -1,0 +1,71 @@
+# ════════════════════════════════════════════════════════════════
+#  BOARD INPUT — Frigya
+# ════════════════════════════════════════════════════════════════
+meta:
+  hazirlayan: "Ayşe (UI Dev)"
+  tarih: "2026-06-01"
+  normalizer_onayi: true
+  discovery: "bottom-up"          # Ayşe UI'da çalışırken kendi fark etti
+
+id: UI-003
+type: ui-revision
+title: "Lot tablosunda 'K/Z %' ve 'Toplam K/Z' başlıklarının Unrealized olduğu belirtilsin"
+priority: P3
+labels: [ui, clarity, pozisyonlar]
+reporter: "Ayşe"
+assignee_hint: "Ayşe"             # keşfeden = çözen (kısa yol)
+
+# ── Amaç ────────────────────────────────────────────────────────
+amac: |
+  Açık Pozisyonlar lot tablosundaki "K/Z %" ve "Toplam K/Z" başlıkları,
+  bunların GERÇEKLEŞMEMİŞ (unrealized) değerler olduğunu açıkça
+  belirtmiyor. Kullanıcı bunları realized (satılmış) K/Z ile
+  karıştırabiliyor. Başlıklara net bir 'Unrealized' işareti gerekiyor.
+
+# ── Mevcut Davranış ─────────────────────────────────────────────
+mevcut_davranis: |
+  Sayfa: /pozisyonlar — lot tablosu başlıkları:
+    "Toplam K/Z"  ve  "K/Z %"
+  Hiçbir görsel ipucu yok ki bunlar açık pozisyonun anlık (unrealized)
+  değeri. Sayfa başlığı "Açık Pozisyonlar" olsa da kolon düzeyinde belirsiz.
+
+# ── Beklenen Davranış ───────────────────────────────────────────
+beklenen: |
+  Başlıklar unrealized olduğunu belirtsin. Tercih edilen yaklaşım
+  (fiyatlar.html'deki 'durum-info-ico' pattern'iyle tutarlı):
+    - Başlık metnine küçük bir info ikonu (bi-info-circle) eklenir
+    - Tooltip: "Gerçekleşmemiş (unrealized) — pozisyon hâlâ açık,
+      satılmadı. Anlık fiyata göre hesaplanır."
+  Alternatif: başlığı "Toplam K/Z (Unrealized)" şeklinde uzatmak —
+  ama dar kolonlarda taşma riski; info-ikon tercih edilir.
+
+# ── Etkilenen Sayfalar / Locator ────────────────────────────────
+sayfalar:
+  - url: "/pozisyonlar"
+    locator_notes:
+      tablo: "#pos-table thead"
+      hedef_basliklar: "'Toplam K/Z' ve 'K/Z %' th'leri"
+      pattern_referansi: "fiyatlar.html durum-info-ico (bi-info-circle + title)"
+
+# ── Edge Cases ──────────────────────────────────────────────────
+edge_cases:
+  - "Dark mode'da info ikon rengi okunabilir olmalı"
+  - "Tooltip mobilde (touch) da erişilebilir olmalı (title yeterli, native)"
+  - "Kolon sürükle-bırak sırasında ikon başlıkla birlikte taşınmalı"
+
+# ── Out of Scope ────────────────────────────────────────────────
+out_of_scope:
+  - "Widget kartlarındaki 'Gerçekleşmemiş K/Z' etiketi (zaten net)"
+  - "Realized K/Z tablolarına benzer etiket ekleme (ayrı story)"
+
+# ── Kabul Kriterleri ────────────────────────────────────────────
+kabul_kriterleri:
+  - "'Toplam K/Z' başlığında info ikonu görünür"
+  - "'K/Z %' başlığında info ikonu görünür"
+  - "İkona hover/tap → 'Gerçekleşmemiş (unrealized)...' tooltip çıkar"
+  - "Dark mode'da ikon görünür/kontrast yeterli"
+
+# ── Ekler ───────────────────────────────────────────────────────
+ekler:
+  - tip: note
+    aciklama: "Pattern hazır: fiyatlar.html showDurumGuide info-ikon yapısı kopyalanabilir"

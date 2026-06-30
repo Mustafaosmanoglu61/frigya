@@ -99,18 +99,22 @@ function initSymbolChart(canvasId, labels, values) {
       }]
     },
     options: {
-      indexAxis: 'y',
+      indexAxis: 'x',           // semboller X ekseninde, dikey barlar
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => '$' + ctx.parsed.x.toLocaleString('en-US', {minimumFractionDigits: 2})
+            label: ctx => '$' + ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2})
           }
         }
       },
       scales: {
         x: {
+          ticks: { maxRotation: 60, minRotation: 45, autoSkip: false }
+        },
+        y: {
           ticks: {
             callback: v => '$' + v.toLocaleString('en-US')
           }

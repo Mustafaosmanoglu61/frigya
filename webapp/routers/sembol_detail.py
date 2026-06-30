@@ -7,7 +7,9 @@ import auth_service
 import database
 from templates_config import templates
 from ingestion import insert_rows
-from portfolio_helper import get_portfolios, resolve_portfolio
+from portfolio_helper import (
+    get_portfolios, resolve_portfolio, get_selectable_portfolios, is_super, pf_clause,
+)
 
 router = APIRouter()
 
@@ -17,8 +19,11 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
     symbol = symbol.upper()
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
-    portfolios = get_portfolios(user_id)
+    portfolios = get_selectable_portfolios(user_id)
     portfolio = resolve_portfolio(request, portfolio, user_id)
+    super_mode = is_super(portfolio)
+    pf_sql, pf_params = pf_clause(portfolio)
+    pf_sql_fr, pf_params_fr = pf_clause(portfolio, alias="fr")
     active_tab = tab if tab in ("all", "realized", "unrealized") else "all"
 
     if not portfolio:
@@ -39,26 +44,31 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
             "current_portfolio": None,
             "active_tab": active_tab,
             "today": date.today().isoformat(),
+            "target": {},
+            "target_list": [],
+            "sym_tag": "",
+            "distinct_tags": [],
+            "is_super": False,
         })
 
     with database.db() as conn:
-        # All raw transactions for this symbol in this portfolio
-        all_tx = conn.execute("""
-            SELECT id, tx_date, direction, quantity, price, total, source_year
+        # All raw transactions for this symbol (süperde portföy etiketiyle)
+        all_tx = conn.execute(f"""
+            SELECT id, tx_date, direction, quantity, price, total, source_year, portfolio
             FROM raw_transactions
-            WHERE user_id = ? AND upper(symbol) = ? AND portfolio = ?
+            WHERE user_id = ? AND upper(symbol) = ? {pf_sql}
             ORDER BY tx_date, id
-        """, (user_id, symbol, portfolio)).fetchall()
+        """, tuple([user_id, symbol] + pf_params)).fetchall()
 
-        # Realized P&L (all years) for this portfolio — yeniden eskiye sırala
-        realized = conn.execute("""
+        # Realized P&L (all years) — yeniden eskiye sırala
+        realized = conn.execute(f"""
             SELECT fr.id, fr.tx_date, fr.quantity, fr.sale_price, fr.sale_proceeds,
                    fr.cost_basis, fr.pnl, fr.pnl_pct, fr.status, fr.eksik_lot,
-                   fr.tax_year
+                   fr.tax_year, fr.portfolio
             FROM fifo_results fr
-            WHERE fr.user_id = ? AND upper(fr.symbol) = ? AND fr.portfolio = ?
+            WHERE fr.user_id = ? AND upper(fr.symbol) = ? {pf_sql_fr}
             ORDER BY fr.tx_date DESC, fr.rowid DESC
-        """, (user_id, symbol, portfolio)).fetchall()
+        """, tuple([user_id, symbol] + pf_params_fr)).fetchall()
 
         # FIFO lot match details for each sale
         lot_matches = {}
@@ -72,33 +82,44 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
             """, (r["id"],)).fetchall()
             lot_matches[r["id"]] = matches
 
-        # Open positions for this symbol in this portfolio
-        open_pos = conn.execute("""
-            SELECT lot_seq, buy_date, quantity, buy_price, cost_basis, is_carry_lot
+        # Open positions for this symbol (süperde portföy etiketiyle)
+        open_pos = conn.execute(f"""
+            SELECT lot_seq, buy_date, quantity, buy_price, cost_basis, is_carry_lot, portfolio
             FROM open_positions
-            WHERE user_id = ? AND upper(symbol) = ? AND portfolio = ?
+            WHERE user_id = ? AND upper(symbol) = ? {pf_sql}
             ORDER BY lot_seq
-        """, (user_id, symbol, portfolio)).fetchall()
+        """, tuple([user_id, symbol] + pf_params)).fetchall()
 
-        # Summary per year for this portfolio
-        summary = conn.execute("""
-            SELECT tax_year, total_trades, winning_trades, losing_trades,
-                   total_quantity, total_proceeds, total_cost, net_pnl,
-                   total_profit, total_loss, eksik_lot_count,
-                   last_sale_date, last_sale_price,
-                   CASE WHEN total_trades > 0
-                        THEN CAST(winning_trades AS REAL) / total_trades
+        # Summary per year — GROUP BY tax_year (süperde portföyler arası toplanır,
+        # normal portföyde tek satır olduğu için aynı sonucu verir)
+        summary = conn.execute(f"""
+            SELECT tax_year,
+                   SUM(total_trades)    AS total_trades,
+                   SUM(winning_trades)  AS winning_trades,
+                   SUM(losing_trades)   AS losing_trades,
+                   SUM(total_quantity)  AS total_quantity,
+                   SUM(total_proceeds)  AS total_proceeds,
+                   SUM(total_cost)      AS total_cost,
+                   SUM(net_pnl)         AS net_pnl,
+                   SUM(total_profit)    AS total_profit,
+                   SUM(total_loss)      AS total_loss,
+                   SUM(eksik_lot_count) AS eksik_lot_count,
+                   MAX(last_sale_date)  AS last_sale_date,
+                   MAX(last_sale_price) AS last_sale_price,
+                   CASE WHEN SUM(total_trades) > 0
+                        THEN CAST(SUM(winning_trades) AS REAL) / SUM(total_trades)
                         ELSE 0 END AS success_rate,
-                   CASE WHEN total_cost > 0.001
-                        THEN net_pnl / total_cost
+                   CASE WHEN SUM(total_cost) > 0.001
+                        THEN SUM(net_pnl) / SUM(total_cost)
                         ELSE NULL END AS pnl_pct
             FROM symbol_summary
-            WHERE user_id = ? AND upper(symbol) = ? AND portfolio = ?
+            WHERE user_id = ? AND upper(symbol) = ? {pf_sql}
+            GROUP BY tax_year
             ORDER BY tax_year
-        """, (user_id, symbol, portfolio)).fetchall()
+        """, tuple([user_id, symbol] + pf_params)).fetchall()
 
-        # Totals across all years for this portfolio
-        overall = conn.execute("""
+        # Totals across all years
+        overall = conn.execute(f"""
             SELECT
                 SUM(total_proceeds) AS total_proceeds,
                 SUM(total_cost)     AS total_cost,
@@ -107,8 +128,8 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
                 SUM(total_loss)     AS total_loss,
                 SUM(total_trades)   AS total_trades,
                 SUM(winning_trades) AS winning_trades
-            FROM symbol_summary WHERE user_id = ? AND upper(symbol) = ? AND portfolio = ?
-        """, (user_id, symbol, portfolio)).fetchone()
+            FROM symbol_summary WHERE user_id = ? AND upper(symbol) = ? {pf_sql}
+        """, tuple([user_id, symbol] + pf_params)).fetchone()
 
     # Prepare open position data for JS unrealized calc
     open_pos_js = [
@@ -127,7 +148,17 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
     total_open_qty = sum(r["quantity"] for r in open_pos)
 
     # Hedef/taban fiyat bilgisi
-    target = database.get_symbol_target(user_id, portfolio, symbol) or {}
+    if super_mode:
+        # Süperde: tüm portföylerdeki hedefleri etiketli liste olarak göster (read-only)
+        target = {}
+        target_list = database.get_symbol_targets_all_portfolios(user_id).get(symbol, [])
+    else:
+        target = database.get_symbol_target(user_id, portfolio, symbol) or {}
+        target_list = []
+
+    # Sembol tag (sektör/klasman) — user-scoped, portfolyodan bağımsız
+    sym_tag = database.get_symbol_tag(user_id, symbol) or ""
+    distinct_tags = database.get_distinct_tags(user_id)
 
     return templates.TemplateResponse("sembol_detail.html", {
         "request": request,
@@ -142,11 +173,15 @@ async def sembol_detail(request: Request, symbol: str, portfolio: str = Query(No
         "summary": summary,
         "overall": overall,
         "target": target,
+        "target_list": target_list,
+        "sym_tag": sym_tag,
+        "distinct_tags": distinct_tags,
         "active": "semboller",
         "portfolios": portfolios,
         "current_portfolio": portfolio,
         "active_tab": active_tab,
         "today": date.today().isoformat(),
+        "is_super": super_mode,
     })
 
 
@@ -269,6 +304,11 @@ async def duzenle_islem_sembol(
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     symbol = symbol.upper()
+    if is_super(portfolio):
+        return RedirectResponse(
+            url=f"/sembol/{symbol}?msg=Süper%20portföyde%20düzenleme%20yapılamaz",
+            status_code=303,
+        )
     total = round(quantity * price, 2)
     year = int(tx_date[:4])
 
@@ -312,6 +352,11 @@ async def sil_islem_sembol(request: Request, symbol: str, tx_id: int, portfolio:
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     symbol = symbol.upper()
+    if is_super(portfolio) or is_super(request.session.get("portfolio")):
+        return RedirectResponse(
+            url=f"/sembol/{symbol}?msg=Süper%20portföyde%20silme%20yapılamaz",
+            status_code=303,
+        )
 
     with database.db() as conn:
         # Get transaction info

@@ -5,16 +5,31 @@ Frigya portföy analizini **MCP servisi** olarak sunar. Claude Desktop (veya her
 ## Mimari ilke
 
 ```
-Claude Desktop / herhangi bir chat
-        │  (MCP tool çağrısı)
+Claude Desktop / webapp ai.py / herhangi bir chat
+        │  (MCP tool çağrısı  veya  doğrudan import)
         ▼
-   frigya-mcp SERVİSİ   ← yerelde çalışır, DB sahibi
-        │  (subprocess)
+   frigya_core paketi   ← importable çekirdek, DB sahibi, SSOT
         ▼
-   frigya-analiz scriptleri  →  ~/Tax_Portfolilo/webapp/tax.db
+   ~/Tax_Portfolilo/webapp/tax.db
 ```
 
-**Servis DB'ye erişir, client/skill doğrudan değil.** Bu sayede sandbox'taki bir agent yerel dosyaya hiç dokunmadan analiz alabilir. İş mantığı `~/.claude/skills/frigya-analiz/scripts/` altındaki scriptlerde tek hakikat kaynağı olarak kalır; bu server onları subprocess ile sarmalar.
+**Servis (frigya_core) DB'ye erişir, client/skill doğrudan değil.** Sandbox'taki bir agent yerel dosyaya hiç dokunmadan analiz alabilir.
+
+`frigya_core` **importable bir Python paketi** (subprocess yok) — tek hakikat kaynağı:
+
+| Modül | İçerik |
+|---|---|
+| `frigya_core/config.py` | DB yolu, kullanıcı tespiti, `open_conn()` |
+| `frigya_core/db.py` | `sembol_data()`, `portfoy_data()` |
+| `frigya_core/notes.py` | `parse_note()`, `parse_notes_list()` (seviye/earnings ayıklama) |
+| `frigya_core/massive.py` | `normalize_teknik/haber/meta()` (Massive passthrough şekillendirici) |
+| `frigya_core/davranis.py` | `davranis_data()` |
+| `frigya_core/sentez.py` | `build_sentez()` — ana orkestratör |
+| `frigya_core/render.py` | `render_markdown()`, `render_html()` |
+| `frigya_core/yazma.py` | `hedef_guncelle()`, `analist_hedef()` (dry-run/apply) |
+
+`server.py` bu paketi import edip 7 MCP tool'u olarak sunar. Frigya webapp `routers/ai.py` de
+aynı paketi import edebilir (subprocess yerine doğrudan fonksiyon çağrısı).
 
 ## Araçlar (7)
 
@@ -85,8 +100,30 @@ uv run --python 3.12 python _smoke.py
 - `mcp` SDK (pyproject.toml'da)
 - Scriptler sadece stdlib kullanır (sqlite3, json, re) — ekstra bağımlılık yok
 
+## Webapp entegrasyonu (yapıldı)
+
+Frigya webapp `routers/frigya_ai.py` `frigya_core`'u **doğrudan import eder** (subprocess/MCP yok):
+
+| Endpoint | Açıklama |
+|---|---|
+| `GET /api/ai/frigya/sembol/{symbol}?format=json\|markdown\|html&market=true` | Sembol sentezi |
+| `GET /api/ai/frigya/portfoy?portfolio=` | Açık pozisyon taraması |
+| `GET /api/ai/frigya/davranis?portfolio=&year=` | Davranış paternleri |
+
+`market=true` ise `frigya_core.fetch_market` Massive REST'i **kendi key'iyle** çağırır
+(`MASSIVE_API_KEY`). Key yoksa DB-only çalışır (graceful). Auth şeması `MASSIVE_AUTH_MODE`
+ile ayarlanır (bearer/apikey/xapikey; bearer 401/403 olursa apikey'e otomatik düşer).
+
+## Üç tüketici, tek çekirdek (SSOT)
+
+```
+Claude Desktop ──(MCP)──┐
+Frigya webapp  ──(import)─┤──→  frigya_core  ──→  tax.db
+Claude Code skill ──(MCP/script)┘
+```
+
 ## Gelecek
 
-- Frigya webapp `routers/ai.py` bu MCP'yi tool olarak çağırabilir (web tarafı entegrasyon)
-- Massive doğrudan-fetch tool'u (MASSIVE_API_KEY env ile) — şu an passthrough yeterli
-- Scriptler ileride bu projeye taşınabilir; `FRIGYA_SCRIPTS_DIR` repointlenir, kod değişmez
+- Webapp ai.html / sembol sayfalarına frigya analiz panelini bağla (endpoint'ler hazır)
+- Massive auth şemasını canlı doğrula (key girilince `MASSIVE_AUTH_MODE` netleşir)
+- Chat'e (`/api/ai/chat`) anthropic tool-use ile frigya_core'u bağla (opsiyonel, sonraki tur)

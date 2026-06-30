@@ -29,6 +29,7 @@
   {% for s in symbols %}
   <div class="pos-widget" draggable="true" data-symbol="{{ s.symbol }}"
        data-qty="{{ s.total_qty }}" data-cost="{{ s.total_cost }}"
+       data-today-qty="{{ s.today_qty }}" data-today-cost="{{ s.today_cost }}"
        onclick="toggleSymbolFilter('{{ s.symbol }}', event)"
        title="Tabloda filtrele (Shift ile çoklu seçim)">
 
@@ -144,6 +145,7 @@
           {% for r in lots %}
           <tr class="{% if r.symbol != ns.prev_symbol %}border-top border-2{% endif %}"
               data-symbol="{{ r.symbol }}" data-qty="{{ r.quantity }}" data-cost="{{ r.cost_basis }}"
+              data-today="{{ '1' if r.is_today else '0' }}"
               data-hedef="{{ r.target.get('hedef_fiyat', '') or '' }}">
             {% if r.symbol != ns.prev_symbol %}
             <td>
@@ -492,11 +494,17 @@ function updatePozPrices(prices) {
         pctBadge.className = 'pw-total-pct badge ' + (upct >= 0 ? 'bg-success' : 'bg-danger');
       }
 
-      // Günlük K/Z
+      // Günlük K/Z — bugün alınan paylar dünkü kapanıştan değil alış
+      // fiyatından (=bugünkü maliyet) ölçülür; geri kalan paylar prev_close'tan.
+      // baseline = prev × (eski adet) + bugünkü maliyet
       if (prev != null) {
-        const dpnl = (cur - prev) * qty;
+        const todayQty  = parseFloat(w.dataset.todayQty)  || 0;
+        const todayCost = parseFloat(w.dataset.todayCost) || 0;
+        const oldQty    = qty - todayQty;
+        const baseline  = prev * oldQty + todayCost;
+        const dpnl      = cur * qty - baseline;
         totalDaily += dpnl;
-        totalPrevValue += prev * qty;
+        totalPrevValue += baseline;
         const dpEl = w.querySelector('[data-field="daily-pnl"]');
         if (dpEl) {
           dpEl.textContent = (dpnl >= 0 ? '+' : '-') + fmt$(dpnl);
@@ -584,9 +592,12 @@ function updatePozPrices(prices) {
     const mvEl = row.querySelector('.lot-market-value');
     if (mvEl) mvEl.textContent = fmt$(mv);
 
-    // Günlük K/Z per lot
+    // Günlük K/Z per lot — bugün alınan lot alış fiyatından (=maliyet), diğeri
+    // dünkü kapanıştan ölçülür.
     if (prev != null) {
-      const dpnl = (cur - prev) * qty;
+      const isToday  = row.dataset.today === '1';
+      const baseline = isToday ? cost : prev * qty;
+      const dpnl = cur * qty - baseline;
       const dpEl = row.querySelector('.lot-daily-pnl');
       if (dpEl) {
         dpEl.textContent = (dpnl >= 0 ? '+' : '-') + fmt$(dpnl);

@@ -6,7 +6,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import auth_service
 import database
 from templates_config import templates
-from portfolio_helper import get_portfolios, resolve_portfolio
+from portfolio_helper import (
+    get_portfolios, resolve_portfolio, get_selectable_portfolios, is_super, pf_clause,
+)
 
 router = APIRouter()
 
@@ -15,8 +17,11 @@ router = APIRouter()
 async def semboller(request: Request, yil: Optional[int] = Query(default=None), portfolio: str = Query(None)):
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
-    portfolios = get_portfolios(user_id)
+    portfolios = get_selectable_portfolios(user_id)
     portfolio = resolve_portfolio(request, portfolio, user_id)
+    super_mode = is_super(portfolio)
+    pf_sql, pf_params = pf_clause(portfolio)
+    pf_sql_fr, pf_params_fr = pf_clause(portfolio, alias="fr")
 
     with database.db() as conn:
         # Use portfolio column directly on fifo_results
@@ -25,8 +30,8 @@ async def semboller(request: Request, yil: Optional[int] = Query(default=None), 
             available_years = [
                 r["tax_year"] for r in
                 conn.execute(
-                    "SELECT DISTINCT tax_year FROM fifo_results WHERE user_id=? AND portfolio=? ORDER BY tax_year",
-                    (user_id, portfolio)
+                    f"SELECT DISTINCT tax_year FROM fifo_results WHERE user_id=? {pf_sql} ORDER BY tax_year",
+                    tuple([user_id] + pf_params)
                 ).fetchall()
             ]
         # yil=0 means "all years"; default to latest year on first load (no explicit choice)
@@ -57,7 +62,7 @@ async def semboller(request: Request, yil: Optional[int] = Query(default=None), 
                            SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END) AS total_loss,
                            SUM(eksik_lot) AS eksik_lot_count
                     FROM fifo_results
-                    WHERE user_id = ? AND portfolio = ? {year_sql}
+                    WHERE user_id = ? {pf_sql} {year_sql}
                     GROUP BY symbol
                 )
                 SELECT sa.symbol,
@@ -83,13 +88,13 @@ async def semboller(request: Request, yil: Optional[int] = Query(default=None), 
                 FROM symbol_agg sa
                 LEFT JOIN fifo_results fr ON upper(fr.symbol) = upper(sa.symbol)
                                           AND fr.tx_date = sa.last_sale_date
-                                          AND fr.user_id = ? AND fr.portfolio = ? {year_sql}
+                                          AND fr.user_id = ? {pf_sql_fr} {year_sql}
                 GROUP BY sa.symbol, sa.last_sale_date, sa.total_trades, sa.winning_trades,
                          sa.losing_trades, sa.total_quantity, sa.total_proceeds, sa.total_cost,
                          sa.net_pnl, sa.total_profit, sa.total_loss, sa.eksik_lot_count
                 HAVING sa.last_sale_date IS NOT NULL
                 ORDER BY sa.net_pnl DESC
-            """, [user_id, portfolio] + year_params + [user_id, portfolio] + year_params).fetchall()
+            """, [user_id] + pf_params + year_params + [user_id] + pf_params_fr + year_params).fetchall()
 
             totals = conn.execute(f"""
                 SELECT
@@ -101,11 +106,14 @@ async def semboller(request: Request, yil: Optional[int] = Query(default=None), 
                     SUM(pnl)                AS net_pnl,
                     SUM(CASE WHEN pnl >= 0 THEN pnl ELSE 0 END) AS total_profit,
                     SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END) AS total_loss
-                FROM fifo_results WHERE user_id = ? AND portfolio = ? {year_sql}
-            """, [user_id, portfolio] + year_params).fetchone()
+                FROM fifo_results WHERE user_id = ? {pf_sql} {year_sql}
+            """, [user_id] + pf_params + year_params).fetchone()
         else:
             rows = []
             totals = None
+
+    sym_tags = database.get_symbol_tags(user_id)
+    distinct_tags = database.get_distinct_tags(user_id)
 
     return templates.TemplateResponse("semboller.html", {
         "request": request,
@@ -116,6 +124,9 @@ async def semboller(request: Request, yil: Optional[int] = Query(default=None), 
         "active": "semboller",
         "portfolios": portfolios,
         "current_portfolio": portfolio,
+        "sym_tags": sym_tags,
+        "distinct_tags": distinct_tags,
+        "is_super": super_mode,
     })
 
 
@@ -125,6 +136,12 @@ async def sil_islem_semboller(request: Request, tx_id: int, yil: int = Query(def
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
+
+    # Süper portföy salt-okunur: silme reddedilir
+    if is_super(portfolio):
+        return RedirectResponse(
+            url="/semboller?msg=Süper%20portföyde%20silme%20yapılamaz", status_code=303
+        )
 
     with database.db() as conn:
         # Get transaction info

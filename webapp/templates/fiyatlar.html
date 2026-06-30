@@ -4,12 +4,12 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <h4 class="fw-bold text-dark mb-0">
-    <i class="bi bi-currency-dollar me-2 text-primary"></i>Fiyatlar & İzleme Listesi
+    <i class="bi bi-currency-dollar me-2 text-primary"></i>{{ tr('Fiyatlar & İzleme Listesi') }}
   </h4>
   <div class="d-flex align-items-center gap-3 flex-wrap">
-    <small class="text-muted">Son: <span id="son-guncelleme">Hiç güncellenmedi</span></small>
+    <small class="text-muted">{{ tr('Son:') }} <span id="son-guncelleme">{{ tr('Hiç güncellenmedi') }}</span></small>
     <button id="btn-guncelle" class="btn btn-primary btn-sm" onclick="guncelle()">
-      <i class="bi bi-arrow-clockwise me-1"></i>Güncelle
+      <i class="bi bi-arrow-clockwise me-1"></i>{{ tr('Güncelle') }}
     </button>
     <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="Fiyatları gizle / göster">
       <i class="bi bi-eye" id="price-toggle-icon"></i>
@@ -17,7 +17,7 @@
     <div class="d-flex align-items-center gap-2">
       <div class="form-check form-switch mb-0">
         <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()">
-        <label class="form-check-label small" for="auto-refresh-toggle">Otomatik</label>
+        <label class="form-check-label small" for="auto-refresh-toggle">{{ tr('Otomatik') }}</label>
       </div>
       <select id="refresh-interval" class="form-select form-select-sm" style="width:auto;min-width:80px" onchange="updateRefreshInterval()">
         <option value="30">30sn</option>
@@ -35,14 +35,14 @@
   <li class="nav-item">
     <a class="nav-link {% if active_tab == 'pozisyonlar' %}active{% endif %}"
        href="/fiyatlar?tab=pozisyonlar">
-      <i class="bi bi-wallet2 me-1"></i>Açık Pozisyonlar
+      <i class="bi bi-wallet2 me-1"></i>{{ tr('Açık Pozisyonlar') }}
       <span class="badge bg-secondary ms-1">{{ positions|length }}</span>
     </a>
   </li>
   <li class="nav-item">
     <a class="nav-link {% if active_tab == 'watchlist' %}active{% endif %}"
        href="/fiyatlar?tab=watchlist">
-      <i class="bi bi-eye me-1"></i>İzleme Listesi
+      <i class="bi bi-eye me-1"></i>{{ tr('İzleme Listesi') }}
       <span class="badge bg-secondary ms-1">{{ watchlist|length }}</span>
     </a>
   </li>
@@ -78,9 +78,11 @@
         <span data-field="market-state"></span>
         <span class="pc-spacer"></span>
         <span class="pc-qty-badge">{{ r.total_qty | fmtqty }} adet</span>
+        {% if not is_super %}
         <button class="pc-icon-btn" onclick="openTargetModal('{{ r.symbol }}', this.closest('.pos-card'))" title="Hedef Ayarla">
           <i class="bi bi-gear-fill"></i>
         </button>
+        {% endif %}
       </div>
 
       <!-- Fiyat + Değişim + After Hours -->
@@ -222,12 +224,16 @@
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body py-2">
       <div class="d-flex gap-2 align-items-center flex-wrap">
+        {% if not is_super %}
         <input type="text" id="wl-symbol" class="form-control form-control-sm"
                placeholder="Sembol gir (örn: AAPL)" style="max-width:180px;text-transform:uppercase"
                oninput="this.value=this.value.toUpperCase()">
         <button class="btn btn-success btn-sm" onclick="watchlistEkle()">
           <i class="bi bi-plus-lg me-1"></i>Ekle
         </button>
+        {% else %}
+        <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-stars me-1"></i>Süper Portföy — birleşik izleme listesi (salt-okunur)</span>
+        {% endif %}
         <span id="wl-status" class="align-self-center small"></span>
         <button class="btn btn-outline-info btn-sm" onclick="toggleWLSplit()" title="Listeyi böle (TW tarzı)">
           <i class="bi bi-columns-gap me-1"></i><span id="split-btn-text">Böl</span>
@@ -262,25 +268,26 @@
         <table class="table table-hover table-sm align-middle wl-table mb-0" id="wl-table">
       <thead class="table-dark">
         <tr>
-          <th class="wl-sticky-first">Sembol</th>
-          <th class="text-end" data-col="fiyat">Fiyat / Değişim</th>
-          <th class="text-end" data-col="aftermarket">After Market</th>
-          <th class="text-end" data-col="taban">Taban <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-          <th class="text-end" data-col="hedef">Hedef <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-          <th class="text-end" data-col="taban-dist">Tabana % <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-          <th class="text-end" data-col="hedef-dist">Hedefe % <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-          <th class="text-end" data-col="avg-cost">Ort. Maliyet</th>
-          <th class="text-end" data-col="son-alis-fiyat">Son Alış</th>
-          <th class="text-end" data-col="son-satis-fiyat">Son Satış</th>
-          <th class="text-end" data-col="satis-sonrasi">Satış Sonrası %</th>
-          <th class="text-end" data-col="alis-gun">Alıştan Gün</th>
-          <th class="text-end" data-col="satis-gun">Satıştan Gün</th>
-          <th class="text-end" data-col="son-satis-lot">S.Satış Lot</th>
-          <th class="text-end" data-col="son-alis-tutar">S.Alış Tutar</th>
-          <th class="text-end" data-col="son-satis-tutar">S.Satış Tutar</th>
-          <th class="text-end" data-col="son-alis-lot">S.Alış Lot</th>
-          <th class="text-end" data-col="son-kz-pct">Son K/Z %</th>
-          <th class="text-center" data-col="durum">Durum <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+          <th class="wl-sticky-first">{{ tr('Sembol') }}</th>
+
+          <th class="text-end" data-col="fiyat">{{ tr('Fiyat / Değişim') }}</th>
+          <th class="text-end" data-col="aftermarket">{{ tr('After Market') }}</th>
+          <th class="text-end" data-col="taban">{{ tr('Taban') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+          <th class="text-end" data-col="hedef">{{ tr('Hedef') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+          <th class="text-end" data-col="taban-dist">{{ tr('Tabana %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+          <th class="text-end" data-col="hedef-dist">{{ tr('Hedefe %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+          <th class="text-end" data-col="avg-cost">{{ tr('Ort. Maliyet') }}</th>
+          <th class="text-end" data-col="son-alis-fiyat">{{ tr('Son Alış') }}</th>
+          <th class="text-end" data-col="son-satis-fiyat">{{ tr('Son Satış') }}</th>
+          <th class="text-end" data-col="satis-sonrasi">{{ tr('Satış Sonrası %') }}</th>
+          <th class="text-end" data-col="alis-gun">{{ tr('Alıştan Gün') }}</th>
+          <th class="text-end" data-col="satis-gun">{{ tr('Satıştan Gün') }}</th>
+          <th class="text-end" data-col="son-satis-lot">{{ tr('S.Satış Lot') }}</th>
+          <th class="text-end" data-col="son-alis-tutar">{{ tr('S.Alış Tutar') }}</th>
+          <th class="text-end" data-col="son-satis-tutar">{{ tr('S.Satış Tutar') }}</th>
+          <th class="text-end" data-col="son-alis-lot">{{ tr('S.Alış Lot') }}</th>
+          <th class="text-end" data-col="son-kz-pct">{{ tr('Son K/Z %') }}</th>
+          <th class="text-center" data-col="durum">{{ tr('Durum') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
           <th class="text-center wl-sticky-last" style="min-width:80px"></th>
         </tr>
       </thead>
@@ -296,11 +303,6 @@
           <td class="wl-sticky-first">
             <a href="/sembol/{{ w['symbol'] }}?portfolio={{ current_portfolio }}&tab=realized"
                class="fw-bold text-decoration-none symbol-link">{{ w['symbol'] }}</a>
-            {% if w['notes'] %}
-            <span class="ms-1 note-dot" title="{{ w['notes'] | striptags | truncate(100) }}">
-              <i class="bi bi-sticky-fill text-warning" style="font-size:0.7rem"></i>
-            </span>
-            {% endif %}
           </td>
 
           <td class="text-end" data-col="fiyat" data-field="wl-fiyat-cell">—</td>
@@ -363,11 +365,18 @@
           </td>
 
           <td class="text-center wl-sticky-last">
-            <button class="btn btn-sm btn-link p-0 me-1 wl-act-btn"
-                    onclick="openNoteModal('{{ w['symbol'] }}', {{ w['id'] }}, this)"
-                    data-note="{{ (w['notes'] or '') | striptags | truncate(120) | replace('"', '&quot;') }}"
-                    title="Not">
-              <i class="bi bi-sticky{% if w['notes'] %}-fill text-warning{% endif %}"></i>
+            {% if is_super %}
+            {% for pf in (w['portfolios'] or '').split(',') if pf %}
+            <span class="badge bg-light text-secondary border">{{ pf }}</span>
+            {% endfor %}
+            {% else %}
+            <button class="btn btn-sm btn-link p-0 me-1 wl-act-btn note-btn position-relative"
+                    data-symbol="{{ w['symbol'] }}"
+                    onclick="openSymbolNotes('{{ w['symbol'] }}')"
+                    title="Notlar">
+              <i class="bi bi-journal-text text-muted"></i>
+              <span class="badge bg-primary note-count-badge d-none position-absolute top-0 start-100 translate-middle"
+                    style="font-size:.55rem;padding:.1rem .25rem"></span>
             </button>
             <button class="btn btn-sm btn-link p-0 me-1 wl-act-btn text-secondary"
                     onclick="openTargetModal('{{ w['symbol'] }}', this.closest('tr'))"
@@ -378,6 +387,7 @@
                     onclick="watchlistSil({{ w['id'] }}, this)">
               <i class="bi bi-trash3"></i>
             </button>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -399,25 +409,26 @@
         <table class="table table-hover table-sm align-middle wl-table mb-0" id="wl-table-2">
           <thead class="table-dark">
             <tr>
-              <th class="wl-sticky-first">Sembol</th>
-              <th class="text-end" data-col="fiyat">Fiyat / Değişim</th>
-              <th class="text-end" data-col="aftermarket">After Market</th>
-              <th class="text-end" data-col="taban">Taban <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-              <th class="text-end" data-col="hedef">Hedef <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-              <th class="text-end" data-col="taban-dist">Tabana % <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-              <th class="text-end" data-col="hedef-dist">Hedefe % <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
-              <th class="text-end" data-col="avg-cost">Ort. Maliyet</th>
-              <th class="text-end" data-col="son-alis-fiyat">Son Alış</th>
-              <th class="text-end" data-col="son-satis-fiyat">Son Satış</th>
-              <th class="text-end" data-col="satis-sonrasi">Satış Sonrası %</th>
-              <th class="text-end" data-col="alis-gun">Alıştan Gün</th>
-              <th class="text-end" data-col="satis-gun">Satıştan Gün</th>
-              <th class="text-end" data-col="son-satis-lot">S.Satış Lot</th>
-              <th class="text-end" data-col="son-alis-tutar">S.Alış Tutar</th>
-              <th class="text-end" data-col="son-satis-tutar">S.Satış Tutar</th>
-              <th class="text-end" data-col="son-alis-lot">S.Alış Lot</th>
-              <th class="text-end" data-col="son-kz-pct">Son K/Z %</th>
-              <th class="text-center" data-col="durum">Durum <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+              <th class="wl-sticky-first">{{ tr('Sembol') }}</th>
+
+              <th class="text-end" data-col="fiyat">{{ tr('Fiyat / Değişim') }}</th>
+              <th class="text-end" data-col="aftermarket">{{ tr('After Market') }}</th>
+              <th class="text-end" data-col="taban">{{ tr('Taban') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+              <th class="text-end" data-col="hedef">{{ tr('Hedef') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+              <th class="text-end" data-col="taban-dist">{{ tr('Tabana %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+              <th class="text-end" data-col="hedef-dist">{{ tr('Hedefe %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
+              <th class="text-end" data-col="avg-cost">{{ tr('Ort. Maliyet') }}</th>
+              <th class="text-end" data-col="son-alis-fiyat">{{ tr('Son Alış') }}</th>
+              <th class="text-end" data-col="son-satis-fiyat">{{ tr('Son Satış') }}</th>
+              <th class="text-end" data-col="satis-sonrasi">{{ tr('Satış Sonrası %') }}</th>
+              <th class="text-end" data-col="alis-gun">{{ tr('Alıştan Gün') }}</th>
+              <th class="text-end" data-col="satis-gun">{{ tr('Satıştan Gün') }}</th>
+              <th class="text-end" data-col="son-satis-lot">{{ tr('S.Satış Lot') }}</th>
+              <th class="text-end" data-col="son-alis-tutar">{{ tr('S.Alış Tutar') }}</th>
+              <th class="text-end" data-col="son-satis-tutar">{{ tr('S.Satış Tutar') }}</th>
+              <th class="text-end" data-col="son-alis-lot">{{ tr('S.Alış Lot') }}</th>
+              <th class="text-end" data-col="son-kz-pct">{{ tr('Son K/Z %') }}</th>
+              <th class="text-center" data-col="durum">{{ tr('Durum') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
               <th class="text-center wl-sticky-last" style="min-width:80px"></th>
             </tr>
           </thead>
@@ -429,55 +440,11 @@
   </div>
   {% else %}
   <div class="alert alert-info" id="wl-empty">
-    <i class="bi bi-info-circle me-2"></i>İzleme listesi boş. Yukarıdan sembol ekleyebilirsiniz.
+    <i class="bi bi-info-circle me-2"></i>{{ tr('İzleme listesi boş. Yukarıdan sembol ekleyebilirsiniz.') }}
   </div>
   {% endif %}
 </div>
 
-<!-- Not Modal -->
-<div class="modal fade" id="noteModal" tabindex="-1">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header bg-primary-custom text-white py-2">
-        <h6 class="modal-title mb-0" id="noteModalLabel">— Not</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="note-wl-id">
-        <input type="hidden" id="note-symbol">
-
-        <!-- Toolbar -->
-        <div class="d-flex gap-2 align-items-center mb-2 flex-wrap">
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('note-image-input').click()" title="Resim ekle (PNG/JPG)">
-            <i class="bi bi-image me-1"></i>Resim Ekle
-          </button>
-          <input type="file" id="note-image-input" accept="image/*" multiple style="display:none" onchange="handleNoteImageInput(event)">
-          <span class="text-muted small d-none d-md-inline">
-            <i class="bi bi-clipboard me-1"></i>Veya Ctrl+V ile yapıştır
-          </span>
-          <span id="note-loading" class="text-primary small ms-auto" style="display:none">
-            <i class="bi bi-hourglass-split me-1"></i>Resim işleniyor...
-          </span>
-        </div>
-
-        <!-- Rich editor -->
-        <div id="note-editor" class="form-control note-editor" contenteditable="true"
-             data-placeholder="Not ekle, ekran görüntüsü yapıştır (Ctrl+V) veya 'Resim Ekle'ye tıkla..."></div>
-
-        <div class="text-muted small mt-2">
-          <i class="bi bi-info-circle me-1"></i>
-          Resimler nota gömülür. Boş bırakırsan not silinir.
-        </div>
-      </div>
-      <div class="modal-footer py-2">
-        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">İptal</button>
-        <button class="btn btn-primary btn-sm" onclick="saveNote()">
-          <i class="bi bi-check-lg me-1"></i>Kaydet
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- Durum Açıklama Modal — Algoritma Rehberi -->
 <div class="modal fade" id="durumGuideModal" tabindex="-1">
@@ -525,7 +492,7 @@
         <h6 class="fw-bold text-primary mt-3 mb-2"><i class="bi bi-2-circle me-1"></i>Hangi YÖN'desin? (günlük değişim)</h6>
         <table class="table table-sm guide-region-table mb-3">
           <thead class="table-light">
-            <tr><th>Eşik</th><th>Yön</th><th>Etiket</th></tr>
+            <tr><th>{{ tr('Eşik') }}</th><th>{{ tr('Yön') }}</th><th>{{ tr('Etiket') }}</th></tr>
           </thead>
           <tbody>
             <tr><td><code>chg ≥ +2.5%</code></td><td>📈 Güçlü yükseliş</td><td><span class="badge bg-success">📈 Güçlü ↑</span></td></tr>
@@ -542,10 +509,10 @@
           <table class="table table-sm guide-region-table table-bordered">
             <thead class="table-light">
               <tr>
-                <th>Bölge</th>
-                <th class="text-center">↑ Yükselişte</th>
-                <th class="text-center">↓ Düşüşte</th>
-                <th class="text-center">→ Yatay</th>
+                <th>{{ tr('Bölge') }}</th>
+                <th class="text-center">{{ tr('↑ Yükselişte') }}</th>
+                <th class="text-center">{{ tr('↓ Düşüşte') }}</th>
+                <th class="text-center">{{ tr('→ Yatay') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -674,7 +641,7 @@
           <input type="number" id="tgt-hedef" class="form-control form-control-sm" step="0.01" min="0" placeholder="Direnç seviyesi">
         </div>
         <div class="mb-3">
-          <label class="form-label small fw-semibold">Hedef Kazanç ($)</label>
+          <label class="form-label small fw-semibold">{{ tr('Hedef Kazanç ($)') }}</label>
           <input type="number" id="tgt-kazanc" class="form-control form-control-sm" step="0.01" min="0" placeholder="Opsiyonel">
         </div>
 
@@ -714,7 +681,7 @@
       <div class="modal-body">
         <input type="hidden" id="exit-symbol">
         <div class="mb-3">
-          <label class="form-label small fw-semibold">Çıkış Fiyatı ($)</label>
+          <label class="form-label small fw-semibold">{{ tr('Çıkış Fiyatı ($)') }}</label>
           <input type="number" id="exit-price" class="form-control form-control-sm" step="0.01" min="0" placeholder="Çıkmak istediğiniz fiyat">
         </div>
         <div id="exit-calc-result" class="small text-muted"></div>
@@ -2053,205 +2020,12 @@ function _applyColVisibility(hidden) {
   });
 }
 
-// ── Not Modal ────────────────────────────────────────────────────────────────
-// HTML'den plain text \u00e7\u0131kar (tooltip / data-note i\u00e7in)
 function showDurumGuide(ev) {
   if (ev) ev.stopPropagation();
   const modal = document.getElementById('durumGuideModal');
   if (modal) new bootstrap.Modal(modal).show();
 }
 
-function noteHtmlToPlain(html) {
-  if (!html) return '';
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  const imgCount = tmp.querySelectorAll('img').length;
-  let text = tmp.textContent.replace(/\s+/g, ' ').trim();
-  if (imgCount > 0) {
-    text = (text ? text + ' ' : '') + '[' + imgCount + ' resim]';
-  }
-  return text;
-}
-
-async function openNoteModal(symbol, wlId, btn) {
-  document.getElementById('note-symbol').value = symbol;
-  document.getElementById('note-wl-id').value = wlId;
-  document.getElementById('noteModalLabel').textContent = symbol + ' \u2014 Not';
-
-  const editor = document.getElementById('note-editor');
-  editor.innerHTML = '<div class="text-muted small p-3"><i class="bi bi-hourglass-split me-1"></i>Y\u00fckleniyor...</div>';
-
-  new bootstrap.Modal(document.getElementById('noteModal')).show();
-
-  // \u0130\u00e7eri\u011fi API'den \u00e7ek (HTML olarak \u2014 DOM kirletmemek i\u00e7in data-note de\u011fil)
-  try {
-    const resp = await fetch(`/api/fiyatlar/watchlist/${wlId}/note`);
-    const data = await resp.json();
-    editor.innerHTML = data.note || '';
-  } catch(e) {
-    editor.innerHTML = '';
-  }
-
-  setTimeout(() => editor.focus(), 300);
-}
-
-// \u2500\u2500 Resim ekleme yard\u0131mc\u0131lar\u0131 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-function insertImageAtCursor(dataUrl) {
-  const editor = document.getElementById('note-editor');
-  const img = document.createElement('img');
-  img.src = dataUrl;
-  img.alt = 'Ekran g\u00f6r\u00fcnt\u00fcs\u00fc';
-
-  editor.focus();
-  const sel = window.getSelection();
-  if (sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(img);
-    const after = document.createElement('br');
-    img.parentNode.insertBefore(after, img.nextSibling);
-    range.setStartAfter(after);
-    range.setEndAfter(after);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  } else {
-    editor.appendChild(img);
-    editor.appendChild(document.createElement('br'));
-  }
-}
-
-function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// B\u00fcy\u00fck resimleri canvas ile k\u00fc\u00e7\u00fclt (max 1600px, JPEG q=0.85)
-async function compressImage(dataUrl, maxDim, quality) {
-  if (maxDim === undefined) maxDim = 1600;
-  if (quality === undefined) quality = 0.85;
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      let w = img.width, h = img.height;
-      if (w <= maxDim && h <= maxDim) { resolve(dataUrl); return; }
-      const scale = Math.min(maxDim / w, maxDim / h);
-      w = Math.round(w * scale); h = Math.round(h * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', quality));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
-
-async function processAndInsertImage(file) {
-  const loading = document.getElementById('note-loading');
-  if (loading) loading.style.display = 'inline';
-  try {
-    const raw = await fileToDataURL(file);
-    const compressed = await compressImage(raw);
-    insertImageAtCursor(compressed);
-  } catch(e) {
-    alert('Resim y\u00fcklenemedi: ' + e.message);
-  } finally {
-    if (loading) loading.style.display = 'none';
-  }
-}
-
-function handleNoteImageInput(event) {
-  const files = Array.from(event.target.files || []);
-  for (const f of files) {
-    if (f.type.startsWith('image/')) processAndInsertImage(f);
-  }
-  event.target.value = '';
-}
-
-// Editor i\u00e7in paste & click handler'lar\u0131 kur
-document.addEventListener('DOMContentLoaded', () => {
-  const editor = document.getElementById('note-editor');
-  if (!editor) return;
-
-  // Ctrl+V \u2014 clipboard'tan resim yakala, metin format\u0131n\u0131 s\u0131y\u0131r
-  editor.addEventListener('paste', async (e) => {
-    const items = (e.clipboardData || {}).items || [];
-    let imgHandled = false;
-    for (const item of items) {
-      if (item.type && item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (file) {
-          await processAndInsertImage(file);
-          imgHandled = true;
-        }
-      }
-    }
-    if (!imgHandled) {
-      // HTML enjeksiyonunu \u00f6nle \u2014 d\u00fcz metin olarak yap\u0131\u015ft\u0131r
-      e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      document.execCommand('insertText', false, text);
-    }
-  });
-
-  // Resme t\u0131klay\u0131nca b\u00fcy\u00fct/k\u00fc\u00e7\u00fclt
-  editor.addEventListener('click', (e) => {
-    if (e.target.tagName === 'IMG') {
-      e.target.classList.toggle('note-img-zoomed');
-      e.target.style.maxWidth = e.target.classList.contains('note-img-zoomed') ? '200%' : '';
-    }
-  });
-});
-
-async function saveNote() {
-  const wlId  = document.getElementById('note-wl-id').value;
-  const sym   = document.getElementById('note-symbol').value;
-  const editor = document.getElementById('note-editor');
-  let html = editor.innerHTML.trim();
-  // Yalnızca boş yer tutucular varsa içeriği temizle
-  if (html === '<br>' || html === '<div><br></div>' || html === '<p><br></p>') html = '';
-  const plain = noteHtmlToPlain(html);
-
-  try {
-    const resp = await fetch(`/api/fiyatlar/watchlist/${wlId}/note`, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({note: html}),
-    });
-    if (!resp.ok) throw new Error('Sunucu hatası');
-
-    // Satırdaki not ikonu ve data-note'u güncelle (plain text özet)
-    const row = document.querySelector(`tr[data-wl-id="${wlId}"]`);
-    if (row) {
-      const noteBtn = row.querySelector('[data-note]');
-      if (noteBtn) {
-        noteBtn.dataset.note = plain;
-        const icon = noteBtn.querySelector('i');
-        if (icon) icon.className = html ? 'bi bi-sticky-fill text-warning' : 'bi bi-sticky';
-      }
-      // sembol hücresindeki küçük ikon
-      const cell = row.querySelector('.wl-sticky-first');
-      let dot = cell && cell.querySelector('.note-dot');
-      if (html && cell && !dot) {
-        dot = document.createElement('span');
-        dot.className = 'ms-1 note-dot';
-        dot.innerHTML = '<i class="bi bi-sticky-fill text-warning" style="font-size:0.7rem"></i>';
-        cell.appendChild(dot);
-      } else if (!html && dot) {
-        dot.remove();
-      }
-      if (dot) dot.title = plain;
-    }
-    bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
-  } catch(e) {
-    alert('Kaydedilemedi: ' + e.message);
-  }
-}
 
 </script>
 

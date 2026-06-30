@@ -1,0 +1,99 @@
+# ════════════════════════════════════════════════════════════════
+#  TEST SCENARIOS — FEAT-002
+#  Üreten : AI Test Scenario Generator
+#  Review : Şevval (Gate 2)
+#  Hedef spec: tests/feat-002-daily-pct-column.spec.ts
+# ════════════════════════════════════════════════════════════════
+story_id: FEAT-002
+feature: "Lot tablosunda 'Günlük %' kolonu — günlük hareketin yüzdesi"
+spec_file: "tests/feat-002-daily-pct-column.spec.ts"
+generator: "ai-test-generator v0.3"
+reviewed_by: "Şevval"
+
+# Mock: fiyat endpoint'i mock'lanır (deterministik günlük % için)
+mocks:
+  - endpoint: "POST /api/fiyatlar/guncelle"
+    note: "Her sembole sabit current_price + prev_close ver, günlük % deterministik olsun"
+
+scenarios:
+  - id: "FEAT-002.s1"
+    name: "'Günlük %' kolonu doğru konumda render edilir (happy path)"
+    given:
+      - "role: logged-in user, açık pozisyon var"
+      - "page: /pozisyonlar"
+    when:
+      - action: "wait_for"
+        target: "#pos-table thead"
+    then:
+      - assert: "text"
+        target: "#pos-table thead th:nth-of-type(11)"   # Günlük K/Z = 10, Günlük % = 11
+        value_contains: "Günlük %"
+      - assert: "order"
+        description: "'Günlük %' başlığı 'Günlük K/Z' ile 'Toplam K/Z' arasında"
+    repo_anchors:
+      - "webapp/templates/pozisyonlar.html:121-137 (thead kolon sırası)"
+      - "webapp/templates/pozisyonlar.html:132-133 (Günlük K/Z / Toplam K/Z arası)"
+
+  - id: "FEAT-002.s2"
+    name: "Günlük % değeri doğru hesaplanır + renklenir (mock fiyat)"
+    given:
+      - "mock: AAPL current_price=110, prev_close=100 → günlük %= +10.0%"
+    when:
+      - action: "trigger_price_update"
+    then:
+      - assert: "text"
+        target: "#pos-table tbody tr[data-symbol='AAPL'] .lot-daily-pct"
+        value: "+10.0%"
+      - assert: "has_class"
+        target: "#pos-table tbody tr[data-symbol='AAPL'] .lot-daily-pct"
+        value: "text-success"
+    repo_anchors:
+      - "webapp/templates/pozisyonlar.html:491-499 (widget günlük formülü referans)"
+      - "webapp/templates/pozisyonlar.html:577-582 (lot-pnl-pct hesabı — paralel yazılacak)"
+
+  - id: "FEAT-002.s3"
+    name: "Negatif günlük hareket kırmızı (mock)"
+    given:
+      - "mock: TSLA current_price=90, prev_close=100 → günlük %= -10.0%"
+    when:
+      - action: "trigger_price_update"
+    then:
+      - assert: "text"
+        target: "#pos-table tbody tr[data-symbol='TSLA'] .lot-daily-pct"
+        value: "-10.0%"
+      - assert: "has_class"
+        target: "#pos-table tbody tr[data-symbol='TSLA'] .lot-daily-pct"
+        value: "text-danger"
+
+  - id: "FEAT-002.s4"
+    name: "prev_close yoksa '—' gösterir (edge)"
+    given:
+      - "mock: NEWIPO current_price=50, prev_close=null"
+    when:
+      - action: "trigger_price_update"
+    then:
+      - assert: "text"
+        target: "#pos-table tbody tr[data-symbol='NEWIPO'] .lot-daily-pct"
+        value: "—"
+
+  - id: "FEAT-002.s5"
+    name: "After-hours fiyatı varsa günlük % AH'den hesaplanır (edge)"
+    given:
+      - "mock: SOFI current_price=100, prev_close=98, market_state=POST, extended_hours_price=103"
+    when:
+      - action: "trigger_price_update"
+    then:
+      - assert: "text"
+        target: "#pos-table tbody tr[data-symbol='SOFI'] .lot-daily-pct"
+        value: "+5.10%"     # (103-98)/98*100 — AH fiyatı kullanılır
+    repo_anchors:
+      - "webapp/templates/pozisyonlar.html (AH efektif fiyat mantığı — diğer kolonlarla aynı)"
+
+  - id: "FEAT-002.s6"
+    name: "Kolon hizalama tutarlı — thead↔tbody↔tfoot (negative/guard)"
+    then:
+      - assert: "equal_column_count"
+        targets:
+          - "#pos-table thead tr th"
+          - "#pos-table tbody tr:first-child td"
+        description: "Yeni kolon eklenince satır hücre sayısı başlık sayısına eşit kalmalı"

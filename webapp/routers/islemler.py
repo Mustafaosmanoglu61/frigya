@@ -8,7 +8,9 @@ import auth_service
 import database
 from templates_config import templates
 from ingestion import insert_rows
-from portfolio_helper import get_portfolios, resolve_portfolio
+from portfolio_helper import (
+    get_portfolios, resolve_portfolio, get_selectable_portfolios, is_super, pf_clause,
+)
 
 router = APIRouter()
 
@@ -18,8 +20,10 @@ async def islemler(request: Request, yil: Optional[int] = Query(default=None), p
                    tab: str = Query("tum"), msg: str = Query(None)):
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
-    portfolios = get_portfolios(user_id)
+    portfolios = get_selectable_portfolios(user_id)
     portfolio = resolve_portfolio(request, portfolio, user_id)
+    super_mode = is_super(portfolio)
+    pf_sql, pf_params = pf_clause(portfolio)
     active_tab = tab if tab in ("tum", "satislar") else "tum"
 
     with database.db() as conn:
@@ -30,16 +34,16 @@ async def islemler(request: Request, yil: Optional[int] = Query(default=None), p
             available_years = [
                 r["yil"] for r in
                 conn.execute(
-                    """
+                    f"""
                     SELECT DISTINCT tax_year AS yil FROM fifo_results
-                      WHERE user_id=? AND portfolio=?
+                      WHERE user_id=? {pf_sql}
                     UNION
                     SELECT DISTINCT CAST(substr(tx_date, 1, 4) AS INTEGER) AS yil
                       FROM raw_transactions
-                      WHERE user_id=? AND portfolio=?
+                      WHERE user_id=? {pf_sql}
                     ORDER BY yil
                     """,
-                    (user_id, portfolio, user_id, portfolio),
+                    tuple([user_id] + pf_params + [user_id] + pf_params),
                 ).fetchall()
             ]
         # First load (no explicit yil) → default to latest year
@@ -63,14 +67,14 @@ async def islemler(request: Request, yil: Optional[int] = Query(default=None), p
         all_rows = []
 
         if portfolio:
-            # Sales (FIFO results)
+            # Sales (FIFO results) — süperde portföy kolonu da gelir
             rows = conn.execute(f"""
                 SELECT raw_tx_id, tx_date, symbol, quantity, sale_price, sale_proceeds,
-                       cost_basis, pnl, pnl_pct, status, eksik_lot
+                       cost_basis, pnl, pnl_pct, status, eksik_lot, portfolio
                 FROM fifo_results
-                WHERE user_id = ? AND portfolio = ? {year_sql_fifo}
+                WHERE user_id = ? {pf_sql} {year_sql_fifo}
                 ORDER BY tx_date, rowid
-            """, [user_id, portfolio] + year_params).fetchall()
+            """, [user_id] + pf_params + year_params).fetchall()
 
             totals = conn.execute(f"""
                 SELECT
@@ -81,16 +85,16 @@ async def islemler(request: Request, yil: Optional[int] = Query(default=None), p
                     SUM(CASE WHEN pnl >= 0 THEN 1 ELSE 0 END) AS wins,
                     SUM(CASE WHEN pnl >= 0 THEN pnl ELSE 0 END) AS total_profit,
                     SUM(CASE WHEN pnl < 0 THEN ABS(pnl) ELSE 0 END) AS total_loss
-                FROM fifo_results WHERE user_id = ? AND portfolio = ? {year_sql_fifo}
-            """, [user_id, portfolio] + year_params).fetchone()
+                FROM fifo_results WHERE user_id = ? {pf_sql} {year_sql_fifo}
+            """, [user_id] + pf_params + year_params).fetchone()
 
-            # All raw transactions (alış + satış)
+            # All raw transactions (alış + satış) — süperde portföy kolonu da gelir
             all_rows = conn.execute(f"""
-                SELECT id, tx_date, symbol, direction, quantity, price, total
+                SELECT id, tx_date, symbol, direction, quantity, price, total, portfolio
                 FROM raw_transactions
-                WHERE user_id = ? AND portfolio = ? {year_sql_raw}
+                WHERE user_id = ? {pf_sql} {year_sql_raw}
                 ORDER BY tx_date DESC, id DESC
-            """, [user_id, portfolio] + year_params_raw).fetchall()
+            """, [user_id] + pf_params + year_params_raw).fetchall()
 
     return templates.TemplateResponse("islemler.html", {
         "request": request,
@@ -105,6 +109,7 @@ async def islemler(request: Request, yil: Optional[int] = Query(default=None), p
         "current_portfolio": portfolio,
         "msg": msg,
         "today": date.today().isoformat(),
+        "is_super": super_mode,
     })
 
 
@@ -175,6 +180,8 @@ async def islem_duzenle(
     """Mevcut işlemi düzenle ve FIFO'yu yeniden hesapla."""
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
+    if is_super(portfolio) or is_super(request.session.get("portfolio")):
+        return RedirectResponse(url="/islemler?msg=Süper%20portföyde%20düzenleme%20yapılamaz", status_code=303)
 
     total = round(quantity * price, 2)
     year = int(tx_date[:4])
@@ -218,6 +225,8 @@ async def islem_sil(request: Request, tx_id: int):
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
+    if is_super(portfolio):
+        return RedirectResponse(url="/islemler?msg=Süper%20portföyde%20silme%20yapılamaz", status_code=303)
 
     with database.db() as conn:
         # Get transaction info before deletion (ownership check)

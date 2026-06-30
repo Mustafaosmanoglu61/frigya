@@ -1,0 +1,79 @@
+# ════════════════════════════════════════════════════════════════
+#  BOARD INPUT — Frigya
+#  Bu dosya board'a (Jira/Linear/Azure DevOps) düşen kartın
+#  makine-okunur halidir. PM/Test normalizer onayından geçti.
+# ════════════════════════════════════════════════════════════════
+meta:
+  hazirlayan: "Şevval (Product + Test)"
+  tarih: "2026-06-01"
+  normalizer_onayi: true          # loose PRD → structured YAML onaylandı
+  discovery: "top-down"           # board'dan açıldı (regresyon kontrolü)
+
+id: BUG-001
+type: bug
+title: "Satış İşlemleri sekmesinde KPI ve TOPLAM, sembol filtresinden etkilenmiyor"
+priority: P1
+labels: [bug, regression, data-integrity, islemler]
+reporter: "Şevval"
+assignee_hint: "Emine"            # backend + JS (totals/filter mantığı)
+
+# ── Amaç (neden bu story?) ──────────────────────────────────────
+amac: |
+  Kullanıcı bir hisse için filtre uyguladığında üst KPI kartları
+  (Satış Geliri, Alış Maliyeti, Toplam Kar, Toplam Zarar, Net K/Z,
+  Başarı %) ve tablonun altındaki TOPLAM satırı SADECE filtrelenmiş
+  veriyi yansıtmalı. Şu an tüm portföy toplamı gösteriliyor; bu
+  kullanıcıyı tek hissenin gerçek performansı konusunda yanıltıyor
+  ve yanlış karar (sat/tut) riskine yol açıyor.
+
+# ── Mevcut Davranış (bug) ───────────────────────────────────────
+mevcut_davranis: |
+  Sayfa: /islemler?tab=satislar&yil=2026&portfolio=GeneralMu
+  "ASTX" sembolü filtrelenince:
+    - Tablo gövdesi: sadece 8 ASTX satırı görünür                ✓ doğru
+    - KPI kartları : Net K/Z hâlâ -$1,413.16 (60 işlemin toplamı) ✗ yanlış
+    - TOPLAM satırı: Satış Geliri hâlâ $159,292.81               ✗ yanlış
+
+# ── Beklenen Davranış ───────────────────────────────────────────
+beklenen: |
+  ASTX filtresinde KPI'lar ve TOPLAM yalnızca 8 ASTX satırını toplar:
+    - Satış Geliri : $24,877.39
+    - Alış Maliyeti: $24,176.80
+    - Toplam Kar   : $2,997.10
+    - Toplam Zarar : $2,296.51
+    - Net K/Z      : +$700.59   (KÂR — tüm portföy zararda olsa bile)
+    - Başarı       : 62.5%  (5 kâr / 8 işlem)
+
+# ── Etkilenen Sayfalar / Locator ────────────────────────────────
+sayfalar:
+  - url: "/islemler?tab=satislar"
+    locator_notes:
+      filtre_input: "#search-symbol"
+      kpi_cards: ".card .fw-bold.fs-6 (Satış Geliri/Maliyet/Kar/Zarar/Net/Başarı)"
+      toplam_row: "#transactions-table tfoot.table-total-row"
+
+# ── Edge Cases ──────────────────────────────────────────────────
+edge_cases:
+  - "Filtre temizlenince KPI'lar orijinal (tüm-sembol) değerlere dönmeli"
+  - "Tarih aralığı (#filter-date-start/end) + sembol filtresi birlikte çalışmalı"
+  - "Eşleşme yoksa: KPI'lar $0.00, Başarı '—', tfoot gizli"
+  - "Filtre büyük/küçük harf duyarsız (astx == ASTX) — input zaten upper-case'liyor"
+
+# ── Out of Scope ────────────────────────────────────────────────
+out_of_scope:
+  - "Tüm İşlemler sekmesi (#all-search-symbol) — ayrı filtre, bu story sadece Satış"
+  - "Filtre durumunu URL'e yazma (state persistency) — ayrı story"
+  - "Server-side filtreleme (sayfa reload) — client-side recalc tercih edildi"
+
+# ── Kabul Kriterleri (test'in doğrulayacağı) ────────────────────
+kabul_kriterleri:
+  - "ASTX filtresinde Net K/Z kartı '+$700.59' gösterir"
+  - "ASTX filtresinde Başarı kartı '62.5%' gösterir"
+  - "Filtre temizlenince Net K/Z '-$1,413.16' geri gelir"
+  - "Eşleşmeyen sembolde KPI'lar '$0.00', Başarı '—'"
+
+# ── Ekler ───────────────────────────────────────────────────────
+ekler:
+  - tip: screenshot
+    dosya: "pn1-astx-filter-bug.png"
+    aciklama: "ASTX filtreli — KPI'lar hâlâ -$1,413.16 (tüm portföy) gösteriyor"

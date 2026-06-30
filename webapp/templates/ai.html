@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}AI Asistan — Frigya{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <h4 class="fw-bold text-dark mb-0">
+    <i class="bi bi-robot me-2 text-primary"></i>AI Asistan
+  </h4>
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge bg-light text-dark border">Model: {{ default_model }}</span>
+    <button id="ai-clear-btn" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-counterclockwise me-1"></i>Yeni Sohbet
+    </button>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div id="ai-chat-log" class="p-3" style="height:62vh; overflow-y:auto; background: var(--bs-body-bg);"></div>
+    <div class="border-top p-3">
+      <div id="ai-status" class="small text-muted mb-2 d-none">
+        <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+        AI yanıt üretiyor...
+      </div>
+      <div class="input-group">
+        <textarea
+          id="ai-input"
+          class="form-control"
+          rows="2"
+          placeholder="Mesajınızı yazın..."
+        ></textarea>
+        <button id="ai-send-btn" class="btn btn-primary" type="button">
+          <i class="bi bi-send me-1"></i>Gönder
+        </button>
+      </div>
+      <div class="form-text">Enter: gönder · Shift+Enter: yeni satır</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const logEl = document.getElementById('ai-chat-log');
+  const inputEl = document.getElementById('ai-input');
+  const sendBtn = document.getElementById('ai-send-btn');
+  const clearBtn = document.getElementById('ai-clear-btn');
+  const statusEl = document.getElementById('ai-status');
+  const messages = [];
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function scrollToBottom() {
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function addBubble(role, text) {
+    const isUser = role === 'user';
+    const wrapper = document.createElement('div');
+    wrapper.className = `d-flex ${isUser ? 'justify-content-end' : 'justify-content-start'} mb-2`;
+    wrapper.innerHTML = `
+      <div class="px-3 py-2 rounded-3 ${isUser ? 'bg-primary text-white' : 'bg-light border'}" style="max-width: 82%; white-space: pre-wrap;">
+        ${escapeHtml(text)}
+      </div>
+    `;
+    logEl.appendChild(wrapper);
+    scrollToBottom();
+  }
+
+  function setBusy(isBusy) {
+    sendBtn.disabled = isBusy;
+    inputEl.disabled = isBusy;
+    statusEl.classList.toggle('d-none', !isBusy);
+  }
+
+  async function sendMessage() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    addBubble('user', text);
+    messages.push({ role: 'user', content: text });
+    inputEl.value = '';
+    setBusy(true);
+
+    try {
+      const resp = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Yanıt alınamadı.');
+
+      const reply = (data.reply || '').trim() || '(Yanıt üretildi ama içerik boş.)';
+      addBubble('assistant', reply);
+      messages.push({ role: 'assistant', content: reply });
+    } catch (err) {
+      const msg = (err && err.message) ? err.message : 'Bilinmeyen hata oluştu.';
+      addBubble('assistant', `Hata: ${msg}`);
+    } finally {
+      setBusy(false);
+      inputEl.focus();
+    }
+  }
+
+  function clearChat() {
+    messages.length = 0;
+    logEl.innerHTML = '';
+    addBubble('assistant', 'Merhaba! /ai sayfasından devam edebiliriz. Sorunu yazman yeterli.');
+    inputEl.focus();
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  clearBtn.addEventListener('click', clearChat);
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  clearChat();
+})();
+</script>
+{% endblock %}

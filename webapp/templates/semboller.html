@@ -4,12 +4,12 @@
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h4 class="fw-bold text-dark mb-0">
-    <i class="bi bi-bar-chart-line me-2 text-primary"></i>Sembole Göre Özet
+    <i class="bi bi-bar-chart-line me-2 text-primary"></i>{{ tr('Sembole Göre Özet') }}
   </h4>
   <div>
     <select class="form-select form-select-sm" style="width:auto;min-width:120px"
             onchange="location.href='/semboller?yil='+this.value">
-      <option value="0" {% if yil == 0 %}selected{% endif %}>Tümü</option>
+      <option value="0" {% if yil == 0 %}selected{% endif %}>{{ tr('Tümü') }}</option>
       {% for y in available_years %}
       <option value="{{ y }}" {% if y == yil %}selected{% endif %}>{{ y }}</option>
       {% endfor %}
@@ -21,13 +21,13 @@
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm text-center py-2">
-      <div class="text-muted small">Sembol</div>
+      <div class="text-muted small">{{ tr('Sembol') }}</div>
       <div class="fw-bold">{{ totals.symbol_count }}</div>
     </div>
   </div>
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm text-center py-2">
-      <div class="text-muted small">İşlem</div>
+      <div class="text-muted small">{{ tr('İşlem') }}</div>
       <div class="fw-bold">{{ totals.total_trades }}
         <span class="text-success small">({{ totals.winning_trades }}✓)</span>
       </div>
@@ -35,31 +35,31 @@
   </div>
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm text-center py-2">
-      <div class="text-muted small">Satış Geliri</div>
+      <div class="text-muted small">{{ tr('Satış Geliri') }}</div>
       <div class="fw-bold">${{ "{:,.0f}".format(totals.total_proceeds or 0) }}</div>
     </div>
   </div>
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm text-center py-2">
-      <div class="text-muted small">Alış Maliyeti</div>
+      <div class="text-muted small">{{ tr('Alış Maliyeti') }}</div>
       <div class="fw-bold">${{ "{:,.0f}".format(totals.total_cost or 0) }}</div>
     </div>
   </div>
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm text-center py-2">
-      <div class="text-muted small">Toplam KÂR</div>
+      <div class="text-muted small">{{ tr('Toplam KÂR') }}</div>
       <div class="fw-bold text-success">${{ "{:,.2f}".format(totals.total_profit or 0) }}</div>
     </div>
   </div>
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm text-center py-2">
-      <div class="text-muted small">Toplam ZARAR</div>
+      <div class="text-muted small">{{ tr('Toplam ZARAR') }}</div>
       <div class="fw-bold text-danger">${{ "{:,.2f}".format(totals.total_loss or 0) }}</div>
     </div>
   </div>
   <div class="col-6 col-md-2">
     <div class="card border-0 shadow-sm text-center py-2">
-      <div class="text-muted small">Net K/Z</div>
+      <div class="text-muted small">{{ tr('Net K/Z') }}</div>
       <div class="fw-bold {% if (totals.net_pnl or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
         ${{ "{:,.2f}".format(totals.net_pnl or 0) }}
       </div>
@@ -74,18 +74,19 @@
       <table id="symbols-table" class="table table-hover table-sm mb-0 align-middle">
         <thead class="table-header-custom">
           <tr>
-            <th>Sembol</th>
-            <th>Son Satış</th>
-            <th class="text-end">Son Fiyat</th>
-            <th class="text-end">İşlem</th>
-            <th class="text-end">Başarı %</th>
-            <th class="text-end">Toplam Adet</th>
-            <th class="text-end">Satış Geliri</th>
-            <th class="text-end">Alış Maliyeti</th>
-            <th class="text-end">Net K/Z</th>
-            <th class="text-end">K/Z %</th>
-            <th class="text-end">Toplam KÂR</th>
-            <th class="text-end">Toplam ZARAR</th>
+            <th>{{ tr('Sembol') }}</th>
+            <th>{{ tr('Tag') }}</th>
+            <th>{{ tr('Son Satış') }}</th>
+            <th class="text-end">{{ tr('Son Fiyat') }}</th>
+            <th class="text-end">{{ tr('İşlem') }}</th>
+            <th class="text-end">{{ tr('Başarı %') }}</th>
+            <th class="text-end">{{ tr('Toplam Adet') }}</th>
+            <th class="text-end">{{ tr('Satış Geliri') }}</th>
+            <th class="text-end">{{ tr('Alış Maliyeti') }}</th>
+            <th class="text-end">{{ tr('Net K/Z') }}</th>
+            <th class="text-end">{{ tr('K/Z %') }}</th>
+            <th class="text-end">{{ tr('Toplam KÂR') }}</th>
+            <th class="text-end">{{ tr('Toplam ZARAR') }}</th>
             <th class="text-center" style="width: 40px;"></th>
           </tr>
         </thead>
@@ -97,6 +98,26 @@
                 {{ r.symbol }}
                 {% if r.eksik_lot_count %}<i class="bi bi-exclamation-triangle text-warning ms-1" title="Eksik lot"></i>{% endif %}
               </a>
+            </td>
+            <td>
+              <div class="d-flex align-items-center gap-1">
+                <input type="text" class="form-control form-control-sm tag-input"
+                       data-symbol="{{ r.symbol }}"
+                       list="tag-suggestions"
+                       maxlength="40" style="min-width:120px;max-width:160px"
+                       placeholder="—"
+                       value="{{ sym_tags.get(r.symbol, '') }}"
+                       onblur="saveRowTag(this)"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+                <button type="button" class="btn btn-link btn-sm p-1 note-btn position-relative"
+                        data-symbol="{{ r.symbol }}"
+                        onclick="openSymbolNotes('{{ r.symbol }}')"
+                        title="Notlar">
+                  <i class="bi bi-journal-text text-muted"></i>
+                  <span class="badge bg-primary note-count-badge d-none position-absolute top-0 start-100 translate-middle"
+                        style="font-size:.6rem;padding:.15rem .3rem"></span>
+                </button>
+              </div>
             </td>
             <td class="text-nowrap text-muted small">{{ r.last_sale_date or "—" }}</td>
             <td class="text-end">${{ "{:,.2f}".format(r.last_sale_price or 0) }}</td>
@@ -116,7 +137,7 @@
             <td class="text-end text-success">${{ "{:,.2f}".format(r.total_profit) }}</td>
             <td class="text-end text-danger">${{ "{:,.2f}".format(r.total_loss) }}</td>
             <td class="text-center">
-              {% if r.last_tx_id %}
+              {% if r.last_tx_id and not is_super %}
               <form action="/semboller/sil/{{ r.last_tx_id }}" method="post" style="display: inline;">
                 <input type="hidden" name="yil" value="{{ yil }}">
                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Son satışı sil"
@@ -128,13 +149,13 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="13" class="text-center text-muted py-4">Veri yok</td></tr>
+          <tr><td colspan="14" class="text-center text-muted py-4">{{ tr('Veri yok') }}</td></tr>
           {% endfor %}
         </tbody>
         {% if totals and rows %}
         <tfoot class="table-total-row">
           <tr class="fw-bold">
-            <td colspan="6">TOPLAM ({{ totals.symbol_count }} sembol)</td>
+            <td colspan="7">{{ tr('TOPLAM') }} ({{ totals.symbol_count }} {{ tr('sembol') }})</td>
             <td class="text-end">${{ "{:,.2f}".format(totals.total_proceeds or 0) }}</td>
             <td class="text-end">${{ "{:,.2f}".format(totals.total_cost or 0) }}</td>
             <td class="text-end {% if (totals.net_pnl or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
@@ -151,6 +172,10 @@
     </div>
   </div>
 </div>
+
+<datalist id="tag-suggestions">
+  {% for t in distinct_tags %}<option value="{{ t }}">{% endfor %}
+</datalist>
 {% endblock %}
 
 {% block scripts %}
@@ -158,5 +183,41 @@
   document.addEventListener('DOMContentLoaded', () => {
     initTableSort('symbols-table');
   });
+
+  async function saveRowTag(inputEl) {
+    const symbol = inputEl.dataset.symbol;
+    const tag = (inputEl.value || '').trim();
+    const original = inputEl.defaultValue || '';
+    if (tag === original) return;  // değişiklik yok
+    inputEl.classList.add('border-warning');
+    try {
+      const resp = await fetch('/api/fiyatlar/symbol-tag', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ symbol, tag: tag || null }),
+      });
+      if (resp.ok) {
+        inputEl.defaultValue = tag;
+        inputEl.classList.remove('border-warning');
+        inputEl.classList.add('border-success');
+        setTimeout(() => inputEl.classList.remove('border-success'), 1200);
+        // Yeni etiket ise datalist'e ekle
+        if (tag) {
+          const dl = document.getElementById('tag-suggestions');
+          if (dl && !Array.from(dl.options).some(o => o.value === tag)) {
+            const opt = document.createElement('option');
+            opt.value = tag;
+            dl.appendChild(opt);
+          }
+        }
+      } else {
+        inputEl.classList.remove('border-warning');
+        inputEl.classList.add('border-danger');
+      }
+    } catch (e) {
+      inputEl.classList.remove('border-warning');
+      inputEl.classList.add('border-danger');
+    }
+  }
 </script>
 {% endblock %}

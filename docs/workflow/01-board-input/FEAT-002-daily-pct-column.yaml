@@ -1,0 +1,70 @@
+# ════════════════════════════════════════════════════════════════
+#  BOARD INPUT — Frigya
+# ════════════════════════════════════════════════════════════════
+meta:
+  hazirlayan: "Şevval (Product + Test)"
+  tarih: "2026-06-01"
+  normalizer_onayi: true
+  discovery: "top-down"           # kullanıcı geri bildiriminden açıldı
+
+id: FEAT-002
+type: enhancement
+title: "Açık Pozisyonlar lot tablosuna 'Günlük %' kolonu eklenmesi"
+priority: P2
+labels: [enhancement, ui, pozisyonlar]
+reporter: "Şevval"
+assignee_hint: "Ayşe"             # UI / tablo kolonu
+
+# ── Amaç ────────────────────────────────────────────────────────
+amac: |
+  Lot detay tablosunda "Günlük K/Z" ($ tutarı) ve "K/Z %" (toplam
+  getiri yüzdesi) var; ama günlük hareketin YÜZDESİ yok. Kullanıcı
+  bir lotun bugün ne kadar oynadığını yüzde olarak göremiyor —
+  $ tutarı tek başına lot büyüklüğünden bağımsız kıyas sağlamıyor.
+  "Günlük K/Z" yanına "Günlük %" kolonu eklenecek.
+
+# ── Mevcut Davranış ─────────────────────────────────────────────
+mevcut_davranis: |
+  Sayfa: /pozisyonlar — "Açık İşlem Detayı" tablosu
+  Kolonlar: ... | Mevcut Değer | Günlük K/Z | Toplam K/Z | K/Z % | Hedef | Hedefe %
+  "Günlük K/Z" $ olarak var ama yüzde karşılığı yok.
+
+# ── Beklenen Davranış ───────────────────────────────────────────
+beklenen: |
+  "Günlük K/Z" kolonunun hemen yanına "Günlük %" kolonu eklenir.
+  Formül: (anlık_fiyat - önceki_kapanış) / önceki_kapanış * 100
+  Renk: pozitif yeşil, negatif kırmızı (mevcut K/Z % ile tutarlı).
+  After-hours aktifse efektif fiyat (extended_hours_price) kullanılır
+  — sayfadaki diğer metriklerle aynı AH mantığı.
+
+# ── Etkilenen Sayfalar / Locator ────────────────────────────────
+sayfalar:
+  - url: "/pozisyonlar"
+    locator_notes:
+      tablo: "#pos-table"
+      yeni_kolon_konumu: "thead: 'Günlük K/Z' ile 'Toplam K/Z' arası"
+      referans_formul: "widget 'Günlük K/Z' hesabı (cur-prev)*qty zaten var"
+
+# ── Edge Cases ──────────────────────────────────────────────────
+edge_cases:
+  - "önceki_kapanış (prev_close) yoksa → '—' göster, hesaplama yapma"
+  - "Fiyat henüz yüklenmemişse → '—' (cache gelince güncellenir)"
+  - "After-hours aktifse AH fiyatından prev_close'a göre günlük % hesapla"
+  - "Kolon sürükle-bırak (col-draggable) düzeninde yeni kolon da taşınabilir olmalı"
+
+# ── Out of Scope ────────────────────────────────────────────────
+out_of_scope:
+  - "Widget kartlarına günlük % ekleme (zaten 'Günlük K/Z' $ var, ayrı story)"
+  - "Tarihsel günlük % grafiği"
+
+# ── Kabul Kriterleri ────────────────────────────────────────────
+kabul_kriterleri:
+  - "Tabloda 'Günlük K/Z' ile 'Toplam K/Z' arasında 'Günlük %' başlığı görünür"
+  - "Pozitif günlük hareket yeşil, negatif kırmızı renkte"
+  - "prev_close yoksa hücre '—' gösterir"
+  - "Kolon sayısı thead↔tbody↔tfoot tutarlı (hizalama bozulmaz)"
+
+# ── Ekler ───────────────────────────────────────────────────────
+ekler:
+  - tip: note
+    aciklama: "Widget'taki 'Günlük K/Z' formülü referans alınabilir (pozisyonlar.html:491-499)"

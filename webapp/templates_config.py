@@ -1,6 +1,8 @@
 """Merkezi Jinja2Templates instance — tüm router'lar buradan import eder."""
 import os
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
+import i18n
 
 _VERSION_FILE = os.path.join(os.path.dirname(__file__), "VERSION")
 
@@ -34,6 +36,13 @@ class _TemplatesCompat:
 
     def TemplateResponse(self, name, context, *args, **kwargs):
         request = context.get("request") if isinstance(context, dict) else None
+        # Dil: session'dan oku, context'e enjekte et (her sayfa otomatik alır)
+        if isinstance(context, dict) and request is not None:
+            try:
+                lang = i18n.normalize_lang(request.session.get("lang"))
+            except Exception:
+                lang = i18n.DEFAULT_LANG
+            context.setdefault("lang", lang)
         if request is not None:
             try:
                 return self._inner.TemplateResponse(
@@ -53,6 +62,18 @@ templates = _TemplatesCompat(Jinja2Templates(directory=_TEMPLATES_DIR))
 
 # Version'u Jinja2 global değişkeni olarak kaydet (her template erişebilir)
 templates.env.globals["APP_VERSION"] = _read_version()
+
+
+# ─── i18n: context-aware çeviri fonksiyonu ─────────────────────────────────
+@pass_context
+def _tr(ctx, text):
+    """Template'de {{ tr('metin') }} — context'teki lang'e göre çevirir.
+    (İsim 't' değil 'tr' — bazı template'ler 't'yi yerel değişken olarak kullanıyor.)"""
+    lang = ctx.get("lang", i18n.DEFAULT_LANG)
+    return i18n.translate(text, lang)
+
+
+templates.env.globals["tr"] = _tr
 
 
 # ─── Custom Filters ────────────────────────────────────────────────────────

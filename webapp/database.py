@@ -4,7 +4,7 @@ SQLite connection, schema init, and FIFO recompute orchestration.
 import os
 import sqlite3
 from contextlib import contextmanager
-from typing import Generator
+from typing import Generator, Optional
 
 from fifo_engine import run_fifo, RawTx, CarryLot
 
@@ -684,6 +684,342 @@ def delete_symbol_target(user_id: int, portfolio: str, symbol: str) -> None:
         )
 
 
+def get_symbol_targets_all_portfolios(user_id: int) -> dict:
+    """
+    Süper portföy için: tüm portföylerdeki hedefleri sembol bazında gruplar.
+    Returns {SYMBOL: [{portfolio, hedef_fiyat, taban_fiyat, hedef_dolar_kazanci}, ...]}
+    """
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT portfolio, symbol, hedef_fiyat, taban_fiyat, hedef_dolar_kazanci "
+            "FROM symbol_targets WHERE user_id = ? "
+            "ORDER BY symbol, portfolio",
+            (user_id,),
+        ).fetchall()
+    out: dict = {}
+    for r in rows:
+        sym = r["symbol"].upper()
+        out.setdefault(sym, []).append({
+            "portfolio": r["portfolio"],
+            "hedef_fiyat": r["hedef_fiyat"],
+            "taban_fiyat": r["taban_fiyat"],
+            "hedef_dolar_kazanci": r["hedef_dolar_kazanci"],
+        })
+    return out
+
+
+def migrate_add_symbol_tags() -> None:
+    """Idempotent: symbol_tags tablosunu oluşturur. Tag user_id bazında ortak,
+    portfolyodan bağımsız (sektör/klasman sembolün doğasıdır)."""
+    with db() as conn:
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        if "symbol_tags" not in tables:
+            conn.executescript("""
+                CREATE TABLE symbol_tags (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id    INTEGER NOT NULL,
+                    symbol     TEXT    NOT NULL COLLATE NOCASE,
+                    tag        TEXT    NOT NULL,
+                    updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                    UNIQUE(user_id, symbol)
+                );
+                CREATE INDEX IF NOT EXISTS ix_symbol_tags_user ON symbol_tags(user_id);
+                CREATE INDEX IF NOT EXISTS ix_symbol_tags_tag  ON symbol_tags(user_id, tag);
+            """)
+
+
+def upsert_symbol_tag(user_id: int, symbol: str, tag: Optional[str]) -> None:
+    """Etiketi ata; tag None/boş ise satırı sil."""
+    sym = symbol.upper()
+    clean = (tag or "").strip()
+    with db() as conn:
+        if not clean:
+            conn.execute(
+                "DELETE FROM symbol_tags WHERE user_id=? AND symbol=?",
+                (user_id, sym),
+            )
+            return
+        conn.execute(
+            """INSERT INTO symbol_tags (user_id, symbol, tag, updated_at)
+               VALUES (?, ?, ?, datetime('now'))
+               ON CONFLICT(user_id, symbol) DO UPDATE SET
+                   tag        = excluded.tag,
+                   updated_at = datetime('now')""",
+            (user_id, sym, clean),
+        )
+
+
+def get_symbol_tag(user_id: int, symbol: str) -> Optional[str]:
+    with db() as conn:
+        row = conn.execute(
+            "SELECT tag FROM symbol_tags WHERE user_id=? AND symbol=?",
+            (user_id, symbol.upper()),
+        ).fetchone()
+    return row["tag"] if row else None
+
+
+def get_symbol_tags(user_id: int) -> "dict[str, str]":
+    """Returns {SYMBOL: tag} mapping for all tagged symbols of the user."""
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT symbol, tag FROM symbol_tags WHERE user_id=?",
+            (user_id,),
+        ).fetchall()
+    return {r["symbol"].upper(): r["tag"] for r in rows}
+
+
+def get_distinct_tags(user_id: int) -> "list[str]":
+    """Returns sorted unique tag list for autocomplete suggestions."""
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT tag FROM symbol_tags WHERE user_id=? ORDER BY tag COLLATE NOCASE",
+            (user_id,),
+        ).fetchall()
+    return [r["tag"] for r in rows]
+
+
+def migrate_add_portfolio_notes() -> None:
+    """Portfolyo seviyesinde notlar — sembol notları ile aynı pattern, scope farkı."""
+    with db() as conn:
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        if "portfolio_notes" not in tables:
+            conn.executescript("""
+                CREATE TABLE portfolio_notes (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id    INTEGER NOT NULL,
+                    portfolio  TEXT    NOT NULL COLLATE NOCASE,
+                    note_text  TEXT    NOT NULL,
+                    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS ix_portfolio_notes_user_pf
+                    ON portfolio_notes(user_id, portfolio);
+                CREATE INDEX IF NOT EXISTS ix_portfolio_notes_created
+                    ON portfolio_notes(user_id, created_at DESC);
+            """)
+
+
+def list_portfolio_notes(user_id: int, portfolio: str) -> "list[dict]":
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT id, note_text, created_at, updated_at
+               FROM portfolio_notes
+               WHERE user_id=? AND portfolio=?
+               ORDER BY created_at DESC, id DESC""",
+            (user_id, portfolio),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def insert_portfolio_note(user_id: int, portfolio: str, text: str) -> int:
+    clean = (text or "").strip()
+    if not clean:
+        raise ValueError("Not metni boş olamaz")
+    with db() as conn:
+        cur = conn.execute(
+            """INSERT INTO portfolio_notes (user_id, portfolio, note_text)
+               VALUES (?, ?, ?)""",
+            (user_id, portfolio, clean),
+        )
+        return cur.lastrowid
+
+
+def update_portfolio_note(user_id: int, note_id: int, text: str) -> bool:
+    clean = (text or "").strip()
+    if not clean:
+        raise ValueError("Not metni boş olamaz")
+    with db() as conn:
+        cur = conn.execute(
+            """UPDATE portfolio_notes
+               SET note_text=?, updated_at=datetime('now')
+               WHERE id=? AND user_id=?""",
+            (clean, note_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def delete_portfolio_note(user_id: int, note_id: int) -> bool:
+    with db() as conn:
+        cur = conn.execute(
+            "DELETE FROM portfolio_notes WHERE id=? AND user_id=?",
+            (note_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def get_portfolio_note_counts(user_id: int) -> "dict[str, int]":
+    """Returns {portfolio_name: count} — case-preserved (collation NOCASE'de eşleşir)."""
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT portfolio, COUNT(*) AS cnt
+               FROM portfolio_notes
+               WHERE user_id=?
+               GROUP BY portfolio""",
+            (user_id,),
+        ).fetchall()
+    return {r["portfolio"]: r["cnt"] for r in rows}
+
+
+def _strip_html_to_text(html: str) -> str:
+    """Quick HTML→plain text: drop tags, decode entities, collapse whitespace.
+    Replaces <img> with [resim] marker so AI sees that images existed."""
+    if not html:
+        return ""
+    import re
+    from html import unescape
+    s = re.sub(r"(?is)<\s*img\b[^>]*>", " [resim] ", html)
+    s = re.sub(r"(?is)<\s*br\s*/?>", "\n", s)
+    s = re.sub(r"(?is)</\s*(p|div|li|tr)\s*>", "\n", s)
+    s = re.sub(r"(?s)<[^>]+>", "", s)
+    s = unescape(s)
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\n[ \t]*", "\n", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
+
+
+def migrate_consolidate_watchlist_notes() -> None:
+    """One-shot: copy watchlist.notes → symbol_notes as a single plain-text entry.
+    Adds notes_migrated_at column to watchlist as the idempotency marker."""
+    with db() as conn:
+        # Ensure target tables exist (defensive — runs after symbol_notes migration)
+        if "symbol_notes" not in {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}:
+            return
+        wl_cols = _table_columns(conn, "watchlist")
+        if not wl_cols:
+            return
+        if "notes_migrated_at" not in wl_cols:
+            conn.execute("ALTER TABLE watchlist ADD COLUMN notes_migrated_at TEXT")
+
+        rows = conn.execute(
+            """SELECT id, user_id, symbol, notes, added_at
+               FROM watchlist
+               WHERE notes IS NOT NULL AND TRIM(notes) <> ''
+                 AND notes_migrated_at IS NULL
+                 AND user_id IS NOT NULL"""
+        ).fetchall()
+        for r in rows:
+            text = _strip_html_to_text(r["notes"]).strip()
+            if text:
+                # Dedupe: aynı kullanıcı + sembol + metin varsa atla
+                # (aynı not birden fazla portfolyo watchlist'inde olabilir)
+                exists = conn.execute(
+                    """SELECT 1 FROM symbol_notes
+                       WHERE user_id=? AND symbol=? AND note_text=? LIMIT 1""",
+                    (r["user_id"], r["symbol"].upper(), text),
+                ).fetchone()
+                if not exists:
+                    conn.execute(
+                        """INSERT INTO symbol_notes
+                           (user_id, symbol, note_text, created_at, updated_at)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (
+                            r["user_id"],
+                            r["symbol"].upper(),
+                            text,
+                            r["added_at"] or "datetime('now')",
+                            r["added_at"] or "datetime('now')",
+                        ),
+                    )
+            conn.execute(
+                "UPDATE watchlist SET notes_migrated_at=datetime('now') WHERE id=?",
+                (r["id"],),
+            )
+
+
+def migrate_add_symbol_notes() -> None:
+    """Idempotent: symbol_notes tablosunu oluşturur. Notlar user_id+symbol bazında,
+    portfolyodan bağımsız (AAPL notu her portfolyoda görünür). AI ileride bu
+    kronolojik günlüğü değerlendirecek."""
+    with db() as conn:
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        if "symbol_notes" not in tables:
+            conn.executescript("""
+                CREATE TABLE symbol_notes (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id    INTEGER NOT NULL,
+                    symbol     TEXT    NOT NULL COLLATE NOCASE,
+                    note_text  TEXT    NOT NULL,
+                    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS ix_symbol_notes_user_sym
+                    ON symbol_notes(user_id, symbol);
+                CREATE INDEX IF NOT EXISTS ix_symbol_notes_created
+                    ON symbol_notes(user_id, created_at DESC);
+            """)
+
+
+def list_symbol_notes(user_id: int, symbol: str) -> "list[dict]":
+    """Returns notes for a symbol, newest-first."""
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT id, note_text, created_at, updated_at
+               FROM symbol_notes
+               WHERE user_id=? AND symbol=?
+               ORDER BY created_at DESC, id DESC""",
+            (user_id, symbol.upper()),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def insert_symbol_note(user_id: int, symbol: str, text: str) -> int:
+    clean = (text or "").strip()
+    if not clean:
+        raise ValueError("Not metni boş olamaz")
+    with db() as conn:
+        cur = conn.execute(
+            """INSERT INTO symbol_notes (user_id, symbol, note_text)
+               VALUES (?, ?, ?)""",
+            (user_id, symbol.upper(), clean),
+        )
+        return cur.lastrowid
+
+
+def update_symbol_note(user_id: int, note_id: int, text: str) -> bool:
+    clean = (text or "").strip()
+    if not clean:
+        raise ValueError("Not metni boş olamaz")
+    with db() as conn:
+        cur = conn.execute(
+            """UPDATE symbol_notes
+               SET note_text=?, updated_at=datetime('now')
+               WHERE id=? AND user_id=?""",
+            (clean, note_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def delete_symbol_note(user_id: int, note_id: int) -> bool:
+    with db() as conn:
+        cur = conn.execute(
+            "DELETE FROM symbol_notes WHERE id=? AND user_id=?",
+            (note_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def get_symbol_note_counts(user_id: int) -> "dict[str, int]":
+    """Returns {SYMBOL: count} for all symbols with at least one note."""
+    with db() as conn:
+        rows = conn.execute(
+            """SELECT symbol, COUNT(*) AS cnt
+               FROM symbol_notes
+               WHERE user_id=?
+               GROUP BY symbol""",
+            (user_id,),
+        ).fetchall()
+    return {r["symbol"].upper(): r["cnt"] for r in rows}
+
+
 def init_db() -> None:
     ensure_db_path_ready()
     with db() as conn:
@@ -691,6 +1027,10 @@ def init_db() -> None:
     migrate_add_portfolio_columns()
     migrate_add_watchlist()
     migrate_add_symbol_targets()
+    migrate_add_symbol_tags()
+    migrate_add_symbol_notes()
+    migrate_consolidate_watchlist_notes()
+    migrate_add_portfolio_notes()
 
 
 def recompute_fifo() -> dict:

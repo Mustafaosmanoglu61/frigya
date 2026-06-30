@@ -1,0 +1,128 @@
+# ════════════════════════════════════════════════════════════════
+#  TEST SCENARIOS — BUG-001
+#  Üreten : AI Test Scenario Generator (board YAML + repo anchors girdisiyle)
+#  Review : Şevval (Gate 2) — edge case'ler eklendi/onaylandı
+#  Hedef spec: tests/bug-001-totals-respect-filter.spec.ts
+# ════════════════════════════════════════════════════════════════
+story_id: BUG-001
+feature: "Satış İşlemleri KPI ve TOPLAM, sembol/tarih filtresine uyar"
+spec_file: "tests/bug-001-totals-respect-filter.spec.ts"
+generator: "ai-test-generator v0.3"
+reviewed_by: "Şevval"
+
+# Mock stratejisi: bu sayfa server-render veri kullanıyor, fiyat API'si
+# çağrılmıyor → mock gerekmez. Veri seed'i: GeneralMu portföyü, 2026, 60 satış.
+mocks: []
+
+scenarios:
+  - id: "BUG-001.s1"
+    name: "Sembol filtresi KPI'ları ve TOPLAM'ı günceller (happy path)"
+    given:
+      - "role: logged-in user"
+      - "portfolio: GeneralMu"
+      - "page: /islemler?tab=satislar&yil=2026"
+      - "state: tabloda 60 satış işlemi (8'i ASTX)"
+    when:
+      - action: "fill"
+        target: "#search-symbol"
+        value: "ASTX"
+    then:
+      - assert: "visible_row_count"
+        target: "#transactions-table tbody tr"
+        value: 8
+      - assert: "text"
+        target: "[data-kpi='net-pnl']"
+        value: "+$700.59"
+      - assert: "text"
+        target: "[data-kpi='proceeds']"
+        value: "$24,877.39"
+      - assert: "text"
+        target: "[data-kpi='basari']"
+        value: "62.5%"
+      - assert: "text"
+        target: "#transactions-table tfoot [data-toplam='net-pnl']"
+        value: "+$700.59"
+    repo_anchors:
+      - "webapp/templates/islemler.html:164-197  (KPI kartları)"
+      - "webapp/templates/islemler.html:296-306  (TOPLAM tfoot)"
+      - "webapp/templates/islemler.html:501-550  (filterTable JS — recalc eksik)"
+
+  - id: "BUG-001.s2"
+    name: "Filtre temizlenince KPI'lar orijinal değerlere döner"
+    given:
+      - "prerequisite: BUG-001.s1 uygulanmış (ASTX filtreli)"
+    when:
+      - action: "fill"
+        target: "#search-symbol"
+        value: ""
+    then:
+      - assert: "visible_row_count"
+        target: "#transactions-table tbody tr"
+        value: 60
+      - assert: "text"
+        target: "[data-kpi='net-pnl']"
+        value: "-$1,413.16"
+      - assert: "text"
+        target: "[data-kpi='proceeds']"
+        value: "$159,292.81"
+    repo_anchors:
+      - "webapp/templates/islemler.html:540-550 (clearFilter/temizle)"
+
+  - id: "BUG-001.s3"
+    name: "Eşleşme yok — KPI'lar sıfır, Başarı '—', tfoot gizli (edge)"
+    given:
+      - "page: /islemler?tab=satislar&yil=2026, portfolio=GeneralMu"
+    when:
+      - action: "fill"
+        target: "#search-symbol"
+        value: "ZZZNONE"
+    then:
+      - assert: "visible_row_count"
+        target: "#transactions-table tbody tr"
+        value: 0
+      - assert: "text"
+        target: "[data-kpi='net-pnl']"
+        value: "$0.00"
+      - assert: "text"
+        target: "[data-kpi='basari']"
+        value: "—"
+      - assert: "hidden"
+        target: "#transactions-table tfoot"
+
+  - id: "BUG-001.s4"
+    name: "Büyük/küçük harf duyarsız (edge)"
+    when:
+      - action: "fill"
+        target: "#search-symbol"
+        value: "astx"
+    then:
+      - assert: "text"
+        target: "[data-kpi='net-pnl']"
+        value: "+$700.59"
+    repo_anchors:
+      - "webapp/templates/islemler.html:211 (input upper-case'liyor: this.value.toUpperCase())"
+
+  - id: "BUG-001.s5"
+    name: "Sembol + tarih aralığı birlikte filtreler (negative/combo)"
+    given:
+      - "page: /islemler?tab=satislar&yil=2026"
+    when:
+      - action: "fill"
+        target: "#search-symbol"
+        value: "ASTX"
+      - action: "fill"
+        target: "#filter-date-start"
+        value: "2026-04-01"
+      - action: "fill"
+        target: "#filter-date-end"
+        value: "2026-12-31"
+    then:
+      # Sadece 2 Nisan, 20 Nisan, 21 Mayıs ASTX satışları (3 satır)
+      - assert: "visible_row_count"
+        target: "#transactions-table tbody tr"
+        value: 3
+      - assert: "text_contains"
+        target: "[data-kpi='net-pnl']"
+        value: "$"        # net = -1139 -573.26 +978.42 = -733.84 → KPI bunu yansıtmalı
+    repo_anchors:
+      - "webapp/templates/islemler.html:220-226 (tarih filtre inputları)"

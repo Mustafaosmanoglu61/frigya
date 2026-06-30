@@ -8,6 +8,7 @@ import auth_service
 import database
 from templates_config import templates
 import ingestion
+from portfolio_helper import is_super
 
 router = APIRouter(prefix="/api")
 
@@ -33,6 +34,8 @@ async def ingest_file(request: Request, payload: IngestPayload):
     portfolio = request.session.get("portfolio")
     if not portfolio:
         raise HTTPException(400, "Önce bir portföy seçin")
+    if is_super(portfolio):
+        raise HTTPException(400, "Süper portföye içe aktarma yapılamaz, gerçek bir portföy seçin")
 
     filename = payload.filename or "upload"
 

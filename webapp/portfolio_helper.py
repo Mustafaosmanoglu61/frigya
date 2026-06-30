@@ -4,24 +4,64 @@ import database
 from fastapi import Request
 
 
+# Süper Portföy: fiziksel bir portföy değil, tüm portföylerin toplamını gösteren
+# read-only sanal görünüm. Session'da bu sentinel değer saklanır.
+SUPER_PORTFOLIO = "__SUPER__"
+SUPER_PORTFOLIO_LABEL = "★ Süper Portföy (Tümü)"
+
+
+def is_super(portfolio: Optional[str]) -> bool:
+    """Verilen portföy değeri süper sentinel mi?"""
+    return portfolio == SUPER_PORTFOLIO
+
+
+def pf_clause(portfolio: Optional[str], alias: str = ""):
+    """
+    Süper-aware SQL portföy filtresi parçası.
+    Döner: (sql_fragment, params_list)
+    - Süperde: ("", [])  → sadece user_id ile filtrelenir (tüm portföyler)
+    - Normalde: ("AND <alias.>portfolio = ?", [portfolio])
+    """
+    if is_super(portfolio):
+        return ("", [])
+    prefix = f"{alias}." if alias else ""
+    return (f"AND {prefix}portfolio = ?", [portfolio])
+
+
+def get_selectable_portfolios(user_id: int):
+    """
+    Dropdown için seçilebilir portföy listesi.
+    Kullanıcının ≥2 portföyü varsa en üste süper sentinel eklenir.
+    """
+    portfolios = get_portfolios(user_id)
+    if len(portfolios) > 1:
+        return [SUPER_PORTFOLIO] + portfolios
+    return portfolios
+
+
 def resolve_portfolio(request: Request, query_portfolio: Optional[str], user_id: int) -> Optional[str]:
     """
     Portfolio öncelik sırası:
     1. URL query parametresi (?portfolio=X) → session'a yaz
     2. Session'dan oku
     3. Sistemdeki ilk portföy (fallback)
+
+    Süper sentinel, kullanıcının ≥2 portföyü varsa geçerli kabul edilir.
     """
     portfolios = get_portfolios(user_id)
+    super_ok = len(portfolios) > 1  # süper yalnızca ≥2 portföyde anlamlı
 
     # URL'den geliyorsa session'a kaydet
-    if query_portfolio and query_portfolio in portfolios:
-        request.session["portfolio"] = query_portfolio
-        return query_portfolio
+    if query_portfolio:
+        if query_portfolio in portfolios or (is_super(query_portfolio) and super_ok):
+            request.session["portfolio"] = query_portfolio
+            return query_portfolio
 
     # Session'dan oku
     session_portfolio = request.session.get("portfolio")
-    if session_portfolio and session_portfolio in portfolios:
-        return session_portfolio
+    if session_portfolio:
+        if session_portfolio in portfolios or (is_super(session_portfolio) and super_ok):
+            return session_portfolio
 
     # Fallback: ilk portföy (yoksa None)
     if portfolios:

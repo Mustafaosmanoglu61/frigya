@@ -1,0 +1,68 @@
+# ════════════════════════════════════════════════════════════════
+#  TEST SCENARIOS — UI-003
+#  Üreten : AI Test Scenario Generator
+#  Review : Şevval (Gate 2)
+#  Hedef spec: tests/ui-003-unrealized-prefix.spec.ts
+# ════════════════════════════════════════════════════════════════
+story_id: UI-003
+feature: "Lot tablosu başlıkları unrealized olduğunu info-ikon ile belirtir"
+spec_file: "tests/ui-003-unrealized-prefix.spec.ts"
+generator: "ai-test-generator v0.3"
+reviewed_by: "Şevval"
+mocks: []
+
+scenarios:
+  - id: "UI-003.s1"
+    name: "'Toplam K/Z' başlığında info ikonu görünür (happy path)"
+    given:
+      - "page: /pozisyonlar, açık pozisyon var"
+    when:
+      - action: "wait_for"
+        target: "#pos-table thead"
+    then:
+      - assert: "visible"
+        target: "#pos-table thead th:has-text('Toplam K/Z') i.bi-info-circle"
+    repo_anchors:
+      - "webapp/templates/pozisyonlar.html:133 ('Toplam K/Z' th)"
+      - "webapp/templates/fiyatlar.html (durum-info-ico pattern referansı)"
+
+  - id: "UI-003.s2"
+    name: "'K/Z %' başlığında info ikonu görünür (happy path)"
+    then:
+      - assert: "visible"
+        target: "#pos-table thead th:has-text('K/Z %') i.bi-info-circle"
+    repo_anchors:
+      - "webapp/templates/pozisyonlar.html:134 ('K/Z %' th)"
+
+  - id: "UI-003.s3"
+    name: "İkona hover → unrealized tooltip çıkar"
+    when:
+      - action: "hover"
+        target: "#pos-table thead th:has-text('K/Z %') i.bi-info-circle"
+    then:
+      - assert: "attribute_contains"
+        target: "#pos-table thead th:has-text('K/Z %') i.bi-info-circle"
+        attribute: "title"
+        value: "Gerçekleşmemiş"
+
+  - id: "UI-003.s4"
+    name: "Dark mode'da info ikon görünür/kontrastlı (edge)"
+    given:
+      - "theme: dark (data-theme='dark')"
+    then:
+      - assert: "visible"
+        target: "#pos-table thead th:has-text('Toplam K/Z') i.bi-info-circle"
+      - assert: "css_not"
+        target: "#pos-table thead th:has-text('Toplam K/Z') i.bi-info-circle"
+        property: "opacity"
+        value: "0"
+
+  - id: "UI-003.s5"
+    name: "İkon eklenince başlık metni bozulmuyor (guard)"
+    then:
+      - assert: "text_contains"
+        target: "#pos-table thead th:nth-of-type(12)"   # Toplam K/Z
+        value: "Toplam K/Z"
+      - assert: "text_contains"
+        target: "#pos-table thead th:nth-of-type(13)"   # K/Z %
+        value: "K/Z %"
