@@ -53,3 +53,17 @@ test-results/
 playwright-report/
 blob-report/
 tests/.auth/
+
+# Personal documents (kişisel pozisyon analizleri, Word çıktıları)
+*.docx
+~$*
+
+# Generated personal analysis HTML (gerçek pozisyon/K-Z raporları)
+data/analiz/
+
+# Editor / vault junk
+.obsidian/
+.vscode/
+*.base
+*.canvas
+.fuse_hidden*

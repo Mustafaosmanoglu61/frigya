@@ -68,9 +68,12 @@ midas-emir-gecmisi-tumu-*.csv ← 2026 işlem geçmişi CSV (tumu = tüm emirler
 ### 2025 Vergi Durumu Özeti (referans)
 - TRY bazlı, TCMB alış kuru kullanılarak hesaplanmış
 - ÜFE endekslemesi uygulanmış (alış-satış arası enflasyon > %10 ise)
-- 94 satış işlemi, Toplam Kazanç: ₺386.119,29 / Beyana Tabi: ₺372.985,22
-- **Eşik aşıldı → Beyan gerekli** (₺18.000 limiti)
+- TRY bazlı satış kalemleri, Toplam/Beyana Tabi Kazanç hesabı (rakamlar kişiseldir, repoya dahil değildir)
+- Beyana tabi kazanç beyan eşiğini (₺18.000) aşarsa → beyan gerekli
 - Bu dosya USD hesabı için kaynak değil, sadece TRY referans
+
+> **Not:** Bu dokümandaki tüm para tutarları, lot ve K/Z örnekleri **illüstratiftir** — gerçek
+> portföy/vergi verisi (`tax.db`, CSV/PDF ekstreler, Excel çıktıları) `.gitignore` ile repo dışında tutulur.
 
 ---
 
@@ -169,31 +172,29 @@ for tarih_s, sembol, islem, adet, fiyat, toplam in transactions:
 
 ## 6. KRİTİK DÜZELTMELER VE KARARLAR
 
-### 6.1 ROBN — Yıl Sonu Devir Lot Sorunu (2026)
-**Problem:** CSV sadece Aralık 2025'te alınan 15 ROBN lotunu içeriyordu (15 shares @ $68.72/share, $1,029.78). Oysa 2026'ya devreden 37 shares vardı.
+### 6.1 Yıl Sonu Devir Lot Sorunu (örnek senaryo)
+**Problem:** CSV yalnızca yıl sonunda alınan kısmi lotu içeriyordu; oysa yeni yıla devreden
+pozisyon daha fazla pay içeriyordu. Eksik devir lotlar maliyet bazını yanlış (olduğundan düşük)
+gösterip K/Z'yi çarpıtır.
 
-**Çözüm:** Kullanıcının 2025 ROBN işlem tablosu alındı, manuel FIFO hesaplandı:
+**Çözüm:** Önceki yılın işlem tablosundan devir lot kuyruğu manuel FIFO ile yeniden kuruldu ve
+yeni yılın FIFO motoruna başlangıç durumu olarak yüklendi (bkz. `data/carry_lots_2026.sample.py`):
 ```python
-# 2026 başına devreden ROBN lot kuyruğu (4 ayrı lot):
-# 10/25/2025: 10 shares @ $99.28  → maliyet $992.80
-# 11/05/2025:  5 shares @ $97.20  → maliyet $486.00
-# 11/05/2025:  5 shares @ $101.15 → maliyet $505.75
-# 12/22/2025: 12 shares @ $70.21  → maliyet $842.52
-# 12/22/2025: 15 shares @ $67.65  → maliyet $1,014.78  (yalnızca 37 shares toplam)
-# Toplam maliyet: $2,897.34 (37 shares)
+# Yeni yıla devreden lot kuyruğu (illüstratif değerler):
+# TARİH:  qty  @  fiyat  → maliyet
+# ...     ...     ...       ...
+# (gerçek lotlar gitignore'lu data/carry_lots_2026.py içinde)
 ```
 
-**Sonuç:** ROBN 15/01/2026 satışı:
-- Satış Geliri: $2,248.12 (37 shares @ $59.76)
-- Alış Maliyeti: $2,897.34
-- **K/Z: -$649.22 (ZARAR)** — önceki yanlış hesap +$1,218.34 KÂR'dı
+**Sonuç:** Devir lotlar eklenince ilgili satışın maliyet bazı düzeldi ve KÂR olarak görünen
+işlem gerçekte ZARAR çıktı — devir lot doğruluğunun K/Z üzerindeki etkisini gösterir.
 
-### 6.2 TRON — Eksik Lot (2025)
-**Problem:** TRON 01/07/2025 satışı (15 shares @ $6.71 = $100.65). Mayıs 2025 veya öncesinde alınmış, PDF verisi yok.
+### 6.2 Eksik Lot — tam (2025)
+**Problem:** Bir satışın alış kaydı veri kapsamından (PDF başlangıcından) önceye düşüyor → karşılık lot yok.
 **Durum:** `eksik_lot=True`, maliyet=$0, Excel'de amber renkle işaretli (KÂR\*)
 
-### 6.3 TQQQ — Kısmi Eksik Lot (2025)
-**Problem:** 13/12/2025 TQQQ satışı (16.6 shares). Önceki lotlar tükenmiş, bu satış için yeterli lot yok.
+### 6.3 Eksik Lot — kısmi (2025)
+**Problem:** Bir satışta önceki lotlar tükenmiş, kalan miktar için yeterli lot yok.
 **Durum:** `eksik_lot=True`, Excel'de amber (ZAR\*)
 
 ### 6.4 "tumu" vs "gerceklesti" CSV Farkı
@@ -201,8 +202,9 @@ for tarih_s, sembol, islem, adet, fiyat, toplam in transactions:
 - `gerceklesti` = sadece gerçekleşenler
 - **tumu CSV kullanılırken `Gerçekleşen Miktar > 0` filtresi şart**
 
-### 6.5 Mart 2026 PDF Mükerrer Kontrolü
-Mart 2026 satışları (RKLX 03/03, IREX 10/03, NVDL 16/03) zaten CSV'de var → ekleme yapılmadı.
+### 6.5 Aylık PDF Mükerrer Kontrolü
+CSV'nin kapsadığı dönemdeki satışlar aylık PDF'lerde de görünür → aynı tarih+sembol+adet+yön
+eşleşen kayıtlar mükerrer sayılır, eklenmez.
 
 ---
 
@@ -211,7 +213,7 @@ Mart 2026 satışları (RKLX 03/03, IREX 10/03, NVDL 16/03) zaten CSV'de var →
 ### Özet
 - Dönem: 02/01/2026 – 03/04/2026
 - Toplam Satış Geliri: (Excel'den güncel)
-- ROBN düzeltmesi dahil
+- Devir lot düzeltmesi dahil (bkz. 6.1)
 
 ### CSV'den 2026 FIFO Nasıl Hesaplanır
 ```python
@@ -226,16 +228,12 @@ df["Tarih"] = pd.to_datetime(df["Tarih"], dayfirst=True)
 df = df.sort_values("Tarih")
 
 fifo = defaultdict(list)
-# ROBN için 2025 devir lotları baştan ekle:
-robn_carry = [
-    [10.0, 99.28,  992.80],
-    [ 5.0, 97.20,  486.00],
-    [ 5.0, 101.15, 505.75],
-    [12.0, 70.21,  842.52],
-    [15.0, 67.65, 1014.78],
-]
-for lot in robn_carry:
-    fifo["ROBN"].append(lot)
+# Önceki yıldan devreden lotları baştan ekle (gerçek veri: gitignore'lu data/carry_lots_2026.py):
+#   from data.carry_lots_2026 import CARRY   # [(symbol, date, qty, price, total_cost), ...]
+# Örnek format için: data/carry_lots_2026.sample.py
+from data.carry_lots_2026 import CARRY  # type: ignore  # repo dışı, kişisel
+for sym, _date, qty, price, total in CARRY:
+    fifo[sym].append([qty, price, total])
 
 # Sonra CSV satırlarını işle...
 ```
@@ -244,22 +242,15 @@ for lot in robn_carry:
 
 ## 8. 2025 VERİLERİ (101 İşlem)
 
-### Özet
+### Özet (rakamlar illüstratif — gerçek değerler repo dışı)
 - Dönem: 18/06/2025 – 31/12/2025
-- Toplam Satış Geliri: $122,024.09
-- Toplam Alış Maliyeti: $113,264.66
-- Net K/Z: **+$8,759.43**
-- Başarı Oranı: %77.2 (78 KÂR / 23 ZARAR)
-- Eksik Lot: 2 işlem (TRON, TQQQ)
+- Toplam Satış Geliri / Alış Maliyeti / Net K/Z: Excel çıktısından hesaplanır (kişisel)
+- Başarı Oranı: KÂR işlem sayısı / toplam satış
+- Eksik Lot: 2 işlem (bkz. 6.2 / 6.3)
 
-### En İyi Performans (Sembole Göre 2025)
-| Sembol | Net K/Z (USD) |
-|--------|--------------|
-| ASTX | +$1,794.75 |
-| SOXL | +$1,605.45 |
-| AMDL | +$1,554.13 |
-| RKLX | +$1,306.84 |
-| AGQ | +$941.14 |
+### En İyi Performans (Sembole Göre)
+"Sembole Göre" sayfası her sembolü Net K/Z'ye göre sıralar; en kârlı/zararlı semboller
+buradan okunur. (Sembol listesi ve tutarlar kişisel olduğundan örnek verilmemiştir.)
 
 ---
 
