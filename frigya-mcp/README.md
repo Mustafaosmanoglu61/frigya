@@ -45,6 +45,11 @@ aynı paketi import edebilir (subprocess yerine doğrudan fonksiyon çağrısı)
 
 Yazma araçları **varsayılan dry-run** — `apply=true` verilmedikçe DB'ye dokunmaz.
 
+Claude Desktop bu 7 aracı bağlı bir connector olarak görür; okuma (5) ve yazma (2)
+araçları ayrı izin gruplarında, varsayılan **onay gerektirir**:
+
+![frigya MCP araçları — Claude Desktop tool permissions](../docs/screenshots/09-mcp-tool-permissions.png)
+
 ## Massive Market verisi
 
 Server Massive API'sine doğrudan çağrı yapmaz (key gerektirmez). `frigya_sembol_analiz`
