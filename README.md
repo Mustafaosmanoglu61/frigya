@@ -4,9 +4,9 @@
 
 **ABD hisse senedi portföyünüz için FIFO maliyet takibi ve Türk vergi mevzuatına uygun kâr/zarar analizi.**
 
-FastAPI · SQLite · Jinja2 · Bootstrap 5 · TradingView
+FastAPI · SQLite · Anthropic Claude · MCP · Jinja2 · Bootstrap 5 · TradingView
 
-[Özellikler](#-özellikler) · [Ekran Görüntüleri](#-ekran-görüntüleri) · [Hızlı Başlangıç](#-hızlı-başlangıç) · [Mimari](#-mimari) · [Veri & Gizlilik](#-veri--gizlilik)
+[Özellikler](#-özellikler) · [Yapay Zekâ & MCP](#-yapay-zekâ--mcp-katmanı) · [Ekran Görüntüleri](#-ekran-görüntüleri) · [Hızlı Başlangıç](#-hızlı-başlangıç) · [Mimari](#-mimari) · [Veri & Gizlilik](#-veri--gizlilik)
 
 </div>
 
@@ -22,7 +22,46 @@ FastAPI · SQLite · Jinja2 · Bootstrap 5 · TradingView
 - **Canlı fiyat entegrasyonu** — `yfinance` üzerinden anlık kotasyon + TradingView grafik/ticker widget'ları.
 - **Veri yükleme** — Midas CSV (`emir-gecmisi-tumu-*.csv`) ve aylık PDF ekstreleri tek tıkla içe aktar.
 - **Gizlilik modu** 🕶️ — Klasik aracı kurum uygulamalarındaki gibi tek tıkla tüm parasal değerleri bulanıklaştır; % değerleri görünür kalır.
+- **🤖 Yapay zekâ analiz katmanı** — Anthropic Claude entegre sohbet + **kendi yazdığım MCP server'ı** (`frigya-mcp`): portföyünü doğal dille analiz et, DB + canlı piyasa + kendi notlarını tek sentezde birleştir. ([detay](#-yapay-zekâ--mcp-katmanı))
 - **Dark mode** · **Responsive** · **Drag-and-drop pano düzeni** · **Otomatik SQLite yedekleme**.
+
+---
+
+## 🤖 Yapay Zekâ & MCP Katmanı
+
+Frigya yalnızca bir vergi takip aracı değil; üzerine **finansal veri odaklı bir AI katmanı**
+kuruldu. İki şekilde çalışır:
+
+- **Web AI sohbeti** ([`webapp/routers/ai.py`](webapp/routers/ai.py)) — Anthropic Claude SDK ile
+  entegre asistan (prompt cache + adaptive thinking).
+- **frigya-mcp** ([`frigya-mcp/`](frigya-mcp/)) — **kendi yazdığım MCP server'ı.** Claude Desktop
+  veya herhangi bir MCP client, portföyünü 7 araçla analiz eder: sembol sentezi, açık pozisyon
+  taraması, davranış analizi, markdown/HTML render ve (dry-run korumalı) hedef/stop yazma.
+
+### Tek çekirdek, üç tüketici (SSOT)
+
+Mimarinin özü: iş mantığı **importable bir `frigya_core` paketinde** toplanır; hem MCP server
+hem FastAPI web app **aynı paketi import eder** — subprocess yok, tek hakikat kaynağı.
+
+```
+Claude Desktop ──(MCP)──┐
+Frigya webapp  ──(import)─┤──→  frigya_core  ──→  tax.db
+Claude Code skill ──(MCP)┘      (sentez · FIFO · piyasa · davranış · notlar)
+```
+
+### Asıl güç: kendi notlarınla birleşince
+
+Üç katman tek cevapta birleşir → **senin verin** (pozisyon, FIFO geçmişi, win rate) +
+**canlı piyasa** (RSI/Stoch/MACD, zirveden düşüş) + **kendi serbest metin notların**
+(otomatik parse edilip stop/hedef seviyelerine çevrilir). Notların ne kadar zenginse,
+çıktı o kadar kişisel ve güçlü.
+
+📄 Örnek çıktı: [`frigya-mcp/examples/ornek-cikti-RKLX.md`](frigya-mcp/examples/ornek-cikti-RKLX.md) ·
+📘 Detaylı doküman: [`frigya-mcp/README.md`](frigya-mcp/README.md)
+
+<p align="center">
+  <img src="docs/screenshots/09-mcp-tool-permissions.png" alt="frigya MCP araçları — Claude Desktop tool permissions" width="900">
+</p>
 
 ---
 
@@ -136,8 +175,15 @@ frigya/
 │   │   ├── auth.py            # /auth/login, /auth/register, /auth/google/*
 │   │   ├── admin.py           # /yonetim/* (herkese açık + admin-only)
 │   │   └── ingest_api.py      # CSV/PDF upload API
+│   ├── routers/ai.py          # Anthropic Claude sohbet API'si
+│   ├── routers/frigya_ai.py   # frigya_core'u import eden AI analiz uçları
+│   ├── i18n.py                # Çoklu dil (tr/en)
 │   ├── templates/             # Jinja2 + Bootstrap 5
 │   └── static/                # CSS · JS · Chart.js
+├── frigya-mcp/                # 🤖 MCP server + importable çekirdek (SSOT)
+│   ├── server.py              # FastMCP — 7 araç
+│   ├── frigya_core/           # sentez · db · massive · davranis · notes · render · yazma
+│   └── examples/              # Örnek analiz çıktısı
 ├── data/                      # Örnek veri şablonları (gerçek veri gitignored)
 │   ├── transactions_2025.sample.py
 │   └── carry_lots_2026.sample.py
@@ -214,6 +260,7 @@ else:  # Satış
 ## 🛠 Teknoloji
 
 - **Backend:** FastAPI · Starlette · SQLite
+- **AI / MCP:** Anthropic Claude SDK · Model Context Protocol (FastMCP) · Massive Market Data
 - **Auth:** PBKDF2-SHA256 · Starlette sessions · Authlib (Google OIDC)
 - **Frontend:** Jinja2 · Bootstrap 5 · Chart.js · TradingView widgets
 - **Fiyat:** `yfinance`
