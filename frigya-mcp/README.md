@@ -1,6 +1,31 @@
 # frigya-mcp
 
-Frigya portföy analizini **MCP servisi** olarak sunar. Claude Desktop (veya herhangi bir MCP client) bu servisi çağırır; servis yerelde çalışıp `tax.db`'ye erişir.
+> Portföyünü **konuşarak** analiz et: "RKLX nasıl?", "açık pozisyonlarımı tara", "stop'um
+> mantıklı mı?" — Claude bu soruları frigya MCP araçlarıyla yanıtlar; servis yerelde çalışıp
+> senin gerçek işlem geçmişine (`tax.db`) erişir.
+
+## Ne işe yarar?
+
+Frigya, US hisse alım-satımlarını Türk vergi mevzuatına göre (FIFO) takip eden bir sistem.
+**frigya-mcp** bu sistemin beynini Claude'a açar: artık dashboard'da gezmek yerine doğal dille
+soru sorup; pozisyon, FIFO kâr/zarar geçmişi, açık lot maliyeti, hedef/stop seviyeleri ve
+davranış paternlerini tek cevapta alırsın.
+
+### Asıl güç: kendi notlarınla birleşince
+
+Bir fiyat grafiği herkeste var. Frigya'yı farklı kılan, üç katmanı **tek sentezde** birleştirmesi:
+
+1. **Senin verin** — gerçek pozisyonun, FIFO maliyet bazın, bu sembolde geçmiş win rate'in, hold sürelerin
+2. **Canlı piyasa** — fiyat, RSI/Stochastic/MACD, 60 günlük zirveden düşüş (Massive Market)
+3. **Senin kendi notların** — `symbol_notes`'a serbest metin yazdığın tezler ("104$ ve 76$ en güçlü
+   destek", "stop 33$ altı") otomatik **parse edilip seviyelere** çevrilir ve karara dahil edilir
+
+Sonuç: "RSI 45, dipte görünüyor" diyen genel bir bot değil; **senin notundaki stop'a fiyatın ne
+kadar yaklaştığını, geçmiş davranışına göre bu sembolde nasıl performans gösterdiğini ve hangi
+lotun maliyet bazını bilen** kişisel bir analist. Notların ne kadar zenginse çıktı o kadar güçlü.
+
+📄 **Örnek çıktı:** [`examples/ornek-cikti-RKLX.md`](examples/ornek-cikti-RKLX.md) — tek araç
+çağrısının DB + piyasa + notları nasıl birleştirdiğini gösterir.
 
 ## Mimari ilke
 
