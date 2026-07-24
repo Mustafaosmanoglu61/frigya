@@ -35,6 +35,11 @@
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link {% if active == 'nakit' %}active{% endif %}" href="/nakit">
+            <i class="bi bi-cash-stack me-1"></i>{{ tr('Nakit') }}
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link {% if active == 'semboller' %}active{% endif %}" href="/semboller">
             <i class="bi bi-bar-chart-line me-1"></i>{{ tr('Semboller') }}
           </a>
@@ -434,10 +439,32 @@ function setPriceCache(prices, fetched_at) {
 
 /** Arka planda fiyat çek (sessiz, sayfa kitlemez) */
 async function fetchPricesSilent() {
+  const sonEl = document.getElementById('son-guncelleme');
   try {
     const resp = await fetch('/api/fiyatlar/guncelle', { method: 'POST' });
+    if (!resp.ok) {
+      // 401 → oturum düşmüş; diğerleri → sunucu hatası. Sessizce yutma, göster.
+      if (sonEl) sonEl.innerHTML = resp.status === 401
+        ? '<span class="text-danger">Oturum düştü — sayfayı yenileyin</span>'
+        : `<span class="text-danger">Sunucu hatası (HTTP ${resp.status})</span>`;
+      return;
+    }
     const data = await resp.json();
     if (data.ok && data.prices) {
+      // Sayfada sembol var ama hiç fiyat dönmediyse (portföy seçilmemiş vb.) uyar
+      const pageHasSymbols = document.querySelector('tr[data-symbol], .pos-card[data-symbol]');
+      const priceCount = Object.keys(data.prices).length;
+      if (pageHasSymbols && priceCount === 0) {
+        if (sonEl) sonEl.innerHTML = '<span class="text-warning">Fiyat gelmedi — portföy seçili mi?</span>';
+        return;
+      }
+      // Tüm semboller hatalıysa (yfinance arızası) bunu da görünür yap
+      const errCount = Object.values(data.prices).filter(p => p && p.error).length;
+      if (priceCount > 0 && errCount === priceCount) {
+        if (sonEl) sonEl.innerHTML = `<span class="text-danger">Fiyat kaynağı hatası (${errCount}/${priceCount})</span>`;
+        return;
+      }
+
       setPriceCache(data.prices, data.fetched_at);
 
       // Bu sayfadaki elementleri güncelle
@@ -451,7 +478,8 @@ async function fetchPricesSilent() {
       });
     }
   } catch(e) {
-    // Sessiz — hata gösterme
+    // Ağ hatası — kullanıcıya kısa bilgi ver (varsa)
+    if (sonEl) sonEl.innerHTML = '<span class="text-danger">Bağlantı hatası</span>';
   }
 }
 

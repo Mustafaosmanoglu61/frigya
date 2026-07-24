@@ -89,6 +89,24 @@
   <div class="col-md-3">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted small fw-semibold">{{ tr('NAKİT BAKİYE') }}</span>
+          <a href="/nakit" class="text-muted" title="{{ tr('Nakit Bakiye') }}"><i class="bi bi-box-arrow-up-right"></i></a>
+        </div>
+        <h4 class="fw-bold {% if cash_balance.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+          {{ "${:,.2f}".format(cash_balance.balance) }}
+        </h4>
+        <div class="text-muted small mt-1">
+          {{ tr('Yatırılan:') }} <strong class="text-success">{{ "${:,.2f}".format(cash_balance.deposits) }}</strong><br>
+          {{ tr('Çekilen:') }} <strong class="text-danger">{{ "${:,.2f}".format(cash_balance.withdrawals) }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
         <div class="text-muted small fw-semibold mb-2">{{ tr('TOPLAM NET K/Z') }}</div>
         <h4 class="fw-bold {% if kpi and kpi.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
           {{ "${:,.2f}".format(kpi.net_pnl or 0) if kpi else "—" }}
@@ -453,6 +471,9 @@ const wPnl     = {{ weekly_pnl | tojson }};
 const cumPnl   = {{ cumulative | tojson }};
 const topSyms  = {{ top_syms | tojson }};
 const distrib  = {{ distribution | tojson }};
+const cashBalance = {{ cash_balance.balance | tojson }};   // nakit bakiye (USD) — simit grafiklerde dilim olarak gösterilir
+const CASH_LABEL = 'NAKİT';
+const CASH_COLOR = '#94A3B8';   // nötr gri — hisse paletiyle karışmasın
 let symTags    = {{ sym_tags | tojson }};   // {SYMBOL: 'tag'} — değiştirilebilir (sembol detayında güncellenince burada da tazelenir)
 const realizedBySymbol = {{ realized_by_symbol | tojson }};   // {SYMBOL: realized_pnl} — seçili yıla göre filtrelenmiş
 const realizedCostBySymbol = {{ realized_cost_by_symbol | tojson }};   // {SYMBOL: realized_cost_basis} — realized % için
@@ -776,12 +797,17 @@ function _buildDataset(mode, prices) {
       val = d.cost;
     }
     return { sym: d.symbol, val };
-  }).sort((a, b) => b.val - a.val);   // büyükten küçüğe
+  });
+  // Nakit dilimi — her iki modda aynı değer (nakitin piyasa değeri değişmez).
+  // Negatif bakiye pastada gösterilemez; özet satırında belirtilir.
+  const cash = cashBalance > 0 ? cashBalance : 0;
+  if (cash > 0) items.push({ sym: CASH_LABEL, val: cash });
+  items.sort((a, b) => b.val - a.val);   // büyükten küçüğe
 
   const labels = items.map(x => x.sym);
   const values = items.map(x => Math.max(x.val, 0));
-  const colors = labels.map(s => _distColor(_SYM_INDEX[s] ?? 0));
-  return { labels, values, colors, total: values.reduce((a, b) => a + b, 0) };
+  const colors = labels.map(s => s === CASH_LABEL ? CASH_COLOR : _distColor(_SYM_INDEX[s] ?? 0));
+  return { labels, values, colors, cash, total: values.reduce((a, b) => a + b, 0) };
 }
 
 // Sembol bazında toplam K/Z = realized (seçili dönem) + unrealized (açık pozisyon)
@@ -803,20 +829,26 @@ function _updateCenterAndSummary(mode, ds) {
   const bot = document.getElementById('dist-center-bot');
   const sumLine = document.getElementById('dist-summary-line');
 
+  // Nakit özet parçası — pozitifse dilimde, negatifse sadece burada (kırmızı) görünür
+  const cashNote = cashBalance > 0
+    ? ` · Nakit: <strong class="text-dark">${_fmtUsd(cashBalance)}</strong>`
+    : (cashBalance < 0 ? ` · <span class="text-danger">Nakit: ${_fmtUsd(cashBalance)}</span>` : '');
+
   if (mode === 'cost') {
     if (top) top.textContent = 'Açık';
     if (mid) { mid.textContent = distrib.length; mid.className = 'fw-bold fs-4 text-primary'; }
     if (bot) { bot.textContent = 'sembol'; bot.className = 'small text-muted'; }
-    if (sumLine) sumLine.innerHTML = `<i class="bi bi-cash-stack me-1"></i>Toplam Maliyet: <strong class="text-dark">${_fmtUsd(ds.total)}</strong>`;
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-cash-stack me-1"></i>Toplam Maliyet: <strong class="text-dark">${_fmtUsd(ds.total - ds.cash)}</strong>${cashNote}`;
   } else {
     const totalCost = distrib.reduce((s, d) => s + d.cost, 0);
-    const upnl = ds.total - totalCost;
+    // K/Z hesabından nakit çıkarılır — nakit hem toplamı hem maliyeti şişirip yüzdeyi bozar
+    const upnl = (ds.total - ds.cash) - totalCost;
     const upct = totalCost > 0 ? (upnl / totalCost * 100) : 0;
     const cls  = upnl >= 0 ? 'text-success' : 'text-danger';
     if (top) top.textContent = 'Toplam K/Z';
     if (mid) { mid.textContent = (upnl >= 0 ? '+' : '') + _fmtUsd(upnl); mid.className = 'fw-bold fs-4 ' + cls; }
     if (bot) { bot.textContent = _fmtPct(upct);    bot.className = 'small ' + cls; }
-    if (sumLine) sumLine.innerHTML = `<i class="bi bi-coin me-1"></i>Toplam Mevcut: <strong class="text-dark">${_fmtUsd(ds.total)}</strong> · Maliyet: ${_fmtUsd(totalCost)}`;
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-coin me-1"></i>Toplam Mevcut: <strong class="text-dark">${_fmtUsd(ds.total - ds.cash)}</strong> · Maliyet: ${_fmtUsd(totalCost)}${cashNote}`;
   }
 }
 
@@ -1082,17 +1114,28 @@ function _aggregateByTag(prices) {
   return agg;
 }
 
+const CASH_TAG_LABEL = 'Nakit';
+
 function _buildTagDataset(mode, prices) {
   const agg = _aggregateByTag(prices);
   const entries = Object.entries(agg).map(([tag, v]) => ({
     tag, val: mode === 'mv' ? v.mv : v.cost, cost: v.cost, mv: v.mv,
     realized: v.realized || 0, realizedCost: v.realizedCost || 0,
     symbols: v.symbols, allPriced: v.allPriced,
-  })).sort((a, b) => b.val - a.val);
+  }));
+  // Nakit kategorisi — her iki modda aynı değer, K/Z hesabına girmez
+  const cash = cashBalance > 0 ? cashBalance : 0;
+  if (cash > 0) {
+    entries.push({
+      tag: CASH_TAG_LABEL, val: cash, cost: cash, mv: cash,
+      realized: 0, realizedCost: 0, symbols: [], allPriced: true, isCash: true,
+    });
+  }
+  entries.sort((a, b) => b.val - a.val);
   const labels = entries.map(e => e.tag);
   const values = entries.map(e => Math.max(e.val, 0));
-  const colors = labels.map((_, i) => _distColor(i));
-  return { labels, values, colors, entries, total: values.reduce((a, b) => a + b, 0) };
+  const colors = entries.map((e, i) => e.isCash ? CASH_COLOR : _distColor(i));
+  return { labels, values, colors, entries, cash, total: values.reduce((a, b) => a + b, 0) };
 }
 
 function _updateTagCenterAndSummary(mode, ds) {
@@ -1101,20 +1144,25 @@ function _updateTagCenterAndSummary(mode, ds) {
   const bot = document.getElementById('tag-center-bot');
   const sumLine = document.getElementById('tag-summary-line');
 
+  const cashNote = cashBalance > 0
+    ? ` · Nakit: <strong class="text-dark">${_fmtUsd(cashBalance)}</strong>`
+    : (cashBalance < 0 ? ` · <span class="text-danger">Nakit: ${_fmtUsd(cashBalance)}</span>` : '');
+
   if (mode === 'cost') {
     if (top) top.textContent = 'Sektör';
     if (mid) { mid.textContent = ds.entries.length; mid.className = 'fw-bold fs-4 text-primary'; }
     if (bot) { bot.textContent = ds.entries.length === 1 ? 'kategori' : 'kategori'; bot.className = 'small text-muted'; }
-    if (sumLine) sumLine.innerHTML = `<i class="bi bi-cash-stack me-1"></i>Toplam Maliyet: <strong class="text-dark">${_fmtUsd(ds.total)}</strong>`;
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-cash-stack me-1"></i>Toplam Maliyet: <strong class="text-dark">${_fmtUsd(ds.total - ds.cash)}</strong>${cashNote}`;
   } else {
     const totalCost = distrib.reduce((s, d) => s + d.cost, 0);
-    const upnl = ds.total - totalCost;
+    // K/Z hesabından nakit çıkarılır — nakit hem toplamı hem maliyeti şişirip yüzdeyi bozar
+    const upnl = (ds.total - ds.cash) - totalCost;
     const upct = totalCost > 0 ? (upnl / totalCost * 100) : 0;
     const cls  = upnl >= 0 ? 'text-success' : 'text-danger';
     if (top) top.textContent = 'Toplam K/Z';
     if (mid) { mid.textContent = (upnl >= 0 ? '+' : '') + _fmtUsd(upnl); mid.className = 'fw-bold fs-4 ' + cls; }
     if (bot) { bot.textContent = _fmtPct(upct); bot.className = 'small ' + cls; }
-    if (sumLine) sumLine.innerHTML = `<i class="bi bi-coin me-1"></i>Mevcut: <strong class="text-dark">${_fmtUsd(ds.total)}</strong> · Maliyet: ${_fmtUsd(totalCost)}`;
+    if (sumLine) sumLine.innerHTML = `<i class="bi bi-coin me-1"></i>Mevcut: <strong class="text-dark">${_fmtUsd(ds.total - ds.cash)}</strong> · Maliyet: ${_fmtUsd(totalCost)}${cashNote}`;
   }
 }
 
@@ -1146,13 +1194,15 @@ function _updateTagSummaryTable(prices) {
     const rgStr = realized === 0 ? '—' : (realized > 0 ? '+' : '') + _fmtUsd(realized);
     const rpCls = realizedPct == null ? 'text-muted' : (realizedPct >= 0 ? 'text-success' : 'text-danger');
     const rpStr = realizedPct == null ? '—' : _fmtPct(realizedPct);
-    const tagDisplay = e.tag === UNTAGGED_LABEL
-      ? `<span class="text-muted fst-italic">${e.tag}</span>`
-      : `<span class="badge bg-primary-subtle text-primary border">${_escape(e.tag)}</span>`;
+    const tagDisplay = e.isCash
+      ? `<span class="badge bg-secondary-subtle text-secondary border"><i class="bi bi-cash-stack me-1"></i>${_escape(e.tag)}</span>`
+      : (e.tag === UNTAGGED_LABEL
+        ? `<span class="text-muted fst-italic">${e.tag}</span>`
+        : `<span class="badge bg-primary-subtle text-primary border">${_escape(e.tag)}</span>`);
     const symList = e.symbols.slice(0, 6).join(', ') + (e.symbols.length > 6 ? ` +${e.symbols.length - 6}` : '');
     return `<tr>
       <td>${tagDisplay} <span class="text-muted small ms-2">${_escape(symList)}</span></td>
-      <td class="text-end">${e.symbols.length}</td>
+      <td class="text-end">${e.isCash ? '—' : e.symbols.length}</td>
       <td class="text-end">${_fmtUsd(e.cost)}</td>
       <td class="text-end">${costPct.toFixed(1)}%</td>
       <td class="text-end">${mvPct.toFixed(1)}%${mvE.allPriced ? '' : ' <i class="bi bi-asterisk text-warning small" title="Bazı semboller için fiyat alınamadı; maliyetle gösteriliyor"></i>'}</td>
@@ -1190,6 +1240,7 @@ function renderTagDist(mode, prices) {
   // Tag bazında toplam K/Z = realized + unrealized (mv - cost) — legend renklendirmesi için
   const pnlMap = {};
   for (const e of ds.entries) {
+    if (e.isCash) continue;   // nakitin K/Z'si yok — tooltip/legend'da gösterme
     pnlMap[e.tag] = (e.realized || 0) + (e.mv - e.cost);
   }
   const colorize = (mode === 'mv');   // sadece Mevcut Değer modunda renkli rakam

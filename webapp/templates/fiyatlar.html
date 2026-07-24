@@ -129,6 +129,16 @@
           <span class="pc-cell-val" data-field="unrealized-pnl-pct">—</span>
         </div>
       </div>
+      <div class="pc-grid pc-grid-2">
+        <div class="pc-cell" title="Mevcut fiyatın ortalama maliyete (nötr/başabaş) dönmesi için gereken yüzde hareket — yönü ile birlikte.">
+          <span class="pc-cell-lbl">Nötre %</span>
+          <span class="pc-cell-val" data-field="notr-donus">—</span>
+        </div>
+        <div class="pc-cell" title="Mevcut fiyatın ortalama maliyete olan sapması.">
+          <span class="pc-cell-lbl">Ort. Sapma</span>
+          <span class="pc-cell-val" data-field="notr-sapma">—</span>
+        </div>
+      </div>
 
       <!-- Hedef/Taban progress bar -->
       <div class="pc-target-bar">
@@ -277,6 +287,7 @@
           <th class="text-end" data-col="taban-dist">{{ tr('Tabana %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
           <th class="text-end" data-col="hedef-dist">{{ tr('Hedefe %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
           <th class="text-end" data-col="avg-cost">{{ tr('Ort. Maliyet') }}</th>
+          <th class="text-end" data-col="notr-donus" title="Mevcut fiyatın ortalama maliyete (nötr/başabaş) dönmesi için gereken yüzde hareket — yönü ile birlikte. Altındaki küçük değer fiyatın ortalamaya olan mevcut sapmasıdır.">{{ tr('Nötre %') }}</th>
           <th class="text-end" data-col="son-alis-fiyat">{{ tr('Son Alış') }}</th>
           <th class="text-end" data-col="son-satis-fiyat">{{ tr('Son Satış') }}</th>
           <th class="text-end" data-col="satis-sonrasi">{{ tr('Satış Sonrası %') }}</th>
@@ -298,6 +309,7 @@
             data-wl-id="{{ w['id'] }}"
             data-taban="{{ t.get('taban_fiyat', '') or '' }}"
             data-hedef="{{ t.get('hedef_fiyat', '') or '' }}"
+            data-avg-cost="{{ w['avg_cost'] or '' }}"
             data-last-sell-price="{{ w['last_sell_price'] or '' }}">
 
           <td class="wl-sticky-first">
@@ -324,6 +336,7 @@
               {% if w['total_qty'] %}<br><span class="small text-muted">{{ w['total_qty'] | fmtqty }} adet</span>{% endif %}
             {% else %}—{% endif %}
           </td>
+          <td class="text-end" data-col="notr-donus" data-field="notr-donus">—</td>
           <td class="text-end" data-col="son-alis-fiyat">
             {{ "$%.2f"|format(w['last_buy_price']) if w['last_buy_price'] else '—' }}
           </td>
@@ -418,6 +431,7 @@
               <th class="text-end" data-col="taban-dist">{{ tr('Tabana %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
               <th class="text-end" data-col="hedef-dist">{{ tr('Hedefe %') }} <i class="bi bi-info-circle text-primary durum-info-ico" onclick="showDurumGuide(event)" title="Durum algoritması nasıl çalışır?"></i></th>
               <th class="text-end" data-col="avg-cost">{{ tr('Ort. Maliyet') }}</th>
+              <th class="text-end" data-col="notr-donus" title="Mevcut fiyatın ortalama maliyete (nötr/başabaş) dönmesi için gereken yüzde hareket — yönü ile birlikte. Altındaki küçük değer fiyatın ortalamaya olan mevcut sapmasıdır.">{{ tr('Nötre %') }}</th>
               <th class="text-end" data-col="son-alis-fiyat">{{ tr('Son Alış') }}</th>
               <th class="text-end" data-col="son-satis-fiyat">{{ tr('Son Satış') }}</th>
               <th class="text-end" data-col="satis-sonrasi">{{ tr('Satış Sonrası %') }}</th>
@@ -1193,6 +1207,52 @@ function updatePriceRows(prices) {
       }
     }
 
+    // ── Nötre (ort. maliyet / başabaş) dönüş % ────────────────────────────
+    // Mevcut fiyat ortalama maliyete ne kadar uzak (sapma) + oraya dönmek için
+    // gereken hareket yüzdesi. Örn: -%20 sapma → nötre dönmek için +%25 gerekir.
+    const notrEl = el.querySelector('[data-field="notr-donus"]');
+    const sapmaEl = el.querySelector('[data-field="notr-sapma"]');
+    if (notrEl && p.current_price != null) {
+      // Referans ortalama: watchlist TR'de data-avg-cost, pos-card'da data-avg-price
+      const avg   = parseFloat(el.dataset.avgCost || el.dataset.avgPrice || '0');
+      const price = p.current_price;
+      const isTd  = notrEl.tagName === 'TD';
+      if (avg > 0 && price > 0) {
+        const dev    = (price - avg) / avg * 100;    // fiyatın ortalamaya sapması
+        const needed = (avg - price) / price * 100;  // nötre dönmek için gereken hareket
+        const devTxt = (dev >= 0 ? '+' : '') + dev.toFixed(1) + '%';
+        if (Math.abs(needed) < 0.05) {
+          notrEl.innerHTML = isTd
+            ? '<span class="fw-semibold text-muted">→ 0.0%</span>'
+            : '→ 0.0%';
+          notrEl.className = isTd ? 'text-end' : 'pc-cell-val text-muted';
+        } else {
+          // Fiyat ortalamanın ALTINDA → yükselmesi gerekir (↑, zarar → kırmızı)
+          // Fiyat ortalamanın ÜSTÜNDE → düşmesi gerekir (↓, kâr → yeşil)
+          const arrow    = needed > 0 ? '↑' : '↓';
+          const colorCls = needed > 0 ? 'text-danger' : 'text-success';
+          const mainTxt  = `${arrow} ${Math.abs(needed).toFixed(1)}%`;
+          if (isTd) {
+            notrEl.innerHTML = `<span class="fw-semibold ${colorCls}">${mainTxt}</span>`
+              + `<br><span class="small text-muted">${devTxt}</span>`;
+            notrEl.className = 'text-end';
+          } else {
+            notrEl.innerHTML = `<span class="${colorCls}">${mainTxt}</span>`;
+            notrEl.className = 'pc-cell-val';
+          }
+        }
+        // pos-card'da ayrı "Ort. Sapma" hücresi
+        if (sapmaEl) {
+          sapmaEl.textContent = devTxt;
+          sapmaEl.className = 'pc-cell-val ' + (dev >= 0 ? 'text-success' : 'text-danger');
+        }
+      } else {
+        notrEl.innerHTML = '—';
+        notrEl.className = isTd ? 'text-end text-muted' : 'pc-cell-val text-muted';
+        if (sapmaEl) { sapmaEl.textContent = '—'; sapmaEl.className = 'pc-cell-val text-muted'; }
+      }
+    }
+
     // ── Durum (watchlist state machine — fiyat × yön kombinasyonu) ───────
     // Fiyat seviyesi (taban/hedef bantları) + günlük yön bileşenleri:
     //   FLAT_THR  : ±0.5% altı yatay
@@ -1957,6 +2017,7 @@ const WL_COLUMNS = [
   { id: 'taban-dist',      label: 'Tabana %',          def: true  },
   { id: 'hedef-dist',      label: 'Hedefe %',          def: true  },
   { id: 'avg-cost',        label: 'Ort. Maliyet',      def: true  },
+  { id: 'notr-donus',      label: 'Nötre %',           def: true  },
   { id: 'son-alis-fiyat',  label: 'Son Alış Fiyatı',   def: true  },
   { id: 'son-satis-fiyat', label: 'Son Satış Fiyatı',  def: true  },
   { id: 'satis-sonrasi',   label: 'Satış Sonrası %',   def: true  },

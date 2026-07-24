@@ -1020,6 +1020,108 @@ def get_symbol_note_counts(user_id: int) -> "dict[str, int]":
     return {r["symbol"].upper(): r["cnt"] for r in rows}
 
 
+def migrate_add_cash_transactions() -> None:
+    """Idempotent: cash_transactions tablosu yoksa oluşturur.
+    Nakit bakiye = yatırma - çekme - alış toplamı + satış toplamı (kullanıcı + portföy bazında)."""
+    with db() as conn:
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()}
+        if "cash_transactions" not in tables:
+            conn.executescript("""
+                CREATE TABLE cash_transactions (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id    INTEGER NOT NULL,
+                    portfolio  TEXT    NOT NULL COLLATE NOCASE,
+                    tx_date    TEXT    NOT NULL,
+                    tx_type    TEXT    NOT NULL CHECK(tx_type IN ('yatırma','çekme')),
+                    amount     REAL    NOT NULL CHECK(amount > 0),
+                    note       TEXT,
+                    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS ix_cash_user_pf ON cash_transactions(user_id, portfolio);
+                CREATE INDEX IF NOT EXISTS ix_cash_date    ON cash_transactions(tx_date);
+            """)
+
+
+def add_cash_transaction(
+    user_id: int, portfolio: str, tx_date: str, tx_type: str, amount: float, note: Optional[str] = None
+) -> int:
+    with db() as conn:
+        cur = conn.execute(
+            """INSERT INTO cash_transactions (user_id, portfolio, tx_date, tx_type, amount, note)
+               VALUES (?,?,?,?,?,?)""",
+            (user_id, portfolio, tx_date, tx_type, amount, note),
+        )
+        return cur.lastrowid
+
+
+def get_cash_transactions(user_id: int, portfolio: Optional[str] = None):
+    """portfolio=None → kullanıcının tüm portföyleri (süper görünüm)."""
+    with db() as conn:
+        if portfolio:
+            rows = conn.execute(
+                """SELECT * FROM cash_transactions WHERE user_id=? AND portfolio=?
+                   ORDER BY tx_date DESC, id DESC""",
+                (user_id, portfolio),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM cash_transactions WHERE user_id=?
+                   ORDER BY tx_date DESC, id DESC""",
+                (user_id,),
+            ).fetchall()
+    return rows
+
+
+def delete_cash_transaction(user_id: int, cash_id: int) -> bool:
+    with db() as conn:
+        cur = conn.execute(
+            "DELETE FROM cash_transactions WHERE id=? AND user_id=?",
+            (cash_id, user_id),
+        )
+        return cur.rowcount > 0
+
+
+def get_cash_balance(user_id: int, portfolio: Optional[str] = None) -> dict:
+    """
+    Nakit bakiye = yatırılan - çekilen - alış toplamı + satış toplamı.
+    portfolio=None → kullanıcının tüm portföyleri toplanır (süper görünüm).
+    """
+    with db() as conn:
+        pf_sql = "AND portfolio=?" if portfolio else ""
+        params = (user_id, portfolio) if portfolio else (user_id,)
+
+        cash_row = conn.execute(
+            f"""SELECT
+                   COALESCE(SUM(CASE WHEN tx_type='yatırma' THEN amount ELSE 0 END), 0) AS deposits,
+                   COALESCE(SUM(CASE WHEN tx_type='çekme'   THEN amount ELSE 0 END), 0) AS withdrawals
+               FROM cash_transactions WHERE user_id=? {pf_sql}""",
+            params,
+        ).fetchone()
+
+        tx_row = conn.execute(
+            f"""SELECT
+                   COALESCE(SUM(CASE WHEN direction='Alış'  THEN total ELSE 0 END), 0) AS buys,
+                   COALESCE(SUM(CASE WHEN direction='Satış' THEN total ELSE 0 END), 0) AS sells
+               FROM raw_transactions WHERE user_id=? {pf_sql}""",
+            params,
+        ).fetchone()
+
+    deposits    = cash_row["deposits"]
+    withdrawals = cash_row["withdrawals"]
+    buys        = tx_row["buys"]
+    sells       = tx_row["sells"]
+
+    return {
+        "deposits":    deposits,
+        "withdrawals": withdrawals,
+        "buys":        buys,
+        "sells":       sells,
+        "balance":     round(deposits - withdrawals - buys + sells, 2),
+    }
+
+
 def init_db() -> None:
     ensure_db_path_ready()
     with db() as conn:
@@ -1031,6 +1133,7 @@ def init_db() -> None:
     migrate_add_symbol_notes()
     migrate_consolidate_watchlist_notes()
     migrate_add_portfolio_notes()
+    migrate_add_cash_transactions()
 
 
 def recompute_fifo() -> dict:

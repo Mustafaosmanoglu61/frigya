@@ -37,6 +37,7 @@ async def dashboard(request: Request, portfolio: str = Query(None), year: int = 
             "sym_tags": {},
             "realized_by_symbol": {},
             "realized_cost_by_symbol": {},
+            "cash_balance": {"deposits": 0, "withdrawals": 0, "buys": 0, "sells": 0, "balance": 0},
             "active": "dashboard",
             "portfolios": portfolios,
             "current_portfolio": None,
@@ -178,6 +179,9 @@ async def dashboard(request: Request, portfolio: str = Query(None), year: int = 
     realized_by_symbol = {r["symbol"].upper(): round(r["realized"] or 0, 2) for r in rg_rows}
     realized_cost_by_symbol = {r["symbol"].upper(): round(r["realized_cost"] or 0, 2) for r in rg_rows}
 
+    cash_pf = None if super_mode else portfolio
+    cash_balance = database.get_cash_balance(user_id, cash_pf)
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "kpi": kpi_safe,
@@ -196,6 +200,7 @@ async def dashboard(request: Request, portfolio: str = Query(None), year: int = 
         "sym_tags": sym_tags,
         "realized_by_symbol": realized_by_symbol,
         "realized_cost_by_symbol": realized_cost_by_symbol,
+        "cash_balance": cash_balance,
         "active": "dashboard",
         "portfolios": portfolios,
         "current_portfolio": portfolio,

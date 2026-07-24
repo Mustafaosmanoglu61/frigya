@@ -26,7 +26,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import database
 import auth_service
-from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai
+from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai, nakit
 from portfolio_helper import get_portfolios, create_portfolio, is_super, SUPER_PORTFOLIO
 
 if load_dotenv:
@@ -113,6 +113,7 @@ PUBLIC_PATH_PREFIXES = (
 
 app.include_router(dashboard.router)
 app.include_router(islemler.router)
+app.include_router(nakit.router)
 app.include_router(semboller.router)
 app.include_router(sembol_detail.router)
 app.include_router(pozisyonlar.router)

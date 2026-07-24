@@ -30,10 +30,38 @@ def find_db_path(explicit=None):
     )
 
 
+def _resolve_user(conn, user):
+    """user (int id VEYA email string) → int user_id. Bulunamazsa ValueError."""
+    if isinstance(user, int) or (isinstance(user, str) and user.isdigit()):
+        uid = int(user)
+        row = conn.execute("SELECT id FROM users WHERE id=?", (uid,)).fetchone()
+        if row:
+            return int(row[0])
+        raise ValueError(f"user_id={uid} bulunamadı")
+    # email (case-insensitive)
+    email = str(user).strip()
+    row = conn.execute(
+        "SELECT id FROM users WHERE lower(email)=lower(?) LIMIT 1", (email,)
+    ).fetchone()
+    if row:
+        return int(row[0])
+    raise ValueError(f"email='{email}' ile kullanıcı bulunamadı")
+
+
 def detect_user_id(conn, explicit=None):
-    """Admin kullanıcıyı tercih et, yoksa ilk kullanıcı, yoksa 1."""
-    if explicit:
-        return int(explicit)
+    """Kullanıcı id'sini çöz.
+
+    Öncelik: explicit (id veya email) > FRIGYA_USER_ID env > FRIGYA_USER_EMAIL env
+    > admin rolü > ilk kullanıcı > 1.
+    """
+    if explicit is not None and str(explicit).strip() != "":
+        return _resolve_user(conn, explicit)
+    env_id = os.getenv("FRIGYA_USER_ID", "").strip()
+    if env_id:
+        return _resolve_user(conn, env_id)
+    env_email = os.getenv("FRIGYA_USER_EMAIL", "").strip()
+    if env_email:
+        return _resolve_user(conn, env_email)
     row = conn.execute(
         "SELECT id FROM users WHERE role='admin' ORDER BY id LIMIT 1"
     ).fetchone()
@@ -44,7 +72,10 @@ def detect_user_id(conn, explicit=None):
 
 
 def open_conn(db_path=None, user_id=None):
-    """(conn, path, user_id) döndürür. Servis DB sahibi — tek giriş noktası."""
+    """(conn, path, user_id) döndürür. Servis DB sahibi — tek giriş noktası.
+
+    user_id: int id VEYA email string olabilir. Verilmezse env/admin fallback (bkz. detect_user_id).
+    """
     path = find_db_path(db_path)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row

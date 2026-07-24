@@ -47,6 +47,7 @@ class SembolAnalizInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     symbol: str = Field(..., description="Hisse sembolü (örn. 'RKLB', 'IREX')", min_length=1, max_length=12)
     portfolio: Optional[str] = Field(default=None, description="Tek portföye filtrele (örn. 'family'). Boşsa tüm portföyler birleşir.")
+    user: Optional[str] = Field(default=None, description="Hangi kullanıcı: email veya numerik id. Boşsa FRIGYA_USER_ID/FRIGYA_USER_EMAIL env, yoksa admin.")
     market_json: Optional[str] = Field(
         default=None,
         description=(
@@ -62,12 +63,14 @@ class SembolAnalizInput(BaseModel):
 class PortfoyInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     portfolio: Optional[str] = Field(default=None, description="Tek portföye filtrele. Boşsa hepsi.")
+    user: Optional[str] = Field(default=None, description="Hangi kullanıcı: email (örn. 'kullanici@example.com') veya numerik id. Boşsa FRIGYA_USER_ID/FRIGYA_USER_EMAIL env, yoksa admin.")
 
 
 class DavranisInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     portfolio: Optional[str] = Field(default=None, description="Tek portföye filtrele. Boşsa hepsi.")
     year: Optional[int] = Field(default=None, description="Tek yıla filtrele (örn. 2026).", ge=2000, le=2100)
+    user: Optional[str] = Field(default=None, description="Hangi kullanıcı: email veya numerik id. Boşsa FRIGYA_USER_ID/FRIGYA_USER_EMAIL env, yoksa admin.")
 
 
 class RenderInput(BaseModel):
@@ -120,7 +123,7 @@ async def frigya_sembol_analiz(params: SembolAnalizInput) -> str:
     """
     try:
         market = json.loads(params.market_json) if params.market_json else None
-        result = fc.build_sentez(params.symbol, portfolio=params.portfolio, market=market)
+        result = fc.build_sentez(params.symbol, portfolio=params.portfolio, market=market, user_id=params.user)
         return _dump(result)
     except Exception as e:
         return _err(e)
@@ -139,7 +142,7 @@ async def frigya_portfoy_tara(params: PortfoyInput) -> str:
         str: JSON {meta{open_count, total_cost_basis_usd}, positions[], watchlist_only[]}
     """
     try:
-        conn, _path, uid = fc.open_conn()
+        conn, _path, uid = fc.open_conn(user_id=params.user)
         try:
             return _dump(fc.portfoy_data(conn, uid, params.portfolio))
         finally:
@@ -164,7 +167,7 @@ async def frigya_davranis_analiz(params: DavranisInput) -> str:
              hold_duration_distribution[], monthly_trend[], open_positions_snapshot{}}
     """
     try:
-        conn, _path, uid = fc.open_conn()
+        conn, _path, uid = fc.open_conn(user_id=params.user)
         try:
             return _dump(fc.davranis_data(conn, uid, params.portfolio, params.year))
         finally:
