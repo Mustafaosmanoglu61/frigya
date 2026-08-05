@@ -1356,15 +1356,17 @@ function updatePriceRows(prices) {
   });
 
   // ── Fiyatlar sayfasında Açık Pozisyonlar başlık güncellemeleri ──
+  // Başlık sadece tab-pozisyonlar'da ve positions varsa gösterilir; boş tab/watchlist'te null'dur
   const fiyPcCostEl = document.getElementById('fiy-pc-total-cost');
+  if (!fiyPcCostEl) return;  // başlık tab'ında değiliz, erken çık
+
   const fiyPcUnrealEl = document.getElementById('fiy-pc-unrealized');
   const fiyPcUnrealPctEl = document.getElementById('fiy-pc-unrealized-pct');
   const fiyPcDailyEl = document.getElementById('fiy-pc-daily');
   const fiyPcDailyPctEl = document.getElementById('fiy-pc-daily-pct');
 
-  if (fiyPcCostEl) {
-    fiyPcCostEl.textContent = '$' + pcTotalCost.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
-  }
+  fiyPcCostEl.textContent = '$' + pcTotalCost.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+
   if (fiyPcUnrealEl) {
     if (pcUnrValid) {
       fiyPcUnrealEl.textContent = (pcTotalUnreal >= 0 ? '+' : '') + '$' + Math.abs(pcTotalUnreal).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
@@ -1381,13 +1383,13 @@ function updatePriceRows(prices) {
       if (fiyPcUnrealPctEl) fiyPcUnrealPctEl.textContent = '';
     }
   }
+
   if (fiyPcDailyEl) {
     if (pcDailyValid) {
       fiyPcDailyEl.textContent = (pcTotalDaily >= 0 ? '+' : '') + '$' + Math.abs(pcTotalDaily).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
       fiyPcDailyEl.className = 'price-sensitive ' + (pcTotalDaily >= 0 ? 'text-success' : 'text-danger');
       // Günlük yüzde
       if (fiyPcDailyPctEl) {
-        // Günlük % = Daily PnL / (prev maliyet toplamı) — burada basit alınan tüm semboller için avg daily %
         const avgDailyPct = (pcTotalCost > 0 && pcTotalDaily > 0) ? (pcTotalDaily / (pcTotalCost - pcTotalUnreal) * 100 || 0) : 0;
         fiyPcDailyPctEl.textContent = '(' + (avgDailyPct >= 0 ? '+' : '') + avgDailyPct.toFixed(2) + '%)';
         fiyPcDailyPctEl.className = 'small ms-1 ' + (pcTotalDaily >= 0 ? 'text-success' : 'text-danger');
