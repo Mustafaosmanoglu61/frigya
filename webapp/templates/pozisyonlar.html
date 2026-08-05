@@ -7,9 +7,11 @@
     <i class="bi bi-wallet2 me-2 text-primary"></i>{{ tr('Açık Pozisyonlar') }}
   </h4>
   <div class="d-flex align-items-center gap-3">
-    <div class="text-end">
+    <div class="text-end" data-portfolio-cost="{{ total_cost }}">
       <div class="text-muted small">{{ tr('Toplam Maliyet:') }} <strong class="text-dark price-sensitive">${{ "{:,.2f}".format(total_cost) }}</strong></div>
-      <div class="small mt-1">{{ tr('Gerçekleşmemiş K/Z:') }} <strong id="hdr-unrealized" class="text-muted price-sensitive">—</strong></div>
+      <div class="small mt-1">{{ tr('Gerçekleşmemiş K/Z:') }} <strong id="hdr-unrealized" class="text-muted price-sensitive">—</strong>
+        <span id="hdr-unrealized-pct" class="text-muted small ms-1"></span>
+      </div>
       <div class="small mt-1">{{ tr('Günlük K/Z:') }} <strong id="hdr-daily" class="text-muted price-sensitive">—</strong>
         <span id="hdr-daily-pct" class="text-muted small ms-1"></span>
       </div>
@@ -531,13 +533,23 @@ function updatePozPrices(prices) {
 
   // Header toplam gerçekleşmemiş
   const hdrEl = document.getElementById('hdr-unrealized');
+  const hdrPctEl = document.getElementById('hdr-unrealized-pct');
   if (hdrEl) {
     if (totalUnrValid) {
       hdrEl.textContent = (totalUnrealized >= 0 ? '+' : '-') + fmt$(totalUnrealized);
       hdrEl.className = 'fw-bold ' + (totalUnrealized >= 0 ? 'text-success' : 'text-danger');
+      // Yüzde hesabı — template'ten data attribute alınan toplam maliyet
+      const costDiv = document.querySelector('[data-portfolio-cost]');
+      const cost = costDiv ? parseFloat(costDiv.dataset.portfolioCost) : 0;
+      if (cost > 0 && hdrPctEl) {
+        const pct = (totalUnrealized / cost * 100);
+        hdrPctEl.textContent = '(' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+        hdrPctEl.className = 'small ms-1 ' + (totalUnrealized >= 0 ? 'text-success' : 'text-danger');
+      }
     } else {
       hdrEl.textContent = '—';
       hdrEl.className = 'text-muted';
+      if (hdrPctEl) hdrPctEl.textContent = '';
     }
   }
 

@@ -51,6 +51,23 @@
 <!-- Tab: Açık Pozisyonlar — Grid Widget -->
 <div id="tab-pozisyonlar" {% if active_tab != 'pozisyonlar' %}style="display:none"{% endif %}>
   {% if positions %}
+  <!-- Başlık: Portföy Özeti -->
+  <div class="d-flex align-items-center justify-content-between mb-4" style="background:#f8f9fa;padding:12px;border-radius:6px;border-left:4px solid #007bff">
+    <h5 class="mb-0" style="color:#333">Açık Pozisyonlar</h5>
+    <div class="d-flex gap-4 align-items-end small">
+      <div>
+        <span class="text-muted">Toplam Maliyet:</span> <strong id="fiy-pc-total-cost" class="price-sensitive">—</strong>
+      </div>
+      <div>
+        <span class="text-muted">Gerçekleşmemiş K/Z:</span> <strong id="fiy-pc-unrealized" class="price-sensitive">—</strong>
+        <span id="fiy-pc-unrealized-pct" class="small ms-1"></span>
+      </div>
+      <div>
+        <span class="text-muted">Günlük:</span> <strong id="fiy-pc-daily" class="price-sensitive">—</strong>
+        <span id="fiy-pc-daily-pct" class="small ms-1"></span>
+      </div>
+    </div>
+  </div>
   <!-- Gizli sembol paneli — kart üzerindeki çark içinden gizlenenler buradan geri açılır -->
   <div id="pc-hidden-wrap" class="d-none mb-2">
     <div id="pc-hidden-bar"></div>
@@ -982,6 +999,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── DOM güncelle — hem card hem tr destekler ─────────────────────────────────
 function updatePriceRows(prices) {
+  let pcTotalCost = 0, pcTotalUnreal = 0, pcTotalDaily = 0;
+  let pcUnrValid = true, pcDailyValid = true;
+
   document.querySelectorAll('[data-symbol]').forEach(el => {
     // Sadece direkt veri taşıyan elementleri işle (tr veya .pos-card)
     if (!el.matches('tr[data-symbol], .pos-card[data-symbol]')) return;
@@ -1026,10 +1046,21 @@ function updatePriceRows(prices) {
     // Piyasa Değeri + K/Z + Günlük K/Z
     const qty  = parseFloat(el.dataset.qty  || '0');
     const cost = parseFloat(el.dataset.cost || '0');
+    const isCard = el.classList.contains('pos-card');
+
+    if (isCard) {
+      // pos-card için toplam hesabına katılır
+      pcTotalCost += cost;
+    }
+
     if (qty > 0 && p.current_price != null) {
       const mv   = qty * p.current_price;
       const upnl = mv - cost;
       const upct = cost > 0 ? upnl / cost * 100 : null;
+
+      if (isCard) {
+        pcTotalUnreal += upnl;
+      }
 
       const mvEl = el.querySelector('[data-field="market-value"]');
       if (mvEl) mvEl.textContent = '$' + mv.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
@@ -1052,6 +1083,10 @@ function updatePriceRows(prices) {
         const dailyPnl = mv - prevMv;
         const dailyPct = p.change_pct;
 
+        if (isCard) {
+          pcTotalDaily += dailyPnl;
+        }
+
         const dpEl = el.querySelector('[data-field="daily-pnl"]');
         if (dpEl) {
           dpEl.textContent = (dailyPnl >= 0 ? '+' : '') + '$' + Math.abs(dailyPnl).toFixed(0);
@@ -1062,7 +1097,11 @@ function updatePriceRows(prices) {
           dppEl.textContent = (dailyPct >= 0 ? '+' : '') + dailyPct.toFixed(2) + '%';
           dppEl.className = 'pc-cell-val ' + (dailyPct >= 0 ? 'text-success' : 'text-danger');
         }
+      } else if (isCard && p.prev_close == null) {
+        pcDailyValid = false;
       }
+    } else if (isCard) {
+      pcUnrValid = false;
     }
 
     // Market state badge
@@ -1315,6 +1354,50 @@ function updatePriceRows(prices) {
       durumEl.innerHTML = html;
     }
   });
+
+  // ── Fiyatlar sayfasında Açık Pozisyonlar başlık güncellemeleri ──
+  const fiyPcCostEl = document.getElementById('fiy-pc-total-cost');
+  const fiyPcUnrealEl = document.getElementById('fiy-pc-unrealized');
+  const fiyPcUnrealPctEl = document.getElementById('fiy-pc-unrealized-pct');
+  const fiyPcDailyEl = document.getElementById('fiy-pc-daily');
+  const fiyPcDailyPctEl = document.getElementById('fiy-pc-daily-pct');
+
+  if (fiyPcCostEl) {
+    fiyPcCostEl.textContent = '$' + pcTotalCost.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+  }
+  if (fiyPcUnrealEl) {
+    if (pcUnrValid) {
+      fiyPcUnrealEl.textContent = (pcTotalUnreal >= 0 ? '+' : '') + '$' + Math.abs(pcTotalUnreal).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+      fiyPcUnrealEl.className = 'price-sensitive ' + (pcTotalUnreal >= 0 ? 'text-success' : 'text-danger');
+      // Yüzde
+      if (fiyPcUnrealPctEl && pcTotalCost > 0) {
+        const upct = (pcTotalUnreal / pcTotalCost * 100);
+        fiyPcUnrealPctEl.textContent = '(' + (upct >= 0 ? '+' : '') + upct.toFixed(2) + '%)';
+        fiyPcUnrealPctEl.className = 'small ms-1 ' + (pcTotalUnreal >= 0 ? 'text-success' : 'text-danger');
+      }
+    } else {
+      fiyPcUnrealEl.textContent = '—';
+      fiyPcUnrealEl.className = 'price-sensitive text-muted';
+      if (fiyPcUnrealPctEl) fiyPcUnrealPctEl.textContent = '';
+    }
+  }
+  if (fiyPcDailyEl) {
+    if (pcDailyValid) {
+      fiyPcDailyEl.textContent = (pcTotalDaily >= 0 ? '+' : '') + '$' + Math.abs(pcTotalDaily).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0});
+      fiyPcDailyEl.className = 'price-sensitive ' + (pcTotalDaily >= 0 ? 'text-success' : 'text-danger');
+      // Günlük yüzde
+      if (fiyPcDailyPctEl) {
+        // Günlük % = Daily PnL / (prev maliyet toplamı) — burada basit alınan tüm semboller için avg daily %
+        const avgDailyPct = (pcTotalCost > 0 && pcTotalDaily > 0) ? (pcTotalDaily / (pcTotalCost - pcTotalUnreal) * 100 || 0) : 0;
+        fiyPcDailyPctEl.textContent = '(' + (avgDailyPct >= 0 ? '+' : '') + avgDailyPct.toFixed(2) + '%)';
+        fiyPcDailyPctEl.className = 'small ms-1 ' + (pcTotalDaily >= 0 ? 'text-success' : 'text-danger');
+      }
+    } else {
+      fiyPcDailyEl.textContent = '—';
+      fiyPcDailyEl.className = 'price-sensitive text-muted';
+      if (fiyPcDailyPctEl) fiyPcDailyPctEl.textContent = '';
+    }
+  }
 }
 
 function setCell(row, field, text) {
