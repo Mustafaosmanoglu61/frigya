@@ -34,8 +34,7 @@ async def ingest_file(request: Request, payload: IngestPayload):
     portfolio = request.session.get("portfolio")
     if not portfolio:
         raise HTTPException(400, "Önce bir portföy seçin")
-    if is_super(portfolio):
-        raise HTTPException(400, "Süper portföye içe aktarma yapılamaz, gerçek bir portföy seçin")
+    # Super portföy'den işlem yapılabilir — tüm portföylere yayılır (aşağıya bak)
 
     filename = payload.filename or "upload"
 
@@ -62,12 +61,27 @@ async def ingest_file(request: Request, payload: IngestPayload):
     except Exception as e:
         raise HTTPException(422, str(e))
 
-    for row in rows:
-        row["portfolio"] = portfolio
-        row["user_id"] = user_id
+    # Super portföy'den işlem yapılıyorsa, tüm portföylere dağıt
+    from portfolio_helper import get_portfolios
+    target_portfolios = [portfolio]
+    if is_super(portfolio):
+        # Tüm user portföylerini al (super hariç)
+        all_pf = get_portfolios(user_id)
+        target_portfolios = [pf for pf in all_pf if pf != portfolio]
+        if not target_portfolios:
+            raise HTTPException(400, "Dağıtılacak portföy yok (sadece süper portföy var)")
+
+    # Her portföy için ayrı rows ekle
+    all_rows_to_insert = []
+    for pf in target_portfolios:
+        for row in rows:
+            row_copy = row.copy()
+            row_copy["portfolio"] = pf
+            row_copy["user_id"] = user_id
+            all_rows_to_insert.append(row_copy)
 
     with database.db() as conn:
-        inserted, skipped = ingestion.insert_rows(rows, conn)
+        inserted, skipped = ingestion.insert_rows(all_rows_to_insert, conn)
         conn.execute(
             """INSERT INTO ingestion_log
                (filename, file_type, rows_found, rows_inserted, rows_skipped, status, user_id)

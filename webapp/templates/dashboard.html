@@ -1598,5 +1598,181 @@ async function createFirstPortfolio() {
   }
 }
 {% endif %}
+
+// ── Grafik widget'ları — çift tıkla tam ekran ────────────────────────────────
+// Kart DOM düğümü overlay'e TAŞINIR (klonlanmaz) — böylece Chart.js örnekleri ve
+// sekme event handler'ları aynen çalışmaya devam eder. Kartın eski yerine aynı
+// yükseklikte bir yer tutucu konur; sayfa düzeni bozulmadığı için kapanışta
+// scroll pozisyonu birebir korunur.
+(function () {
+  const OVERLAY_ID = 'chart-fs-overlay';
+  let _fsCard = null;      // tam ekrandaki kart
+  let _fsSlot = null;      // kartın geldiği yerdeki yer tutucu
+  let _fsScrollY = 0;      // açılış anındaki scroll pozisyonu
+  let _fsRatios = [];      // [{chart, maintainAspectRatio}] — geri yükleme için
+
+  function overlay() {
+    let el = document.getElementById(OVERLAY_ID);
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = OVERLAY_ID;
+    el.className = 'chart-fs-overlay';
+    el.innerHTML =
+      '<div class="chart-fs-bar">' +
+        '<span class="chart-fs-hint"><i class="bi bi-arrows-fullscreen me-1"></i>' +
+        'Tam ekran — kapatmak için <kbd>ESC</kbd>, çift tık veya ×</span>' +
+        '<button type="button" class="chart-fs-close" aria-label="Kapat" title="Kapat (ESC)">&times;</button>' +
+      '</div>' +
+      '<div class="chart-fs-body"></div>';
+    document.body.appendChild(el);
+    el.querySelector('.chart-fs-close').addEventListener('click', closeFs);
+    // Arka plana (kartın dışına) tıklayınca kapan
+    el.addEventListener('mousedown', function (e) {
+      if (e.target === el || e.target.classList.contains('chart-fs-body')) closeFs();
+    });
+    return el;
+  }
+
+  function eachChart(root, fn) {
+    root.querySelectorAll('canvas').forEach(function (c) {
+      const ch = (window.Chart && Chart.getChart) ? Chart.getChart(c) : null;
+      if (ch) fn(ch);
+    });
+  }
+
+  function openFs(card) {
+    if (_fsCard) return;
+    _fsScrollY = window.scrollY || window.pageYOffset || 0;
+
+    // Yer tutucu — kartın kapladığı alanı koru ki sayfa düzeni kaymasın
+    const rect = card.getBoundingClientRect();
+    _fsSlot = document.createElement('div');
+    _fsSlot.className = 'chart-fs-slot';
+    _fsSlot.style.height = rect.height + 'px';
+    card.parentNode.insertBefore(_fsSlot, card);
+
+    // Sabit en-boy oranlı grafikler tam ekranı doldursun
+    _fsRatios = [];
+    eachChart(card, function (ch) {
+      _fsRatios.push({ ch: ch, keep: ch.options.maintainAspectRatio });
+      ch.options.maintainAspectRatio = false;
+    });
+
+    const ov = overlay();
+    ov.querySelector('.chart-fs-body').appendChild(card);
+    card.classList.add('chart-fs-active');
+    ov.classList.add('open');
+    document.body.classList.add('chart-fs-lock');
+    _fsCard = card;
+
+    requestAnimationFrame(function () { eachChart(card, function (ch) { ch.resize(); }); });
+  }
+
+  function closeFs() {
+    if (!_fsCard) return;
+    const card = _fsCard;
+
+    card.classList.remove('chart-fs-active');
+    _fsSlot.parentNode.replaceChild(card, _fsSlot);   // kartı tam eski yerine koy
+
+    _fsRatios.forEach(function (r) { r.ch.options.maintainAspectRatio = r.keep; });
+    _fsRatios = [];
+
+    const ov = document.getElementById(OVERLAY_ID);
+    if (ov) ov.classList.remove('open');
+    document.body.classList.remove('chart-fs-lock');
+    _fsCard = null; _fsSlot = null;
+
+    // Sayfa açılıştaki yerinde kalsın
+    window.scrollTo(0, _fsScrollY);
+    requestAnimationFrame(function () {
+      eachChart(card, function (ch) { ch.resize(); });
+      window.scrollTo(0, _fsScrollY);
+    });
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && _fsCard) closeFs();
+  });
+
+  function bind() {
+    document.querySelectorAll('.card').forEach(function (card) {
+      if (card.dataset.fsBound) return;
+      if (!card.querySelector('canvas')) return;   // yalnızca grafik içeren kartlar
+      card.dataset.fsBound = '1';
+      card.classList.add('chart-fs-able');
+      card.addEventListener('dblclick', function (e) {
+        // Sekme/buton/link üzerindeki çift tık normal davranışında kalsın
+        if (e.target.closest('a, button, input, select, textarea, .nav-link')) return;
+        e.preventDefault();
+        if (_fsCard) closeFs(); else openFs(card);
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
 </script>
+
+<style>
+/* ── Grafik kartı tam ekran ─────────────────────────────────────────────── */
+.chart-fs-able { cursor: zoom-in; }
+.chart-fs-able .card-header,
+.chart-fs-able .card-body { cursor: auto; }
+
+.chart-fs-overlay {
+  position: fixed; inset: 0; z-index: 1080;
+  display: none; flex-direction: column;
+  padding: 10px 14px 16px;
+  background: rgba(15, 23, 42, .78);
+  backdrop-filter: blur(3px);
+}
+.chart-fs-overlay.open { display: flex; }
+
+.chart-fs-bar {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 2px 2px 10px; color: #fff;
+}
+.chart-fs-hint { font-size: .8rem; opacity: .85; }
+.chart-fs-hint kbd {
+  background: rgba(255,255,255,.18); border-radius: 4px;
+  padding: 1px 5px; font-size: .72rem;
+}
+.chart-fs-close {
+  flex: 0 0 auto;
+  background: transparent; border: 0; color: #fff;
+  font-size: 2rem; line-height: 1; cursor: pointer;
+  width: 42px; height: 42px; border-radius: 8px;
+}
+.chart-fs-close:hover { background: rgba(255,255,255,.16); }
+
+.chart-fs-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.chart-fs-body > .card {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  margin: 0 !important; cursor: auto;
+}
+.chart-fs-body > .card > .card-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+}
+/* Tam ekranda sabit yükseklikleri serbest bırak */
+.chart-fs-active .card-body > div[style*="height"],
+.chart-fs-active .dist-flex,
+.chart-fs-active .dist-chart-wrap {
+  height: auto !important; flex: 1 1 auto; min-height: 0;
+}
+.chart-fs-active .dist-legend { max-height: none; }
+.chart-fs-active canvas { max-height: none !important; }
+
+/* Kart taşınırken sayfa düzeni korunsun (scroll kaymasın) */
+body.chart-fs-lock { overflow: hidden; }
+
+@media (max-width: 768px) {
+  .chart-fs-hint { display: none; }
+  .chart-fs-overlay { padding: 6px 8px 10px; }
+}
+</style>
 {% endblock %}

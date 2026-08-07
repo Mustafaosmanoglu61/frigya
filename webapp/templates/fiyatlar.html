@@ -399,6 +399,11 @@
             {% for pf in (w['portfolios'] or '').split(',') if pf %}
             <span class="badge bg-light text-secondary border">{{ pf }}</span>
             {% endfor %}
+            <button class="btn btn-sm btn-link p-0 ms-2 wl-act-btn text-secondary"
+                    onclick="openTargetModal('{{ w['symbol'] }}', this.closest('tr'))"
+                    title="Hedef Ayarla (tüm portföylere uygulanır)">
+              <i class="bi bi-pencil-square"></i>
+            </button>
             {% else %}
             <button class="btn btn-sm btn-link p-0 me-1 wl-act-btn note-btn position-relative"
                     data-symbol="{{ w['symbol'] }}"

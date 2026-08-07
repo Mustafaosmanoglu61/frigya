@@ -387,14 +387,13 @@ async def watchlist_sil(item_id: int, request: Request):
 
 @router.post("/api/fiyatlar/targets")
 async def targets_upsert(request: Request):
-    """Sembol için hedef/taban fiyat kaydet (upsert)."""
+    """Sembol için hedef/taban fiyat kaydet (upsert).
+    Super portföy'den yapılırsa tüm portföylere uygulanır."""
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
     if not portfolio:
         return JSONResponse({"error": "Portföy seçilmedi"}, status_code=400)
-    if is_super(portfolio):
-        return JSONResponse({"error": "Süper portföyde hedef kaydedilemez, gerçek bir portföy seçin"}, status_code=400)
 
     body = await request.json()
     symbol = body.get("symbol", "").strip().upper()
@@ -412,22 +411,38 @@ async def targets_upsert(request: Request):
     kazanc = float(kazanc) if kazanc not in (None, "", "null") else None
     stop = float(stop) if stop not in (None, "", "null") else None
 
-    database.upsert_symbol_target(user_id, portfolio, symbol, hedef, taban, kazanc, stop)
+    # Super portföy'den yapılıyorsa tüm portföylere upsert et
+    target_portfolios = [portfolio]
+    if is_super(portfolio):
+        from portfolio_helper import get_portfolios
+        all_pf = get_portfolios(user_id)
+        target_portfolios = [pf for pf in all_pf if pf != portfolio]
 
-    return JSONResponse({"ok": True, "symbol": symbol})
+    for pf in target_portfolios:
+        database.upsert_symbol_target(user_id, pf, symbol, hedef, taban, kazanc, stop)
+
+    return JSONResponse({"ok": True, "symbol": symbol, "portfolios_updated": len(target_portfolios)})
 
 
 @router.delete("/api/fiyatlar/targets/{symbol}")
 async def targets_delete(symbol: str, request: Request):
-    """Sembol hedef/taban bilgisini sil."""
+    """Sembol hedef/taban bilgisini sil.
+    Super portföy'den yapılırsa tüm portföylerden silinir."""
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
     if not portfolio:
         return JSONResponse({"ok": True})
+
+    # Super portföy'den yapılıyorsa tüm portföylerden sil
+    target_portfolios = [portfolio]
     if is_super(portfolio):
-        return JSONResponse({"error": "Süper portföyde silme yapılamaz"}, status_code=400)
-    database.delete_symbol_target(user_id, portfolio, symbol.upper())
+        from portfolio_helper import get_portfolios
+        all_pf = get_portfolios(user_id)
+        target_portfolios = [pf for pf in all_pf if pf != portfolio]
+
+    for pf in target_portfolios:
+        database.delete_symbol_target(user_id, pf, symbol.upper())
     return JSONResponse({"ok": True})
 
 

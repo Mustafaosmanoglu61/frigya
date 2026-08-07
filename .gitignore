@@ -5,6 +5,11 @@ webapp/tax.db-wal
 *.db
 *.db-shm
 *.db-wal
+# Yedekler: tax.db.bak-20260714124244 gibi isimler *.db kalıbına UYMAZ —
+# uzantı .bak-<timestamp> olduğu için ayrıca yakalanmalı (gerçek finansal veri içerir)
+*.db.bak*
+*.bak-*
+tax.db.bak*
 
 # Python
 __pycache__/
