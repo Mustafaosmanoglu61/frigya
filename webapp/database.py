@@ -67,7 +67,14 @@ CREATE TABLE IF NOT EXISTS raw_transactions (
                 ) STORED,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS ux_raw_dedup ON raw_transactions(dedup_key);
+-- Dedup kapsamı: (user_id, portfolio, dedup_key)
+-- dedup_key'in kendisi user/portföy içermez; tekillik bu index ile kapsanır.
+-- ESKİ `ux_raw_dedup ON (dedup_key)` (global) KALDIRILDI: bir kullanıcının başka
+-- bir kullanıcının işlemlerini kopyaladığı durumda (birleşik ALL profili) aynı
+-- dedup_key birden çok satırda bulunur, index kurulamaz ve init_db() çöker —
+-- sunucu hiç açılmaz. Kapsam user+portfolio olunca bu durum meşrudur.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_raw_dedup_user
+    ON raw_transactions(user_id, portfolio, dedup_key);
 CREATE INDEX IF NOT EXISTS ix_raw_symbol_date  ON raw_transactions(symbol, tx_date);
 CREATE INDEX IF NOT EXISTS ix_raw_date         ON raw_transactions(tx_date);
 CREATE INDEX IF NOT EXISTS ix_raw_year         ON raw_transactions(source_year);
@@ -570,11 +577,11 @@ def ensure_multitenant_schema(default_user_id: int) -> bool:
             )
             changed = True
 
-        # 5) User-scoped dedup for raw transactions
+        # 5) Dedup kapsamı — asıl iş migrate_dedup_index_scope()'ta.
+        #    DİKKAT: bu fonksiyon başta erken return ediyor (portfolio kolonu varsa),
+        #    dolayısıyla buraya migrate edilmiş veritabanlarında HİÇ gelinmez.
+        #    Her açılışta çalışması gereken adımları buraya EKLEME.
         conn.execute("DROP INDEX IF EXISTS ux_raw_dedup")
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ux_raw_dedup_user ON raw_transactions(user_id, dedup_key)"
-        )
         conn.execute("CREATE INDEX IF NOT EXISTS ix_raw_user ON raw_transactions(user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS ix_raw_user_portfolio ON raw_transactions(user_id, portfolio)")
 
@@ -1020,6 +1027,38 @@ def get_symbol_note_counts(user_id: int) -> "dict[str, int]":
     return {r["symbol"].upper(): r["cnt"] for r in rows}
 
 
+def migrate_dedup_index_scope() -> None:
+    """
+    raw_transactions tekillik kapsamını (user_id, portfolio, dedup_key) yapar.
+
+    NEDEN AYRI BİR FONKSİYON
+        migrate_add_portfolio_columns() portfolio kolonu varsa erken return eder,
+        yani içindeki sonraki adımlar migrate edilmiş veritabanlarında hiç
+        çalışmaz. Bu düzeltmenin her açılışta uygulanması gerektiği için ayrı.
+
+    NE DÜZELTİR
+        1) Eski global `ux_raw_dedup ON (dedup_key)`: dedup_key user/portföy
+           içermediğinden, bir kullanıcı başka kullanıcının işlemlerini
+           kopyaladığında (birleşik ALL profili) aynı anahtar tekrar eder ve
+           index kurulamaz → init_db() çöker, sunucu hiç açılmaz.
+        2) Dar kapsamlı `(user_id, dedup_key)`: ingestion INSERT OR IGNORE
+           kullandığı için, aynı işlemin ikinci bir portföye girişi SESSİZCE
+           düşer — kullanıcı işlemi girdiğini sanır ama kayıt yoktur.
+    """
+    with db() as conn:
+        conn.execute("DROP INDEX IF EXISTS ux_raw_dedup")
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND name='ux_raw_dedup_user'"
+        ).fetchone()
+        if row is not None and "portfolio" in ((row["sql"] or "").lower()):
+            return  # zaten doğru kapsamda
+        conn.execute("DROP INDEX IF EXISTS ux_raw_dedup_user")
+        conn.execute(
+            "CREATE UNIQUE INDEX ux_raw_dedup_user "
+            "ON raw_transactions(user_id, portfolio, dedup_key)"
+        )
+
+
 def migrate_add_cash_transactions() -> None:
     """Idempotent: cash_transactions tablosu yoksa oluşturur.
     Nakit bakiye = yatırma - çekme - alış toplamı + satış toplamı (kullanıcı + portföy bazında)."""
@@ -1134,6 +1173,7 @@ def init_db() -> None:
     migrate_consolidate_watchlist_notes()
     migrate_add_portfolio_notes()
     migrate_add_cash_transactions()
+    migrate_dedup_index_scope()
 
 
 def recompute_fifo() -> dict:
