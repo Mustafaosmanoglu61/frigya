@@ -26,7 +26,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import database
 import auth_service
-from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai, nakit
+from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai, nakit, all_profile
 from portfolio_helper import get_portfolios, create_portfolio, is_super, SUPER_PORTFOLIO
 
 if load_dotenv:
@@ -125,6 +125,7 @@ app.include_router(symbol_notes.router)
 app.include_router(symbol_notes.pf_router)
 app.include_router(ai.router)
 app.include_router(frigya_ai.router)
+app.include_router(all_profile.router)
 
 
 @app.post("/api/session/portfolio")

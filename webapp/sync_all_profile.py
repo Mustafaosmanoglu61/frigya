@@ -204,6 +204,74 @@ def main():
     return uid
 
 
+# ─── Bayatlık tespiti (UI uyarısı için) ──────────────────────────────────────
+#
+# ALL profili bir ANLIK KOPYA olduğundan, kaynaklara yeni kayıt girildiği anda
+# bayatlar. Otomatik senkron YAPILMAZ — bunun yerine arayüz uyarı gösterir ve
+# kullanıcı tek tıkla tetikler. Böylece başka bir kullanıcı sayfadayken beklenmedik
+# bir recompute_fifo() (tüm türetilmiş tabloları truncate eder) tetiklenmez.
+
+def get_target_uid(conn=None):
+    """ALL profilinin user_id'si; profil yoksa None."""
+    def _q(c):
+        r = c.execute("SELECT id FROM users WHERE email=?", (TARGET_EMAIL,)).fetchone()
+        return r["id"] if r else None
+    if conn is not None:
+        return _q(conn)
+    with database.db() as c:
+        return _q(c)
+
+
+# Karşılaştırılan tablolar — hepsi sync tarafından birebir kopyalanır
+_COUNT_TABLES = ("raw_transactions", "cash_transactions")
+
+
+def get_status() -> dict:
+    """
+    ALL profilinin kaynaklarla arasındaki fark.
+
+    Dönen: {exists, uid, stale, last_sync, diffs: {tablo: {source, target, delta}}}
+    'stale' = kaynak satır sayısı hedeften farklı VEYA kaynakta senkron
+    zamanından yeni kayıt var.
+    """
+    with database.db() as conn:
+        uid = get_target_uid(conn)
+        if uid is None:
+            return {"exists": False, "uid": None, "stale": False,
+                    "last_sync": None, "diffs": {}}
+
+        ph = ",".join("?" * len(SRC_IDS))
+        diffs, stale = {}, False
+        for t in _COUNT_TABLES:
+            src = conn.execute(
+                f"SELECT COUNT(*) c FROM {t} WHERE user_id IN ({ph})", tuple(SRC_IDS)
+            ).fetchone()["c"]
+            tgt = conn.execute(
+                f"SELECT COUNT(*) c FROM {t} WHERE user_id=?", (uid,)
+            ).fetchone()["c"]
+            diffs[t] = {"source": src, "target": tgt, "delta": src - tgt}
+            if src != tgt:
+                stale = True
+
+        last_sync = conn.execute(
+            "SELECT MAX(created_at) m FROM raw_transactions WHERE user_id=?", (uid,)
+        ).fetchone()["m"]
+
+        # Sayılar eşit olsa bile kaynakta daha yeni kayıt olabilir (silme + ekleme)
+        if last_sync:
+            newer = conn.execute(
+                f"""SELECT COUNT(*) c FROM raw_transactions
+                    WHERE user_id IN ({ph}) AND created_at > ?""",
+                tuple(SRC_IDS) + (last_sync,),
+            ).fetchone()["c"]
+            if newer:
+                stale = True
+                diffs["newer_rows"] = {"source": newer, "target": 0, "delta": newer}
+
+        return {"exists": True, "uid": uid, "stale": stale,
+                "last_sync": last_sync, "diffs": diffs}
+
+
 if __name__ == "__main__":
     uid = main()
     print(f"\n✓ Birleşik profil hazır — user_id={uid}, email={TARGET_EMAIL}")

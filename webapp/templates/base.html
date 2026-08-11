@@ -193,6 +193,22 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- Birleşik ALL profili — bayatlık uyarısı (JS ile doldurulur, varsayılan gizli).
+       Otomatik senkron YOK: yazma işlemi recompute_fifo() tetiklediği ve tüm
+       kullanıcıların türetilmiş tablolarını etkilediği için yalnızca elle. -->
+  <div id="all-stale-banner" class="alert alert-warning d-none align-items-center gap-2 py-2 px-3 mb-3">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div class="small flex-grow-1">
+      <strong>{{ tr('Birleşik profil bayat') }}</strong> —
+      <span id="all-stale-detail"></span>
+      <span class="text-muted" id="all-stale-lastsync"></span>
+    </div>
+    <button class="btn btn-sm btn-warning fw-semibold" id="all-stale-btn" onclick="syncAllProfile()">
+      <i class="bi bi-arrow-repeat me-1"></i>{{ tr('Şimdi senkronla') }}
+    </button>
+  </div>
+
   {% block content %}{% endblock %}
 </div>
 
@@ -780,12 +796,63 @@ async function initNoteBadges() {
   }
 }
 
+// ── Birleşik ALL profili — bayatlık uyarısı ────────────────────────────────
+// Kaynak profillere (admin / mustafa) yeni kayıt girildiğinde ALL bayatlar.
+// Otomatik senkron BİLEREK yapılmıyor: sync, recompute_fifo() çağırıp tüm
+// kullanıcıların türetilmiş tablolarını yeniden kurar; başka biri o sırada
+// sayfadaysa verisi yarım görünür. Bu yüzden yalnızca uyarı + elle tetik.
+async function checkAllProfileStale() {
+  const banner = document.getElementById('all-stale-banner');
+  if (!banner) return;
+  try {
+    const resp = await fetch('/api/all-profile/status');
+    if (!resp.ok) return;                    // 401 vb. → sessiz
+    const d = await resp.json();
+    if (!d.applicable || !d.stale) { banner.classList.add('d-none'); return; }
+
+    const parts = [];
+    if (d.missing_tx)   parts.push(`${d.missing_tx} işlem`);
+    if (d.missing_cash) parts.push(`${d.missing_cash} nakit hareketi`);
+    document.getElementById('all-stale-detail').textContent =
+      parts.length ? `${parts.join(' ve ')} bu profile henüz aktarılmadı.`
+                   : 'Kaynak profillerde bu profile aktarılmamış değişiklik var.';
+    document.getElementById('all-stale-lastsync').textContent =
+      d.last_sync ? ` (son senkron: ${d.last_sync})` : '';
+    banner.classList.remove('d-none');
+    banner.classList.add('d-flex');
+  } catch (e) { /* sessiz — uyarı bandı kritik değil */ }
+}
+
+async function syncAllProfile() {
+  const btn = document.getElementById('all-stale-btn');
+  const detail = document.getElementById('all-stale-detail');
+  if (!btn) return;
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Senkronlanıyor...';
+  try {
+    const resp = await fetch('/api/all-profile/sync', { method: 'POST' });
+    const d = await resp.json();
+    if (!resp.ok) {
+      detail.textContent = d.error || 'Senkron başarısız.';
+      btn.disabled = false; btn.innerHTML = original;
+      return;
+    }
+    detail.textContent = 'Senkronlandı — sayfa yenileniyor...';
+    setTimeout(() => window.location.reload(), 800);
+  } catch (e) {
+    detail.textContent = 'Bağlantı hatası — senkron yapılamadı.';
+    btn.disabled = false; btn.innerHTML = original;
+  }
+}
+
 // Başlat
 document.addEventListener('DOMContentLoaded', () => {
   checkPortfolioSession();
   initGlobalColumnReordering();
   initPriceEngine();
   initNoteBadges();
+  checkAllProfileStale();
 });
 </script>
 {% block scripts %}{% endblock %}
