@@ -124,6 +124,32 @@ ALT_FILL   = "F5F9FF"  # çok açık mavi — alternatif satır
 
 ## 5. FIFO MOTORU
 
+### 5.0 Ayırt Edici Özellik — İki Maliyet Yöntemi Yan Yana ⭐
+
+Frigya'nın aracı kurum arayüzünden **ayrıştığı** temel tasarım kararı: aynı pozisyon
+için **iki maliyet yöntemini birden** tutar ve gösterir.
+
+| Yöntem | Ne yapar | Nerede kullanılır | Kim kullanır |
+|--------|----------|-------------------|--------------|
+| **FIFO** | Her lotu tarihi + maliyetiyle ayrı tutar, satışta en eskiyi tüketir. Lot tarihi **korunur**. | **Vergi beyanı** (resmi K/Z) | Frigya + aracı kurumun resmi *Vergi Durumu Özeti* |
+| **Ağırlıklı Ortalama** | Tüm lotları tek havuzda eritir, tek ortalama tutar. Lot tarihi **kaybolur**. | Arayüz — "pozisyonum kârda mı?" | Aracı kurumun *Pozisyonlar* ekranı |
+
+**Neden FIFO zorunlu (yapısal sebep, tercih değil):** Türk mevzuatının iki kuralı
+ağırlıklı ortalamayla **matematiksel olarak çalışamaz**:
+- **ÜFE endekslemesi** her lotun *alış tarihini* ister → ortalamada tek alış tarihi yoktur.
+- **TCMB kuru** "işlem gününden önceki gün" ister → her lotun kendi günü gerekir.
+
+Ağırlıklı ortalamaya geçmek USD K/Z'yi değiştirmekle kalmaz, **TRY beyanını üretilemez
+hale getirir**. Bu yüzden hesaplama motoru **her zaman FIFO**, ağırlıklı ortalama yalnızca
+**görüntüleme metriği** olarak sunulur (uzlaştırma kolaylığı için — aracı kurum ekranıyla
+karşılaştırırken yöntem farkı mı yoksa gerçek veri hatası mı ayırt edilir).
+
+> Örnek (illüstratif, XYZ, 10 adet): FIFO $12.00/adet, ağırlıklı ort. $20.00/adet. İkisi de doğru;
+> vergi için FIFO geçerli. "Nötre %" ve uzlaştırma bu ayrımı bilerek kullanmalı.
+
+> **Uyarı:** Nihai beyan detayları (ÜFE eşiği, kur günü) mali müşavirle teyit edilmeli —
+> Frigya lisanslı danışman değil, USD hesap + FIFO altyapısı sunar.
+
 ### Temel Kural
 Her sembol için ayrı bir kuyruk (list). Alışlarda kuyruğa eklenir, satışlarda önden tüketilir.
 
