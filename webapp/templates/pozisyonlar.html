@@ -9,6 +9,7 @@
   <div class="d-flex align-items-center gap-3">
     <div class="text-end" data-portfolio-cost="{{ total_cost }}" data-portfolio-wac="{{ wac_total }}">
       <div class="text-muted small">{{ tr('Toplam Maliyet:') }} <strong class="text-dark price-sensitive">${{ "{:,.2f}".format(total_cost) }}</strong></div>
+      <div class="small mt-1">{{ tr('Mevcut Değer:') }} <strong id="hdr-market-value" class="text-dark price-sensitive">—</strong></div>
       <div class="small mt-1">{{ tr('Gerçekleşmemiş K/Z:') }} <strong id="hdr-unrealized" class="text-muted price-sensitive">—</strong>
         <span id="hdr-unrealized-pct" class="text-muted small ms-1"></span>
       </div>
@@ -578,6 +579,17 @@ function updatePozPrices(prices) {
   const hdrPctEl = document.getElementById('hdr-unrealized-pct');
   const costDiv = document.querySelector('[data-portfolio-cost]');
   const cost = costDiv ? parseFloat(costDiv.dataset.portfolioCost) : 0;
+
+  // Header — toplam Mevcut Değer (piyasa değeri = maliyet + gerçekleşmemiş K/Z)
+  const hdrMvEl = document.getElementById('hdr-market-value');
+  if (hdrMvEl) {
+    if (totalUnrValid) {
+      hdrMvEl.textContent = fmt$(cost + totalUnrealized);
+    } else {
+      hdrMvEl.textContent = '—';
+    }
+  }
+
   if (hdrEl) {
     if (totalUnrValid) {
       hdrEl.textContent = (totalUnrealized >= 0 ? '+' : '-') + fmt$(totalUnrealized);
