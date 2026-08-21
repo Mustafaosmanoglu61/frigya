@@ -46,80 +46,83 @@
        onclick="toggleSymbolFilter('{{ s.symbol }}', event)"
        title="Tabloda filtrele (Shift ile çoklu seçim)">
 
-    <!-- Header -->
-    <div class="pw-header">
-      <div class="pw-symbol-row">
+    <!-- ── KİMLİK + CANLI FİYAT ─────────────────────────────── -->
+    <div class="pw-top">
+      <div class="pw-id">
         <a href="/sembol/{{ s.symbol }}?portfolio={{ current_portfolio }}" class="pw-symbol"
            onclick="event.stopPropagation()">{{ s.symbol }}</a>
+        <span class="pw-meta">{{ s.lot_count }} {{ tr('işlem') }} · {{ s.days_open }}{{ tr('g') }}</span>
+      </div>
+      <div class="pw-live">
         <span class="pw-price price-sensitive" data-symbol="{{ s.symbol }}" data-field="current-price">—</span>
         <span class="pw-change" data-symbol="{{ s.symbol }}" data-field="change-pct">—</span>
       </div>
-      <div class="d-flex align-items-center gap-1">
-        <span class="pw-total-pct badge bg-secondary" data-symbol="{{ s.symbol }}" data-field="total-pct">—</span>
-        <span class="badge bg-secondary">{{ s.lot_count }} {{ tr('işlem') }}</span>
-      </div>
     </div>
 
-    <!-- After-market satırı (görünmez, fiyat gelince açılır) -->
+    <!-- After-market (görünmez, fiyat gelince açılır) -->
     <div class="pw-aftermarket" data-symbol="{{ s.symbol }}" data-field="after-market" style="display:none">
       <span class="badge bg-dark text-warning small" data-field="after-market-label">—</span>
     </div>
 
-    <!-- Stats -->
-    <div class="pw-stats">
-      <div class="pw-stat">
-        <span class="pw-stat-label">{{ tr('Adet') }}</span>
-        <span class="pw-stat-value">{{ s.total_qty | fmtqty }}</span>
+    <!-- ── ÖNE ÇIKAN: GETİRİ ─────────────────────────────────── -->
+    <div class="pw-hero">
+      <div class="pw-hero-main">
+        <span class="pw-hero-label">{{ tr('Gerçekleşmemiş K/Z') }}</span>
+        <div class="pw-hero-row">
+          <span class="pw-hero-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="unrealized-pnl">—</span>
+          <span class="pw-total-pct badge bg-secondary" data-symbol="{{ s.symbol }}" data-field="total-pct">—</span>
+        </div>
       </div>
-      <div class="pw-stat">
-        <span class="pw-stat-label">{{ tr('Ort Maliyet') }}</span>
-        <span class="pw-stat-value price-sensitive">${{ "{:,.2f}".format(s.avg_price) }}</span>
-        {% if s.wac_avg and (s.wac_avg - s.avg_price) | abs > 0.01 %}
-        <span class="pw-wac price-sensitive" title="Ağırlıklı ortalama maliyet (aracı kurum yöntemi). Frigya vergi hesabı FIFO ile ${{ '%.2f'|format(s.avg_price) }}.">
-          <i class="bi bi-bank2"></i>{{ "{:,.2f}".format(s.wac_avg) }}
-        </span>
-        {% endif %}
-      </div>
-      <div class="pw-stat">
-        <span class="pw-stat-label">{{ tr('Maliyet') }}</span>
-        <span class="pw-stat-value price-sensitive">${{ "{:,.0f}".format(s.total_cost) }}</span>
-      </div>
-      <div class="pw-stat">
-        <span class="pw-stat-label">{{ tr('Mevcut') }}</span>
-        <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="market-value">—</span>
+      <div class="pw-hero-aside">
+        <div class="pw-mini">
+          <span class="pw-mini-label">{{ tr('Mevcut') }}</span>
+          <span class="pw-mini-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="market-value">—</span>
+        </div>
+        <div class="pw-mini">
+          <span class="pw-mini-label">{{ tr('Günlük') }}</span>
+          <span class="pw-mini-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="daily-pnl">—</span>
+        </div>
       </div>
     </div>
 
-    <!-- K/Z -->
-    <div class="pw-pnl-row">
-      <div class="pw-stat">
-        <span class="pw-stat-label">{{ tr('Günlük K/Z') }}</span>
-        <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="daily-pnl">—</span>
+    <!-- ── POZİSYON ──────────────────────────────────────────── -->
+    <div class="pw-group">
+      <div class="pw-group-body pw-group-3">
+        <div class="pw-cell">
+          <span class="pw-cell-label">{{ tr('Adet') }}</span>
+          <span class="pw-cell-value">{{ s.total_qty | fmtqty }}</span>
+        </div>
+        <div class="pw-cell">
+          <span class="pw-cell-label">{{ tr('Ort. Maliyet') }}</span>
+          <span class="pw-cell-value price-sensitive">${{ "{:,.2f}".format(s.avg_price) }}</span>
+          {% if s.wac_avg and (s.wac_avg - s.avg_price) | abs > 0.01 %}
+          <span class="pw-wac price-sensitive" title="Ağırlıklı ortalama maliyet (aracı kurum yöntemi). Frigya vergi hesabı FIFO ile ${{ '%.2f'|format(s.avg_price) }}.">
+            <i class="bi bi-bank2"></i>{{ "{:,.2f}".format(s.wac_avg) }}
+          </span>
+          {% endif %}
+        </div>
+        <div class="pw-cell">
+          <span class="pw-cell-label">{{ tr('Maliyet') }}</span>
+          <span class="pw-cell-value price-sensitive">${{ "{:,.0f}".format(s.total_cost) }}</span>
+        </div>
       </div>
-      <div class="pw-stat">
-        <span class="pw-stat-label">{{ tr('Gerçekleşmemiş K/Z') }}</span>
-        <span class="pw-stat-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="unrealized-pnl">—</span>
-      </div>
     </div>
 
-    {% if s.target.get('hedef_fiyat') %}
-    <div class="pw-target-row">
-      <span class="pw-stat-label">Hedef: ${{ "%.2f"|format(s.target.hedef_fiyat) }}</span>
-      <span class="pw-stat-value" data-symbol="{{ s.symbol }}" data-field="hedef-dist"
-            data-hedef="{{ s.target.hedef_fiyat }}">—</span>
-    </div>
-    {% endif %}
-
-    <!-- Tarih -->
-    <div class="pw-date-row">
-      <span>{{ s.earliest_buy }}{% if s.earliest_buy != s.latest_buy %} → {{ s.latest_buy }}{% endif %}</span>
-      <span>{{ s.days_open }}{{ tr('g açık') }}</span>
-    </div>
-
-    {% if s.realized %}
-    <div class="pw-realized-row">
-      {{ tr('Ger. K/Z:') }}&nbsp;<strong class="price-sensitive {% if s.realized.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
-        ${{ "{:+,.0f}".format(s.realized.net_pnl) }}</strong>
+    <!-- ── HEDEF + GEÇMİŞ (alt şerit) ────────────────────────── -->
+    {% if s.target.get('hedef_fiyat') or s.realized %}
+    <div class="pw-foot">
+      {% if s.target.get('hedef_fiyat') %}
+      <span class="pw-foot-item pw-foot-target">
+        <i class="bi bi-bullseye"></i>${{ "%.2f"|format(s.target.hedef_fiyat) }}
+        <b data-symbol="{{ s.symbol }}" data-field="hedef-dist" data-hedef="{{ s.target.hedef_fiyat }}">—</b>
+      </span>
+      {% endif %}
+      {% if s.realized %}
+      <span class="pw-foot-item">
+        {{ tr('Ger. K/Z') }}
+        <b class="price-sensitive {% if s.realized.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">${{ "{:+,.0f}".format(s.realized.net_pnl) }}</b>
+      </span>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -494,7 +497,8 @@ function updatePozPrices(prices) {
       : p.change_pct;
     if (chgEl && dispChg != null) {
       chgEl.textContent = (dispChg >= 0 ? '+' : '') + dispChg.toFixed(2) + '%';
-      chgEl.className = 'pw-change ' + (dispChg >= 0 ? 'text-success' : 'text-danger');
+      chgEl.classList.remove('text-success', 'text-danger');
+      chgEl.classList.add(dispChg >= 0 ? 'text-success' : 'text-danger');
     }
 
     // After-market gösterimi
@@ -529,14 +533,19 @@ function updatePozPrices(prices) {
       const upEl = w.querySelector('[data-field="unrealized-pnl"]');
       if (upEl) {
         upEl.textContent = (upnl >= 0 ? '+' : '-') + fmt$(upnl);
-        upEl.className = 'pw-stat-value ' + (upnl >= 0 ? 'text-success' : 'text-danger');
+        upEl.classList.remove('text-success', 'text-danger');
+        upEl.classList.add(upnl >= 0 ? 'text-success' : 'text-danger');
       }
+      // Kart kenar rengi — kâr/zarar durumuna göre
+      w.classList.remove('pw-profit', 'pw-loss');
+      w.classList.add(upnl >= 0 ? 'pw-profit' : 'pw-loss');
 
       // Toplam K/Z %  (#8)
       const pctBadge = w.querySelector('[data-field="total-pct"]');
       if (pctBadge) {
         pctBadge.textContent = (upct >= 0 ? '+' : '') + upct.toFixed(1) + '%';
-        pctBadge.className = 'pw-total-pct badge ' + (upct >= 0 ? 'bg-success' : 'bg-danger');
+        pctBadge.classList.remove('bg-secondary', 'bg-success', 'bg-danger', 'text-success', 'text-danger');
+        pctBadge.classList.add(upct >= 0 ? 'bg-success' : 'bg-danger');
       }
 
       // Günlük K/Z — bugün alınan paylar dünkü kapanıştan değil alış
@@ -553,7 +562,8 @@ function updatePozPrices(prices) {
         const dpEl = w.querySelector('[data-field="daily-pnl"]');
         if (dpEl) {
           dpEl.textContent = (dpnl >= 0 ? '+' : '-') + fmt$(dpnl);
-          dpEl.className = 'pw-stat-value ' + (dpnl >= 0 ? 'text-success' : 'text-danger');
+          dpEl.classList.remove('text-success', 'text-danger');
+          dpEl.classList.add(dpnl >= 0 ? 'text-success' : 'text-danger');
         }
       } else {
         totalDailyValid = false;  // bir sembolün önceki kapanışı yoksa toplam eksik
@@ -566,7 +576,8 @@ function updatePozPrices(prices) {
         if (hedef > 0) {
           const dist = ((hedef - cur) / cur * 100);
           hEl.textContent = (dist >= 0 ? '↑' : '↓') + Math.abs(dist).toFixed(1) + '%';
-          hEl.className = 'pw-stat-value ' + (dist > 0 ? 'text-primary' : 'text-success');
+          hEl.classList.remove('text-primary', 'text-success');
+          hEl.classList.add(dist > 0 ? 'text-primary' : 'text-success');
         }
       }
     } else {
