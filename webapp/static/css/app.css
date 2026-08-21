@@ -458,28 +458,23 @@ th.drag-over { border-left: 3px solid #0d6efd !important; background: rgba(13,11
 .pw-change { font-size: 0.75rem; font-weight: 600; margin-left: 3px; }
 .pw-aftermarket { margin: 4px 0 0; font-size: 0.72rem; text-align: right; }
 
-/* (2) Öne çıkan getiri — kartın odağı */
-.pw-hero {
-  display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  margin: 10px 0; padding: 8px 10px;
-  background: #f8fafc; border-radius: 8px;
-}
-.pw-hero-main { display: flex; flex-direction: column; min-width: 0; }
-.pw-hero-label { font-size: 0.64rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3px; }
-.pw-hero-row { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
-.pw-hero-value { font-size: 1.3rem; font-weight: 700; line-height: 1; }
-.pw-total-pct { font-size: 0.66rem; font-weight: 600; }
-.pw-hero-aside { display: flex; flex-direction: column; gap: 3px; text-align: right; }
-.pw-mini { display: flex; justify-content: flex-end; align-items: baseline; gap: 5px; }
-.pw-mini-label { font-size: 0.62rem; color: #94a3b8; text-transform: uppercase; }
-.pw-mini-value { font-size: 0.82rem; font-weight: 600; }
+/* (2) Odak — büyük tek metrik (A düzeni) */
+.pw-focus { margin: 12px 0 10px; }
+.pw-focus-label { font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3px; }
+.pw-focus-row { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }
+.pw-focus-value { font-size: 1.75rem; font-weight: 700; line-height: 1.05; letter-spacing: -0.3px; }
+.pw-focus-pct { font-size: 1rem; font-weight: 600; }
 
-/* (3) Pozisyon detayı */
-.pw-group-body { display: grid; gap: 4px 10px; }
-.pw-group-3 { grid-template-columns: 1fr 1fr 1fr; }
-.pw-cell { display: flex; flex-direction: column; min-width: 0; }
-.pw-cell-label { font-size: 0.62rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.3px; }
-.pw-cell-value { font-size: 0.9rem; font-weight: 600; }
+/* (3) Detay satırları — sakin, etiket sol / değer sağ */
+.pw-lines { display: flex; flex-direction: column; }
+.pw-line {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0; font-size: 0.85rem;
+  border-top: 1px solid #f1f5f9;
+}
+.pw-line-lbl { color: #64748b; }
+.pw-line-val { font-weight: 600; text-align: right; }
+.pw-unit { font-size: 0.72rem; font-weight: 400; color: #cbd5e1; }
 
 /* (4) Hedef + geçmiş alt şeridi */
 .pw-foot {
@@ -491,6 +486,28 @@ th.drag-over { border-left: 3px solid #0d6efd !important; background: rgba(13,11
 .pw-foot-item b { font-weight: 700; }
 .pw-foot-target { color: #2563eb; }
 .pw-foot-target i { margin-right: 2px; }
+
+/* ── Açık işlem tablosu — C kompakt satır stili ─────────────────── */
+#pos-table { font-variant-numeric: tabular-nums; border-collapse: collapse; }
+#pos-table thead th {
+  font-size: 0.68rem; font-weight: 500; color: #94a3b8;
+  text-transform: uppercase; letter-spacing: 0.3px;
+  padding: 7px 10px; border: none; border-bottom: 1px solid #e2e8f0;
+  background: transparent;
+}
+#pos-table tbody td { padding: 9px 10px; border: none; vertical-align: middle; }
+#pos-table tbody tr { border-bottom: 0.5px solid #f1f5f9; }
+/* Sembol grubu başı — üstte belirgin ayrım (yeni sembol satırı) */
+#pos-table tbody tr.border-top { border-top: 1px solid #e2e8f0 !important; }
+/* Sol renk şeridi — ilk hücrede, kâr/zarar (JS: lot-up/lot-down) */
+#pos-table tbody tr.lot-up   td:first-child { box-shadow: inset 3px 0 0 #16a34a; }
+#pos-table tbody tr.lot-down td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+#pos-table tbody tr td:first-child { padding-left: 13px; }
+[data-theme="dark"] #pos-table thead th { color: #64748b; border-bottom-color: #334155; }
+[data-theme="dark"] #pos-table tbody tr { border-bottom-color: #1e293b; }
+[data-theme="dark"] #pos-table tbody tr.border-top { border-top-color: #334155 !important; }
+[data-theme="dark"] #pos-table tbody tr.lot-up   td:first-child { box-shadow: inset 3px 0 0 #22c55e; }
+[data-theme="dark"] #pos-table tbody tr.lot-down td:first-child { box-shadow: inset 3px 0 0 #ef4444; }
 
 /* Column drag feedback */
 .col-draggable { cursor: grab; transition: opacity 0.2s; user-select: none; }
@@ -508,9 +525,10 @@ th.drag-over { border-left: 3px solid #0d6efd !important; background: rgba(13,11
 [data-theme="dark"] .pos-widget.pw-selected { box-shadow: 0 0 0 3px rgba(96,165,250,0.25); border-left-color: #60a5fa; }
 [data-theme="dark"] .pos-widget.pw-dimmed { opacity: 0.35; }
 [data-theme="dark"] .pw-symbol { color: #60a5fa; }
-[data-theme="dark"] .pw-hero { background: #0f172a; }
-[data-theme="dark"] .pw-meta, [data-theme="dark"] .pw-hero-label,
-[data-theme="dark"] .pw-mini-label, [data-theme="dark"] .pw-cell-label { color: #64748b; }
+[data-theme="dark"] .pw-meta, [data-theme="dark"] .pw-focus-label { color: #64748b; }
+[data-theme="dark"] .pw-line { border-top-color: #334155; }
+[data-theme="dark"] .pw-line-lbl { color: #94a3b8; }
+[data-theme="dark"] .pw-unit { color: #475569; }
 [data-theme="dark"] .pw-foot { border-top-color: #334155; color: #94a3b8; }
 
 /* ═══════════════════════════════════════════════════════════
