@@ -7,13 +7,23 @@
     <i class="bi bi-wallet2 me-2 text-primary"></i>{{ tr('Açık Pozisyonlar') }}
   </h4>
   <div class="d-flex align-items-center gap-3">
-    <div class="text-end" data-portfolio-cost="{{ total_cost }}">
+    <div class="text-end" data-portfolio-cost="{{ total_cost }}" data-portfolio-wac="{{ wac_total }}">
       <div class="text-muted small">{{ tr('Toplam Maliyet:') }} <strong class="text-dark price-sensitive">${{ "{:,.2f}".format(total_cost) }}</strong></div>
       <div class="small mt-1">{{ tr('Gerçekleşmemiş K/Z:') }} <strong id="hdr-unrealized" class="text-muted price-sensitive">—</strong>
         <span id="hdr-unrealized-pct" class="text-muted small ms-1"></span>
       </div>
       <div class="small mt-1">{{ tr('Günlük K/Z:') }} <strong id="hdr-daily" class="text-muted price-sensitive">—</strong>
         <span id="hdr-daily-pct" class="text-muted small ms-1"></span>
+      </div>
+      <!-- Ağırlıklı ortalama (aracı kurum yöntemi) — ikincil, uzlaştırma için -->
+      <div class="hdr-wac-line mt-1 pt-1" title="Aracı kurumun kullandığı ağırlıklı ortalama maliyet yöntemi. Frigya'nın resmi hesabı FIFO'dur; bu satır yalnızca kurum ekranıyla karşılaştırma içindir.">
+        <i class="bi bi-bank2"></i>
+        <span>{{ tr('Ağ. Ort.') }}</span>
+        <span class="hdr-wac-sep">·</span>
+        <span class="text-muted">{{ tr('Maliyet') }}</span> <strong class="price-sensitive">${{ "{:,.0f}".format(wac_total) }}</strong>
+        <span class="hdr-wac-sep">·</span>
+        <span class="text-muted">K/Z</span> <strong id="hdr-wac-unrealized" class="price-sensitive">—</strong>
+        <span id="hdr-wac-pct" class="ms-1"></span>
       </div>
     </div>
     <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="Fiyatları gizle / göster">
@@ -63,6 +73,11 @@
       <div class="pw-stat">
         <span class="pw-stat-label">{{ tr('Ort Maliyet') }}</span>
         <span class="pw-stat-value price-sensitive">${{ "{:,.2f}".format(s.avg_price) }}</span>
+        {% if s.wac_avg and (s.wac_avg - s.avg_price) | abs > 0.01 %}
+        <span class="pw-wac price-sensitive" title="Ağırlıklı ortalama maliyet (aracı kurum yöntemi). Frigya vergi hesabı FIFO ile ${{ '%.2f'|format(s.avg_price) }}.">
+          <i class="bi bi-bank2"></i>{{ "{:,.2f}".format(s.wac_avg) }}
+        </span>
+        {% endif %}
       </div>
       <div class="pw-stat">
         <span class="pw-stat-label">{{ tr('Maliyet') }}</span>
@@ -192,6 +207,33 @@ body.prices-hidden .price-sensitive {
   pointer-events: none;
 }
 #price-toggle-btn { min-width: 34px; }
+
+/* Ağırlıklı ortalama — kart içi ikincil satır (FIFO ana değerin altında, silik) */
+.pw-wac {
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  color: #94a3b8;
+  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+.pw-wac i { font-size: 0.62rem; margin-right: 2px; opacity: 0.75; }
+[data-theme="dark"] .pw-wac { color: #64748b; }
+
+/* Ağırlıklı ortalama — header özet satırı (FIFO bloğundan ince çizgiyle ayrık) */
+.hdr-wac-line {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  border-top: 1px dashed rgba(148,163,184,0.35);
+  cursor: help;
+  white-space: nowrap;
+}
+.hdr-wac-line i { font-size: 0.66rem; margin-right: 3px; opacity: 0.8; }
+.hdr-wac-line strong { color: #64748b; font-weight: 600; }
+.hdr-wac-sep { color: rgba(148,163,184,0.5); margin: 0 4px; }
+[data-theme="dark"] .hdr-wac-line { color: #64748b; border-top-color: rgba(100,116,139,0.4); }
+[data-theme="dark"] .hdr-wac-line strong { color: #94a3b8; }
 </style>
 <script>
 function togglePrices() {
@@ -534,13 +576,12 @@ function updatePozPrices(prices) {
   // Header toplam gerçekleşmemiş
   const hdrEl = document.getElementById('hdr-unrealized');
   const hdrPctEl = document.getElementById('hdr-unrealized-pct');
+  const costDiv = document.querySelector('[data-portfolio-cost]');
+  const cost = costDiv ? parseFloat(costDiv.dataset.portfolioCost) : 0;
   if (hdrEl) {
     if (totalUnrValid) {
       hdrEl.textContent = (totalUnrealized >= 0 ? '+' : '-') + fmt$(totalUnrealized);
       hdrEl.className = 'fw-bold ' + (totalUnrealized >= 0 ? 'text-success' : 'text-danger');
-      // Yüzde hesabı — template'ten data attribute alınan toplam maliyet
-      const costDiv = document.querySelector('[data-portfolio-cost]');
-      const cost = costDiv ? parseFloat(costDiv.dataset.portfolioCost) : 0;
       if (cost > 0 && hdrPctEl) {
         const pct = (totalUnrealized / cost * 100);
         hdrPctEl.textContent = '(' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
@@ -550,6 +591,30 @@ function updatePozPrices(prices) {
       hdrEl.textContent = '—';
       hdrEl.className = 'text-muted';
       if (hdrPctEl) hdrPctEl.textContent = '';
+    }
+  }
+
+  // Header — ağırlıklı ortalama gerçekleşmemiş K/Z (kurum yöntemi)
+  // Piyasa değeri yöntemden bağımsız: mv = FIFO_maliyet + FIFO_K/Z.
+  // Ağ.ort K/Z = mv - ağ.ort_maliyet.
+  const hdrWacEl = document.getElementById('hdr-wac-unrealized');
+  const hdrWacPctEl = document.getElementById('hdr-wac-pct');
+  const wac = costDiv ? parseFloat(costDiv.dataset.portfolioWac) : 0;
+  if (hdrWacEl) {
+    if (totalUnrValid && wac > 0) {
+      const mv = cost + totalUnrealized;
+      const wacUnr = mv - wac;
+      hdrWacEl.textContent = (wacUnr >= 0 ? '+' : '-') + fmt$(wacUnr);
+      hdrWacEl.classList.remove('text-muted');
+      hdrWacEl.classList.add(wacUnr >= 0 ? 'text-success' : 'text-danger');
+      if (hdrWacPctEl) {
+        const wpct = wacUnr / wac * 100;
+        hdrWacPctEl.textContent = '(' + (wpct >= 0 ? '+' : '') + wpct.toFixed(2) + '%)';
+        hdrWacPctEl.className = 'ms-1 ' + (wacUnr >= 0 ? 'text-success' : 'text-danger');
+      }
+    } else {
+      hdrWacEl.textContent = '—';
+      if (hdrWacPctEl) hdrWacPctEl.textContent = '';
     }
   }
 

@@ -22,6 +22,49 @@ def _days_since(date_str: str) -> int:
         return 0
 
 
+def _weighted_avg_costs(conn, user_id, pf_sql, pf_params):
+    """
+    Açık pozisyonlar için AĞIRLIKLI ORTALAMA maliyet bazı.
+
+    Frigya'nın hesaplama motoru FIFO'dur (vergi zorunluluğu — bkz. CLAUDE.md §5.0);
+    bu yalnızca aracı kurum ekranıyla uzlaştırma için GÖRÜNTÜLEME metriğidir.
+    FIFO en eski lotu tüketir; ağırlıklı ortalama havuzu orantılı eritir → açık
+    pozisyon ADEDİ aynı, yalnızca maliyet bazı (dolayısıyla ort. maliyet) farklıdır.
+
+    Döner: {SYMBOL_UPPER: ağırlıklı_ort_açık_maliyet_bazı}
+    Portföy bazında ayrı hesaplanıp sembolde toplanır (FIFO ile aynı granülarite).
+    """
+    from collections import defaultdict
+    rows = conn.execute(f"""
+        SELECT portfolio, upper(symbol) AS sym, direction, quantity, total
+        FROM raw_transactions
+        WHERE user_id = ? {pf_sql}
+        ORDER BY portfolio, upper(symbol), tx_date,
+                 CASE WHEN direction='Alış' THEN 0 ELSE 1 END, id
+    """, tuple([user_id] + pf_params)).fetchall()
+
+    # (portföy, sembol) → yürüyen havuz
+    pool = defaultdict(lambda: {"pos": 0.0, "cost": 0.0})
+    for r in rows:
+        key = (r["portfolio"], r["sym"])
+        p = pool[key]
+        if r["direction"] == "Alış":
+            p["pos"] += r["quantity"]
+            p["cost"] += r["total"]
+        else:
+            if p["pos"] > 1e-9:
+                p["cost"] -= p["cost"] / p["pos"] * r["quantity"]
+            p["pos"] -= r["quantity"]
+            if p["pos"] < 1e-9:            # pozisyon kapandı → havuz sıfırlanır
+                p["pos"], p["cost"] = 0.0, 0.0
+
+    out = defaultdict(float)
+    for (pf, sym), p in pool.items():
+        if p["pos"] > 1e-9:
+            out[sym] += p["cost"]
+    return out
+
+
 @router.get("/pozisyonlar", response_class=HTMLResponse)
 async def pozisyonlar(request: Request, portfolio: str = Query(None)):
     user = auth_service.require_current_user(request)
@@ -82,12 +125,16 @@ async def pozisyonlar(request: Request, portfolio: str = Query(None)):
 
             # Hedef fiyatlar — süperde portföye özgü olduğu için boş geçilir
             targets = {} if super_mode else database.get_symbol_targets(user_id, portfolio)
+
+            # Ağırlıklı ortalama maliyet bazı (aracı kurum uzlaştırma metriği)
+            wac_map = _weighted_avg_costs(conn, user_id, pf_sql, pf_params)
         else:
             symbols_raw = []
             lots_raw = []
             total_cost = 0
             realized_map = {}
             targets = {}
+            wac_map = {}
 
     # Bugün alınan lotların sembol bazında adet/maliyet toplamı. Günlük K/Z'de
     # bugün alınan paylar dünkü kapanıştan değil ALIŞ fiyatından ölçülmeli
@@ -102,6 +149,7 @@ async def pozisyonlar(request: Request, portfolio: str = Query(None)):
 
     # Enrich symbols with avg_price and days info
     symbols = []
+    wac_total = 0.0            # ağırlıklı ortalama toplam maliyet bazı (header için)
     for s in symbols_raw:
         sym = dict(s)
         sym["avg_price"] = s["total_cost"] / s["total_qty"] if s["total_qty"] > 0 else 0
@@ -111,6 +159,11 @@ async def pozisyonlar(request: Request, portfolio: str = Query(None)):
         t = today_by_symbol.get(s["symbol"], {"qty": 0.0, "cost": 0.0})
         sym["today_qty"] = t["qty"]
         sym["today_cost"] = t["cost"]
+        # Ağırlıklı ortalama: maliyet bazı + birim ort. maliyet
+        wac_cost = wac_map.get(str(s["symbol"]).upper(), 0.0)
+        sym["wac_cost"] = wac_cost
+        sym["wac_avg"] = wac_cost / s["total_qty"] if s["total_qty"] > 0 else 0
+        wac_total += wac_cost
         symbols.append(sym)
 
     # Enrich lots with days_since
@@ -127,6 +180,7 @@ async def pozisyonlar(request: Request, portfolio: str = Query(None)):
         "symbols": symbols,
         "lots": lots,
         "total_cost": total_cost,
+        "wac_total": wac_total,
         "targets": targets,
         "active": "pozisyonlar",
         "portfolios": portfolios,
