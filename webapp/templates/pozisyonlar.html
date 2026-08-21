@@ -64,47 +64,38 @@
       <span class="badge bg-dark text-warning small" data-field="after-market-label">—</span>
     </div>
 
-    <!-- ── ÖNE ÇIKAN: GETİRİ ─────────────────────────────────── -->
-    <div class="pw-hero">
-      <div class="pw-hero-main">
-        <span class="pw-hero-label">{{ tr('Gerçekleşmemiş K/Z') }}</span>
-        <div class="pw-hero-row">
-          <span class="pw-hero-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="unrealized-pnl">—</span>
-          <span class="pw-total-pct badge bg-secondary" data-symbol="{{ s.symbol }}" data-field="total-pct">—</span>
-        </div>
-      </div>
-      <div class="pw-hero-aside">
-        <div class="pw-mini">
-          <span class="pw-mini-label">{{ tr('Mevcut') }}</span>
-          <span class="pw-mini-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="market-value">—</span>
-        </div>
-        <div class="pw-mini">
-          <span class="pw-mini-label">{{ tr('Günlük') }}</span>
-          <span class="pw-mini-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="daily-pnl">—</span>
-        </div>
+    <!-- ── ODAK: büyük Gerçekleşmemiş K/Z ────────────────────── -->
+    <div class="pw-focus">
+      <span class="pw-focus-label">{{ tr('Gerçekleşmemiş K/Z') }}</span>
+      <div class="pw-focus-row">
+        <span class="pw-focus-value price-sensitive" data-symbol="{{ s.symbol }}" data-field="unrealized-pnl">—</span>
+        <span class="pw-focus-pct price-sensitive" data-symbol="{{ s.symbol }}" data-field="total-pct">—</span>
       </div>
     </div>
 
-    <!-- ── POZİSYON ──────────────────────────────────────────── -->
-    <div class="pw-group">
-      <div class="pw-group-body pw-group-3">
-        <div class="pw-cell">
-          <span class="pw-cell-label">{{ tr('Adet') }}</span>
-          <span class="pw-cell-value">{{ s.total_qty | fmtqty }}</span>
-        </div>
-        <div class="pw-cell">
-          <span class="pw-cell-label">{{ tr('Ort. Maliyet') }}</span>
-          <span class="pw-cell-value price-sensitive">${{ "{:,.2f}".format(s.avg_price) }}</span>
+    <!-- ── DETAY SATIRLARI (sakin) ───────────────────────────── -->
+    <div class="pw-lines">
+      <div class="pw-line">
+        <span class="pw-line-lbl">{{ tr('Maliyet') }}</span>
+        <span class="pw-line-val price-sensitive">${{ "{:,.0f}".format(s.total_cost) }}
+          <span class="pw-unit">· ${{ "{:,.2f}".format(s.avg_price) }}/{{ tr('ad') }}</span>
           {% if s.wac_avg and (s.wac_avg - s.avg_price) | abs > 0.01 %}
-          <span class="pw-wac price-sensitive" title="Ağırlıklı ortalama maliyet (aracı kurum yöntemi). Frigya vergi hesabı FIFO ile ${{ '%.2f'|format(s.avg_price) }}.">
-            <i class="bi bi-bank2"></i>{{ "{:,.2f}".format(s.wac_avg) }}
-          </span>
+          <span class="pw-wac" title="Ağırlıklı ortalama maliyet (aracı kurum yöntemi). Frigya vergi hesabı FIFO ile ${{ '%.2f'|format(s.avg_price) }}.">
+            <i class="bi bi-bank2"></i>{{ "{:,.2f}".format(s.wac_avg) }}</span>
           {% endif %}
-        </div>
-        <div class="pw-cell">
-          <span class="pw-cell-label">{{ tr('Maliyet') }}</span>
-          <span class="pw-cell-value price-sensitive">${{ "{:,.0f}".format(s.total_cost) }}</span>
-        </div>
+        </span>
+      </div>
+      <div class="pw-line">
+        <span class="pw-line-lbl">{{ tr('Mevcut Değer') }}</span>
+        <span class="pw-line-val price-sensitive" data-symbol="{{ s.symbol }}" data-field="market-value">—</span>
+      </div>
+      <div class="pw-line">
+        <span class="pw-line-lbl">{{ tr('Günlük K/Z') }}</span>
+        <span class="pw-line-val price-sensitive" data-symbol="{{ s.symbol }}" data-field="daily-pnl">—</span>
+      </div>
+      <div class="pw-line">
+        <span class="pw-line-lbl">{{ tr('Adet') }}</span>
+        <span class="pw-line-val">{{ s.total_qty | fmtqty }}</span>
       </div>
     </div>
 
@@ -212,17 +203,17 @@ body.prices-hidden .price-sensitive {
 }
 #price-toggle-btn { min-width: 34px; }
 
-/* Ağırlıklı ortalama — kart içi ikincil satır (FIFO ana değerin altında, silik) */
+/* Ağırlıklı ortalama — maliyet satırında inline ikincil değer (silik, banka ikonlu) */
 .pw-wac {
-  display: block;
-  font-size: 0.68rem;
-  line-height: 1.2;
+  font-size: 0.72rem;
+  font-weight: 400;
   color: #94a3b8;
-  margin-top: 1px;
+  margin-left: 4px;
   font-variant-numeric: tabular-nums;
   cursor: help;
+  white-space: nowrap;
 }
-.pw-wac i { font-size: 0.62rem; margin-right: 2px; opacity: 0.75; }
+.pw-wac i { font-size: 0.66rem; margin-right: 1px; opacity: 0.75; }
 [data-theme="dark"] .pw-wac { color: #64748b; }
 
 /* Ağırlıklı ortalama — header özet satırı (FIFO bloğundan ince çizgiyle ayrık) */
@@ -540,12 +531,12 @@ function updatePozPrices(prices) {
       w.classList.remove('pw-profit', 'pw-loss');
       w.classList.add(upnl >= 0 ? 'pw-profit' : 'pw-loss');
 
-      // Toplam K/Z %  (#8)
+      // Toplam K/Z %  — K/Z değeriyle aynı renkte düz metin (A odak stili)
       const pctBadge = w.querySelector('[data-field="total-pct"]');
       if (pctBadge) {
         pctBadge.textContent = (upct >= 0 ? '+' : '') + upct.toFixed(1) + '%';
-        pctBadge.classList.remove('bg-secondary', 'bg-success', 'bg-danger', 'text-success', 'text-danger');
-        pctBadge.classList.add(upct >= 0 ? 'bg-success' : 'bg-danger');
+        pctBadge.classList.remove('text-success', 'text-danger');
+        pctBadge.classList.add(upct >= 0 ? 'text-success' : 'text-danger');
       }
 
       // Günlük K/Z — bugün alınan paylar dünkü kapanıştan değil alış
@@ -701,7 +692,8 @@ function updatePozPrices(prices) {
       const dpEl = row.querySelector('.lot-daily-pnl');
       if (dpEl) {
         dpEl.textContent = (dpnl >= 0 ? '+' : '-') + fmt$(dpnl);
-        dpEl.className = 'text-end lot-daily-pnl ' + (dpnl >= 0 ? 'text-success' : 'text-danger');
+        dpEl.classList.remove('text-success', 'text-danger');
+        dpEl.classList.add(dpnl >= 0 ? 'text-success' : 'text-danger');
       }
     }
 
@@ -709,15 +701,20 @@ function updatePozPrices(prices) {
     const tpEl = row.querySelector('.lot-total-pnl');
     if (tpEl) {
       tpEl.textContent = (totalPnl >= 0 ? '+' : '-') + fmt$(totalPnl);
-      tpEl.className = 'text-end lot-total-pnl fw-semibold ' + (totalPnl >= 0 ? 'text-success' : 'text-danger');
+      tpEl.classList.remove('text-success', 'text-danger');
+      tpEl.classList.add(totalPnl >= 0 ? 'text-success' : 'text-danger');
     }
+    // Satır sol renk şeridi — kâr/zarar (C kompakt satır stili)
+    row.classList.remove('lot-up', 'lot-down');
+    row.classList.add(totalPnl >= 0 ? 'lot-up' : 'lot-down');
 
     if (cost > 0) {
       const pct = (totalPnl / cost) * 100;
       const pctEl = row.querySelector('.lot-pnl-pct');
       if (pctEl) {
         pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
-        pctEl.className = 'text-end lot-pnl-pct ' + (pct >= 0 ? 'text-success' : 'text-danger');
+        pctEl.classList.remove('text-success', 'text-danger');
+        pctEl.classList.add(pct >= 0 ? 'text-success' : 'text-danger');
       }
     }
 
@@ -726,7 +723,8 @@ function updatePozPrices(prices) {
       const hpEl = row.querySelector('.lot-hedef-pct');
       if (hpEl) {
         hpEl.textContent = (dist >= 0 ? '↑' : '↓') + Math.abs(dist).toFixed(1) + '%';
-        hpEl.className = 'text-end lot-hedef-pct ' + (dist > 0 ? 'text-primary' : 'text-success');
+        hpEl.classList.remove('text-primary', 'text-success');
+        hpEl.classList.add(dist > 0 ? 'text-primary' : 'text-success');
       }
     }
   });
