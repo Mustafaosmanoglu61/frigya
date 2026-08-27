@@ -400,17 +400,36 @@ th.drag-over { border-left: 3px solid #0d6efd !important; background: rgba(13,11
 [data-theme="dark"] .table-dark th { background-color: #1e293b !important; }
 [data-theme="dark"] .table > tbody > tr:hover { filter: brightness(1.1); }
 
-/* ── Dark mode — semboller / işlemler tablosu okunabilirliği ─────────
-   Sorun: :root'ta tanımlı --kar / --zarar açık pastel renkler
-   .row-kar / .row-zarar / .row-eksik satırlarına !important ile geliyor,
-   dark tema açıkken bile açık kalıyor. Token'ları dark için sessiz
-   tonlara çeviriyoruz; tfoot ve alt satır tonu da mode-aware olsun. */
+/* ── Dark mode — Bootstrap tokenları + özel token'larımız hizalı ─────
+   NEDEN: base.html toggle'ı hem data-theme hem data-bs-theme=dark set eder.
+   Bu sayede Bootstrap kendi .card/.table/.form-control default'larını dark
+   yapar (aksi halde beyaz kalır). Slate palet'imizle uyum için Bootstrap
+   token'larını da burada override ediyoruz — tek renk kaynağı. */
 [data-theme="dark"] {
-  --kar:   rgba(34, 197, 94, 0.10);   /* çok soluk yeşil vurgu */
-  --zarar: rgba(239, 68, 68, 0.12);   /* çok soluk kırmızı vurgu */
+  /* Özel semantik tonlar (row-kar / row-zarar / row-eksik / tfoot / alt) */
+  --kar:   rgba(34, 197, 94, 0.10);
+  --zarar: rgba(239, 68, 68, 0.12);
   --eksik: rgba(234, 179, 8, 0.13);
-  --total: #0f172a;                   /* body ile aynı ton — nötr */
+  --total: #0f172a;
   --alt:   #1e293b;
+}
+/* Bootstrap'in kendi dark palette'ini slate'e çek */
+[data-bs-theme="dark"] {
+  --bs-body-bg: #0f172a;
+  --bs-body-color: #e2e8f0;
+  --bs-card-bg: #1e293b;
+  --bs-card-color: #e2e8f0;
+  --bs-border-color: #334155;
+  --bs-border-color-translucent: rgba(51,65,85,0.6);
+  --bs-secondary-bg: #1e293b;
+  --bs-tertiary-bg: #273449;
+  --bs-emphasis-color: #f1f5f9;
+  --bs-table-bg: transparent;
+  --bs-table-color: #e2e8f0;
+  --bs-table-border-color: #334155;
+  --bs-table-hover-bg: rgba(96,165,250,0.08);
+  --bs-table-hover-color: #f1f5f9;
+  --bs-heading-color: #f1f5f9;
 }
 [data-theme="dark"] .table-total-row td {
   background-color: var(--total) !important;
@@ -420,8 +439,6 @@ th.drag-over { border-left: 3px solid #0d6efd !important; background: rgba(13,11
 [data-theme="dark"] .row-kar td,
 [data-theme="dark"] .row-zarar td,
 [data-theme="dark"] .row-eksik td { color: #e2e8f0; }
-[data-theme="dark"] .table { --bs-table-bg: transparent; background-color: transparent; }
-[data-theme="dark"] .card.border-0.shadow-sm { background: #1e293b; }
 [data-theme="dark"] .card.shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.3) !important; }
 
 /* Satır tıklanabilir (tıkla-detay-aç fonksiyonu için) */

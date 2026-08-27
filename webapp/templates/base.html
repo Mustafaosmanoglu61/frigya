@@ -9,7 +9,13 @@
   <link rel="stylesheet" href="/static/css/app.css">
   <script>
     // Dark mode: hemen uygula (flash önle)
-    if (localStorage.getItem('darkMode') === 'true') document.documentElement.setAttribute('data-theme', 'dark');
+    // ÖNEMLİ: Bootstrap 5.3 kendi bileşen renkleri için data-bs-theme'i okur.
+    // Sadece data-theme ayarlamak Bootstrap'in table/card/form varsayılan
+    // beyaz zeminlerini bırakır — ikisini birden set etmeliyiz.
+    if (localStorage.getItem('darkMode') === 'true') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.setAttribute('data-bs-theme', 'dark');
+    }
   </script>
 </head>
 <body>
@@ -223,9 +229,11 @@ function toggleDarkMode() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   if (isDark) {
     document.documentElement.removeAttribute('data-theme');
+    document.documentElement.removeAttribute('data-bs-theme');
     localStorage.setItem('darkMode', 'false');
   } else {
     document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.setAttribute('data-bs-theme', 'dark');
     localStorage.setItem('darkMode', 'true');
   }
 }
