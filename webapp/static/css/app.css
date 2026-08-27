@@ -399,6 +399,140 @@ th.drag-over { border-left: 3px solid #0d6efd !important; background: rgba(13,11
 [data-theme="dark"] .table-dark { background-color: #1e293b !important; }
 [data-theme="dark"] .table-dark th { background-color: #1e293b !important; }
 [data-theme="dark"] .table > tbody > tr:hover { filter: brightness(1.1); }
+
+/* ── Dark mode — semboller / işlemler tablosu okunabilirliği ─────────
+   Sorun: :root'ta tanımlı --kar / --zarar açık pastel renkler
+   .row-kar / .row-zarar / .row-eksik satırlarına !important ile geliyor,
+   dark tema açıkken bile açık kalıyor. Token'ları dark için sessiz
+   tonlara çeviriyoruz; tfoot ve alt satır tonu da mode-aware olsun. */
+[data-theme="dark"] {
+  --kar:   rgba(34, 197, 94, 0.10);   /* çok soluk yeşil vurgu */
+  --zarar: rgba(239, 68, 68, 0.12);   /* çok soluk kırmızı vurgu */
+  --eksik: rgba(234, 179, 8, 0.13);
+  --total: #0f172a;                   /* body ile aynı ton — nötr */
+  --alt:   #1e293b;
+}
+[data-theme="dark"] .table-total-row td {
+  background-color: var(--total) !important;
+  color: #e2e8f0;
+  border-top-color: #334155;
+}
+[data-theme="dark"] .row-kar td,
+[data-theme="dark"] .row-zarar td,
+[data-theme="dark"] .row-eksik td { color: #e2e8f0; }
+[data-theme="dark"] .table { --bs-table-bg: transparent; background-color: transparent; }
+[data-theme="dark"] .card.border-0.shadow-sm { background: #1e293b; }
+[data-theme="dark"] .card.shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.3) !important; }
+
+/* Satır tıklanabilir (tıkla-detay-aç fonksiyonu için) */
+.sym-row-clickable { cursor: pointer; }
+.sym-row-clickable:hover { background-color: rgba(46,117,182,0.08); }
+[data-theme="dark"] .sym-row-clickable:hover { background-color: rgba(96,165,250,0.10); }
+
+/* ── Genişleyen inline detay satırı ─────────────────────────────
+   Not: .sym-detail-row td arka planını transparan bırakıp panel'i
+   asıl yüzey yapıyoruz. Bootstrap'in table cell bg'sini de sıfırla. */
+.sym-detail-row > td {
+  padding: 0 !important;
+  background: transparent !important;
+  --bs-table-bg: transparent !important;
+  border: none !important;
+}
+.sym-detail-panel {
+  background: #f8fafc;
+  color: #334155;
+  border-top: 2px solid var(--primary-light);
+  border-bottom: 2px solid var(--primary-light);
+  padding: 14px 18px;
+  animation: symDetailIn 0.18s ease-out;
+}
+[data-theme="dark"] .sym-detail-panel {
+  background: #0f172a !important;
+  color: #e2e8f0;
+  border-color: #60a5fa;
+}
+@keyframes symDetailIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Katlanabilir 3 alt-blok (Satışlar / Açık / Alışlar) */
+.sym-block { margin-bottom: 10px; }
+.sym-block:last-child { margin-bottom: 0; }
+.sym-block-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; cursor: pointer;
+  background: #eef2f7; border-radius: 6px;
+  font-size: 0.78rem; font-weight: 500;
+  color: #334155;
+  user-select: none;
+  transition: background 0.15s;
+}
+.sym-block-head:hover { background: #e2e8f0; }
+.sym-block-head .sym-block-caret {
+  font-size: 0.7rem; transition: transform 0.15s;
+  color: #64748b;
+}
+.sym-block[data-open="1"] .sym-block-caret { transform: rotate(90deg); }
+.sym-block-count {
+  margin-left: auto;
+  font-size: 0.68rem;
+  padding: 2px 8px; border-radius: 10px;
+  background: rgba(148,163,184,0.2); color: #475569;
+}
+[data-theme="dark"] .sym-block-head { background: #1e293b; color: #cbd5e1; }
+[data-theme="dark"] .sym-block-head:hover { background: #273449; }
+[data-theme="dark"] .sym-block-count { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+.sym-block-body { display: none; padding: 10px 4px 6px; }
+.sym-block[data-open="1"] .sym-block-body { display: block; }
+
+/* Panel içi tablolar — belirgin border/gridline */
+.sym-tbl {
+  width: 100%; font-size: 0.82rem; font-variant-numeric: tabular-nums;
+  border-collapse: collapse;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sym-tbl th, .sym-tbl td {
+  padding: 6px 10px;
+  border-right: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+}
+.sym-tbl th:last-child, .sym-tbl td:last-child { border-right: none; }
+.sym-tbl tbody tr:last-child td { border-bottom: none; }
+.sym-tbl thead th {
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  text-align: left;
+  border-bottom: 2px solid #cbd5e1;
+}
+.sym-tbl tbody tr:hover { background: rgba(46,117,182,0.06); }
+.sym-tbl .sym-empty { color: #94a3b8; text-align: center; padding: 12px !important; }
+[data-theme="dark"] .sym-tbl {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme="dark"] .sym-tbl th, [data-theme="dark"] .sym-tbl td {
+  border-right-color: #273449;
+  border-bottom-color: #273449;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .sym-tbl thead th {
+  background: #273449;
+  color: #94a3b8;
+  border-bottom-color: #475569;
+}
+[data-theme="dark"] .sym-tbl tbody tr:hover { background: rgba(96,165,250,0.08); }
+[data-theme="dark"] .sym-tbl .sym-empty { color: #64748b; }
+
+.sym-detail-actions {
+  display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px;
+  padding-top: 8px;
+}
 [data-theme="dark"] .modal-content { background: #1e293b; color: #e2e8f0; }
 [data-theme="dark"] .modal-header.bg-primary-custom { background-color: #0f172a !important; }
 [data-theme="dark"] .form-control, [data-theme="dark"] .form-select { background: #334155; border-color: #475569; color: #e2e8f0; }

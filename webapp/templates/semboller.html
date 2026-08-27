@@ -92,12 +92,14 @@
         </thead>
         <tbody>
           {% for r in rows %}
-          <tr class="{% if r.net_pnl >= 0 %}row-kar{% else %}row-zarar{% endif %}">
+          <tr class="sym-row-clickable {% if r.net_pnl >= 0 %}row-kar{% else %}row-zarar{% endif %}"
+              data-symbol="{{ r.symbol }}" onclick="toggleSymDetail(this, event)">
             <td>
-              <a href="/sembol/{{ r.symbol }}" class="symbol-link fw-bold">
+              <span class="fw-bold symbol-link">
+                <i class="bi bi-chevron-right sym-expand-caret" style="font-size:0.7rem;transition:transform 0.15s"></i>
                 {{ r.symbol }}
                 {% if r.eksik_lot_count %}<i class="bi bi-exclamation-triangle text-warning ms-1" title="Eksik lot"></i>{% endif %}
-              </a>
+              </span>
             </td>
             <td>
               <div class="d-flex align-items-center gap-1">
@@ -183,6 +185,148 @@
   document.addEventListener('DOMContentLoaded', () => {
     initTableSort('symbols-table');
   });
+
+  // ── Satıra tıklayınca inline hareket detayı aç/kapat ────────────────
+  // TW tarzı: sembol satırının hemen altına gerçekleşen satışlar + açık
+  // pozisyon + son alışları döken bir panel açar. Aynı satıra tekrar
+  // tıklamak kapatır. Sıralama/silme butonu tıklamalarına engel olmaz.
+  const SYM_YEAR = {{ (yil or 0) | tojson }};
+  const _COLSPAN = 14;
+
+  async function toggleSymDetail(row, event) {
+    if (event && event.target.closest('a, button, input, form, .note-btn')) return;
+    const sym = row.dataset.symbol;
+    const next = row.nextElementSibling;
+    const caret = row.querySelector('.sym-expand-caret');
+
+    if (next && next.classList.contains('sym-detail-row') && next.dataset.for === sym) {
+      next.remove();
+      if (caret) caret.style.transform = '';
+      return;
+    }
+    // Başka açık paneli kapat
+    document.querySelectorAll('.sym-detail-row').forEach(r => r.remove());
+    document.querySelectorAll('.sym-expand-caret').forEach(c => c.style.transform = '');
+
+    const tr = document.createElement('tr');
+    tr.className = 'sym-detail-row';
+    tr.dataset.for = sym;
+    tr.innerHTML = `<td colspan="${_COLSPAN}"><div class="sym-detail-panel">
+      <div class="text-muted small">Yükleniyor…</div></div></td>`;
+    row.after(tr);
+    if (caret) caret.style.transform = 'rotate(90deg)';
+
+    try {
+      const url = '/api/semboller/' + encodeURIComponent(sym) + '/detay'
+        + (SYM_YEAR ? '?yil=' + SYM_YEAR : '');
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(resp.status);
+      const d = await resp.json();
+      tr.querySelector('.sym-detail-panel').innerHTML = renderSymDetail(d);
+    } catch (e) {
+      tr.querySelector('.sym-detail-panel').innerHTML =
+        '<div class="text-danger small">Detay yüklenemedi.</div>';
+    }
+  }
+
+  function _fmt$(v) {
+    return '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  }
+  function _fmtQty(v) {
+    const n = Number(v);
+    return Number.isInteger(n) ? n : n.toFixed(4).replace(/\.?0+$/, '');
+  }
+
+  function renderSymDetail(d) {
+    const sells = d.sells || [], opens = d.opens || [], buys = d.buys || [];
+
+    const sellRows = sells.length ? sells.map(r => {
+      const pnlCls = r.pnl >= 0 ? 'text-success' : 'text-danger';
+      const pctTxt = r.pnl_pct != null ? ((r.pnl_pct*100 >= 0 ? '+' : '') + (r.pnl_pct*100).toFixed(1) + '%') : '—';
+      return `<tr>
+        <td>${r.tx_date}</td>
+        <td class="text-end">${_fmtQty(r.quantity)}</td>
+        <td class="text-end">${_fmt$(r.sale_price)}</td>
+        <td class="text-end">${_fmt$(r.sale_proceeds)}</td>
+        <td class="text-end">${_fmt$(r.cost_basis)}</td>
+        <td class="text-end fw-semibold ${pnlCls}">${r.pnl>=0?'+':''}${_fmt$(r.pnl)}</td>
+        <td class="text-end ${pnlCls}">${pctTxt}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="7" class="sym-empty">Bu dönemde satış yok.</td></tr>`;
+
+    const openRows = opens.length ? opens.map(r => `<tr>
+        <td>${r.buy_date}</td>
+        <td class="text-end">${_fmtQty(r.quantity)}</td>
+        <td class="text-end">${_fmt$(r.buy_price)}</td>
+        <td class="text-end">${_fmt$(r.cost_basis)}</td>
+      </tr>`).join('') : `<tr><td colspan="4" class="sym-empty">Açık pozisyon yok.</td></tr>`;
+
+    const buyRows = buys.length ? buys.map(r => `<tr>
+        <td>${r.tx_date}</td>
+        <td class="text-end">${_fmtQty(r.quantity)}</td>
+        <td class="text-end">${_fmt$(r.price)}</td>
+        <td class="text-end">${_fmt$(r.total)}</td>
+      </tr>`).join('') : `<tr><td colspan="4" class="sym-empty">Alış kaydı yok.</td></tr>`;
+
+    // Katlanabilir 3 blok — hepsi default kapalı (data-open="0").
+    // Kullanıcı başlığa tıklayarak açar. Sayaç sağda badge olarak.
+    return `
+      <div class="sym-block" data-open="0" onclick="_symBlockToggle(this, event)">
+        <div class="sym-block-head">
+          <i class="bi bi-chevron-right sym-block-caret"></i>
+          <i class="bi bi-check2-circle"></i>
+          <span>Gerçekleşen Satışlar</span>
+          <span class="sym-block-count">${sells.length}</span>
+        </div>
+        <div class="sym-block-body">
+          <table class="sym-tbl"><thead><tr>
+            <th>Tarih</th><th class="text-end">Adet</th><th class="text-end">Fiyat</th>
+            <th class="text-end">Gelir</th><th class="text-end">Maliyet</th>
+            <th class="text-end">K/Z</th><th class="text-end">%</th>
+          </tr></thead><tbody>${sellRows}</tbody></table>
+        </div>
+      </div>
+      <div class="sym-block" data-open="0" onclick="_symBlockToggle(this, event)">
+        <div class="sym-block-head">
+          <i class="bi bi-chevron-right sym-block-caret"></i>
+          <i class="bi bi-collection"></i>
+          <span>Açık Pozisyon</span>
+          <span class="sym-block-count">${opens.length} lot</span>
+        </div>
+        <div class="sym-block-body">
+          <table class="sym-tbl"><thead><tr>
+            <th>Alış Tarihi</th><th class="text-end">Adet</th>
+            <th class="text-end">Fiyat</th><th class="text-end">Maliyet</th>
+          </tr></thead><tbody>${openRows}</tbody></table>
+        </div>
+      </div>
+      <div class="sym-block" data-open="0" onclick="_symBlockToggle(this, event)">
+        <div class="sym-block-head">
+          <i class="bi bi-chevron-right sym-block-caret"></i>
+          <i class="bi bi-cart-plus"></i>
+          <span>Son Alışlar</span>
+          <span class="sym-block-count">${buys.length}</span>
+        </div>
+        <div class="sym-block-body">
+          <table class="sym-tbl"><thead><tr>
+            <th>Tarih</th><th class="text-end">Adet</th>
+            <th class="text-end">Fiyat</th><th class="text-end">Tutar</th>
+          </tr></thead><tbody>${buyRows}</tbody></table>
+        </div>
+      </div>
+      <div class="sym-detail-actions">
+        <a href="/sembol/${d.symbol}" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation()">
+          <i class="bi bi-arrow-right-short"></i>Sembol sayfası
+        </a>
+      </div>`;
+  }
+
+  // Blok başlığına tıklandığında aç/kapat — body içindeki tabloya tıklama
+  // toggle'ı tetiklemesin diye e.target head'in içinde mi diye bakıyoruz.
+  function _symBlockToggle(block, event) {
+    if (event && !event.target.closest('.sym-block-head')) return;
+    block.dataset.open = block.dataset.open === '1' ? '0' : '1';
+  }
 
   async function saveRowTag(inputEl) {
     const symbol = inputEl.dataset.symbol;
