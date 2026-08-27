@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import auth_service
@@ -172,3 +172,62 @@ async def sil_islem_semboller(request: Request, tx_id: int, yil: int = Query(def
         url=f"/semboller?yil={year}&portfolio={portfolio or ''}&msg={msg}",
         status_code=303,
     )
+
+
+# ─── GET /api/semboller/{symbol}/detay ────────────────────────────────────
+# Semboller tablosunda satıra tıklayınca açılan inline detay için —
+# tam sayfaya (/sembol/{symbol}) gitmeden özet + son işlemleri döndürür.
+@router.get("/api/semboller/{symbol}/detay")
+async def sembol_detay_inline(request: Request, symbol: str, yil: Optional[int] = Query(default=None)):
+    user = auth_service.require_current_user(request)
+    user_id = int(user["id"])
+    # resolve_portfolio kullanmak süper sentinel'i doğru şekilde ele alır ve
+    # /semboller sayfası ziyaret edildiyse session'daki portföye düşer.
+    portfolio = resolve_portfolio(request, None, user_id)
+    if not portfolio:
+        return JSONResponse({"error": "Portföy seçili değil"}, status_code=400)
+    pf_sql, pf_params = pf_clause(portfolio)
+    sym = symbol.upper().strip()
+
+    year_sql = "AND tax_year=?" if yil else ""
+    year_params = [yil] if yil else []
+
+    with database.db() as conn:
+        # Gerçekleşen satışlar (yıla filtreli)
+        sells = conn.execute(
+            f"""SELECT tx_date, quantity, sale_price, sale_proceeds, cost_basis, pnl,
+                       pnl_pct, status, eksik_lot, portfolio
+                FROM fifo_results
+                WHERE user_id=? AND upper(symbol)=? {pf_sql} {year_sql}
+                ORDER BY tx_date DESC, id DESC
+                LIMIT 25""",
+            tuple([user_id, sym] + pf_params + year_params),
+        ).fetchall()
+
+        # Açık pozisyon (yıla bakılmaz)
+        open_rows = conn.execute(
+            f"""SELECT buy_date, quantity, buy_price, cost_basis, portfolio
+                FROM open_positions
+                WHERE user_id=? AND upper(symbol)=? {pf_sql}
+                ORDER BY buy_date DESC, id DESC""",
+            tuple([user_id, sym] + pf_params),
+        ).fetchall()
+
+        # Son alışlar (referans — 10 kayıt)
+        buys = conn.execute(
+            f"""SELECT tx_date, quantity, price, total, portfolio
+                FROM raw_transactions
+                WHERE user_id=? AND upper(symbol)=? AND direction='Alış' {pf_sql}
+                ORDER BY tx_date DESC, id DESC
+                LIMIT 10""",
+            tuple([user_id, sym] + pf_params),
+        ).fetchall()
+
+    return JSONResponse({
+        "symbol": sym,
+        "portfolio": portfolio,
+        "yil": yil,
+        "sells": [dict(r) for r in sells],
+        "opens": [dict(r) for r in open_rows],
+        "buys":  [dict(r) for r in buys],
+    })
