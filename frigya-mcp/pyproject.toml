@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Frigya portfolio analysis MCP server — wraps frigya-analiz scripts, owns local DB access."
 requires-python = ">=3.10"
 dependencies = [
-    "mcp>=1.2.0",
+    "mcp>=1.2.0,<2",  # 2.x FastMCP → MCPServer olarak yeniden adlandırıldı
 ]
 
 [tool.uv]

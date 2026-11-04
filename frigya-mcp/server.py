@@ -14,10 +14,17 @@ Massive Market verisi: server API'ye çağrı yapmaz. `frigya_sembol_analiz` ops
 
 Ortam değişkenleri:
   DB_PATH — SQLite yolu (default: ~/Tax_Portfolilo/webapp/tax.db otomatik bulunur)
+  FRIGYA_API_URL   — verilirse CANLI MOD: araçlar yerel DB yerine Frigya API'sini çağırır
+                     (örn. https://frigya.ottomantion.com). Kullanıcı token'dan gelir, `user` yok sayılır.
+  FRIGYA_API_TOKEN — canlı modda Bearer token (sunucudaki FRIGYA_API_TOKEN ile aynı)
 """
+import asyncio
 import json
 import os
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from typing import Optional
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -37,6 +44,40 @@ def _err(e: Exception) -> str:
 
 def _dump(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=2, default=str)
+
+
+# ---------------------------------------------------------------------------
+# Canlı mod (Frigya API istemcisi)
+# ---------------------------------------------------------------------------
+API_URL = os.getenv("FRIGYA_API_URL", "").strip().rstrip("/")
+API_TOKEN = os.getenv("FRIGYA_API_TOKEN", "").strip()
+LIVE = bool(API_URL)
+# webapp portfolio_helper.SUPER_PORTFOLIO — boş portföy = hepsi (yerel moddaki None ile aynı)
+SUPER_PORTFOLIO = "__SUPER__"
+
+
+def _api_sync(method, path, query=None, body=None):
+    if not API_TOKEN:
+        raise RuntimeError("Canlı mod için FRIGYA_API_TOKEN gerekli")
+    url = API_URL + urllib.parse.quote(path)
+    q = {k: v for k, v in (query or {}).items() if v is not None}
+    if q:
+        url += "?" + urllib.parse.urlencode(q)
+    data = json.dumps(body).encode() if body is not None else None
+    headers = {"Authorization": f"Bearer {API_TOKEN}", "Accept": "application/json"}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")[:300]
+        raise RuntimeError(f"Frigya API {e.code}: {detail}") from None
+
+
+async def _api(method, path, query=None, body=None):
+    return await asyncio.to_thread(_api_sync, method, path, query, body)
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +164,9 @@ async def frigya_sembol_analiz(params: SembolAnalizInput) -> str:
     """
     try:
         market = json.loads(params.market_json) if params.market_json else None
+        if LIVE:
+            return _dump(await _api("POST", f"/api/ai/frigya/sembol/{params.symbol}", body={
+                "portfolio": params.portfolio or SUPER_PORTFOLIO, "market": market}))
         result = fc.build_sentez(params.symbol, portfolio=params.portfolio, market=market, user_id=params.user)
         return _dump(result)
     except Exception as e:
@@ -142,6 +186,9 @@ async def frigya_portfoy_tara(params: PortfoyInput) -> str:
         str: JSON {meta{open_count, total_cost_basis_usd}, positions[], watchlist_only[]}
     """
     try:
+        if LIVE:
+            return _dump(await _api("GET", "/api/ai/frigya/portfoy",
+                                    {"portfolio": params.portfolio or SUPER_PORTFOLIO}))
         conn, _path, uid = fc.open_conn(user_id=params.user)
         try:
             return _dump(fc.portfoy_data(conn, uid, params.portfolio))
@@ -167,6 +214,9 @@ async def frigya_davranis_analiz(params: DavranisInput) -> str:
              hold_duration_distribution[], monthly_trend[], open_positions_snapshot{}}
     """
     try:
+        if LIVE:
+            return _dump(await _api("GET", "/api/ai/frigya/davranis", {
+                "portfolio": params.portfolio or SUPER_PORTFOLIO, "year": params.year}))
         conn, _path, uid = fc.open_conn(user_id=params.user)
         try:
             return _dump(fc.davranis_data(conn, uid, params.portfolio, params.year))
@@ -237,6 +287,8 @@ async def frigya_hedef_guncelle(params: HedefGuncelleInput) -> str:
         str: JSON {symbol, portfolio, before{}, after{}, changes{}, _status, (apply ise) note_added}
     """
     try:
+        if LIVE:
+            return _dump(await _api("POST", "/api/ai/frigya/hedef", body=params.model_dump()))
         conn, _path, uid = fc.open_conn()
         try:
             result = fc.hedef_guncelle(
@@ -267,6 +319,8 @@ async def frigya_analist_hedef(params: AnalistHedefInput) -> str:
         str: JSON {symbol, portfolio, source, before{}, after{}, changes{}, _status}
     """
     try:
+        if LIVE:
+            return _dump(await _api("POST", "/api/ai/frigya/analist-hedef", body=params.model_dump()))
         conn, _path, uid = fc.open_conn()
         try:
             result = fc.analist_hedef(
@@ -285,9 +339,10 @@ async def frigya_analist_hedef(params: AnalistHedefInput) -> str:
 # Selftest
 # ---------------------------------------------------------------------------
 def _selftest() -> int:
-    import asyncio
     sym = os.getenv("SELFTEST_SYMBOL", "IREX")
-    print(f"[selftest] frigya_core v{fc.__version__}", file=sys.stderr)
+    pf_name = os.getenv("SELFTEST_PORTFOLIO", "family")
+    mode = f"CANLI ({API_URL})" if LIVE else "yerel DB"
+    print(f"[selftest] frigya_core v{fc.__version__} · mod: {mode}", file=sys.stderr)
     try:
         out = json.loads(asyncio.run(frigya_sembol_analiz(SembolAnalizInput(symbol=sym))))
         if out.get("error"):
@@ -298,12 +353,17 @@ def _selftest() -> int:
               f"synthesis={[k for k,v in out.get('synthesis',{}).items() if v]}", file=sys.stderr)
         md = fc.render_markdown(out)
         print(f"[selftest] OK render_markdown: {len(md.splitlines())} satır", file=sys.stderr)
-        conn, _p, uid = fc.open_conn()
-        pf = fc.portfoy_data(conn, uid)
+        pf = json.loads(asyncio.run(frigya_portfoy_tara(PortfoyInput())))
+        if pf.get("error"):
+            print(f"[selftest] FAIL portfoy: {pf}", file=sys.stderr)
+            return 1
         print(f"[selftest] OK portfoy: open_count={pf['meta']['open_count']}", file=sys.stderr)
-        dr = fc.hedef_guncelle(conn, uid, sym, "family", stop=33.0, apply=False)
+        dr = json.loads(asyncio.run(frigya_hedef_guncelle(HedefGuncelleInput(
+            symbol=sym, portfolio=pf_name, stop=33.0, apply=False))))
+        if dr.get("error"):
+            print(f"[selftest] FAIL hedef dry-run: {dr}", file=sys.stderr)
+            return 1
         print(f"[selftest] OK hedef dry-run: {dr['_status']}", file=sys.stderr)
-        conn.close()
         print("[selftest] TÜM TESTLER GEÇTİ ✅", file=sys.stderr)
         return 0
     except Exception as e:
