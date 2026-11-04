@@ -33,6 +33,12 @@ if git diff --cached -U0 --diff-filter=ACMR -- . ':(exclude).githooks/*' | grep 
   echo "✋ pre-commit: eklenen satırlarda API anahtarı/secret kalıbı var"; fail=1
 fi
 
+# Koda gömülü şifre/secret sabiti (ör. X_PASSWORD = "..."): env'den okunmalı
+if git diff --cached -U0 --diff-filter=ACMR -- . ':(exclude).githooks/*' | grep '^+' | \
+   grep -E -q "(PASSWORD|SECRET)[A-Z_]*[[:space:]]*=[[:space:]]*[\"'][^\"']{6,}[\"']"; then
+  echo "✋ pre-commit: eklenen satırlarda sabit şifre/secret var — env'den oku"; fail=1
+fi
+
 if [ $fail -ne 0 ]; then
   echo "Commit iptal edildi. Dosyayı stage'den çıkar: git restore --staged <dosya>"
   exit 1

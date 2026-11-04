@@ -1,7 +1,14 @@
 """
-Birleşik "ALL" profili senkronizasyonu — admin(1) + mustafa(6) → <ALL_PROFILE_EMAIL>
+Birleşik "ALL" profili senkronizasyonu — admin(1) + mustafa(6) → ALL_PROFILE_EMAIL
 
     cd webapp && python3 sync_all_profile.py
+
+KİMLİK (env — repoda tutulmaz; .env veya Railway Variables)
+    ALL_PROFILE_EMAIL     Birleşik profilin e-postası. Boşsa ALL profili devre
+                          dışıdır: durum "yok" döner, senkron çalışmaz.
+    ALL_PROFILE_PASSWORD  Doluysa her senkronda bu şifre uygulanır. Boşsa mevcut
+                          şifreye dokunulmaz; yeni oluşturulan profile rastgele
+                          şifre verilir (giriş için env'i doldurup tekrar senkronla).
 
 NE ZAMAN ÇALIŞTIRILIR
     Kaynak profillere (admin / mustafa) her yeni işlem veya nakit hareketi
@@ -22,15 +29,22 @@ DİKKAT — FIFO semantiği
     Toplam maliyet korunur; fark yalnızca "tüketilen" ile "açık kalan"
     arasında yer değiştirir. Bu beklenen davranıştır, hata değildir.
 """
-import sys, os
+import sys, os, secrets
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import database
 import auth_service
 
-TARGET_EMAIL = "<ALL_PROFILE_EMAIL>"
-TARGET_PASSWORD = "<redacted>"
 TARGET_ROLE = "admin"
+
+
+def target_email() -> str:
+    # Çağrı anında okunur: CLI'da .env, __main__ içinde yüklenir
+    return auth_service.normalize_email(os.getenv("ALL_PROFILE_EMAIL", ""))
+
+
+def target_password() -> str:
+    return os.getenv("ALL_PROFILE_PASSWORD", "")
 
 # Düşük öncelikliden yükseğe — sonra gelen çakışmayı kazanır
 SRC = [(6, "mustafa"), (1, "admin")]
@@ -39,10 +53,15 @@ LABEL = dict(SRC)
 
 
 def main():
+    email = target_email()
+    if not email:
+        raise RuntimeError("ALL_PROFILE_EMAIL tanımlı değil — birleşik profil devre dışı")
+    password = target_password()
+
     with database.db() as conn:
         # ── 1. Hedef kullanıcı ──────────────────────────────────────────────
         row = conn.execute(
-            "SELECT id FROM users WHERE email=?", (TARGET_EMAIL,)
+            "SELECT id FROM users WHERE email=?", (email,)
         ).fetchone()
 
         if row:
@@ -64,18 +83,24 @@ def main():
                       "portfolio_notes", "portfolios", "carry_forward_lots"):
                 conn.execute(f"DELETE FROM {t} WHERE user_id=?", (uid,))
             conn.execute(
-                "UPDATE users SET password_hash=?, role=?, is_active=1, "
-                "approval_status='approved' WHERE id=?",
-                (auth_service.hash_password(TARGET_PASSWORD), TARGET_ROLE, uid),
+                "UPDATE users SET role=?, is_active=1, approval_status='approved' WHERE id=?",
+                (TARGET_ROLE, uid),
             )
+            if password:
+                conn.execute(
+                    "UPDATE users SET password_hash=? WHERE id=?",
+                    (auth_service.hash_password(password), uid),
+                )
         else:
             cur = conn.execute(
                 "INSERT INTO users (email, password_hash, role, is_active, approval_status) "
                 "VALUES (?,?,?,1,'approved')",
-                (TARGET_EMAIL, auth_service.hash_password(TARGET_PASSWORD), TARGET_ROLE),
+                (email, auth_service.hash_password(password or secrets.token_urlsafe(24)),
+                 TARGET_ROLE),
             )
             uid = cur.lastrowid
-            print(f"Yeni kullanıcı oluşturuldu (id={uid})")
+            print(f"Yeni kullanıcı oluşturuldu (id={uid})"
+                  + ("" if password else " — ALL_PROFILE_PASSWORD boş, rastgele şifre verildi"))
 
         q = lambda sql, p=(): conn.execute(sql, p).fetchall()
         ins = lambda sql, p: conn.execute(sql, p)
@@ -212,9 +237,13 @@ def main():
 # bir recompute_fifo() (tüm türetilmiş tabloları truncate eder) tetiklenmez.
 
 def get_target_uid(conn=None):
-    """ALL profilinin user_id'si; profil yoksa None."""
+    """ALL profilinin user_id'si; profil yoksa (veya env boşsa) None."""
+    email = target_email()
+    if not email:
+        return None
+
     def _q(c):
-        r = c.execute("SELECT id FROM users WHERE email=?", (TARGET_EMAIL,)).fetchone()
+        r = c.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
         return r["id"] if r else None
     if conn is not None:
         return _q(conn)
@@ -273,5 +302,11 @@ def get_status() -> dict:
 
 
 if __name__ == "__main__":
+    try:
+        from dotenv import load_dotenv
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        load_dotenv(os.path.join(_root, ".env"), override=False)
+    except ImportError:
+        pass
     uid = main()
-    print(f"\n✓ Birleşik profil hazır — user_id={uid}, email={TARGET_EMAIL}")
+    print(f"\n✓ Birleşik profil hazır — user_id={uid}")
