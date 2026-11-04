@@ -17,5 +17,5 @@ RUN pip install -r requirements.txt
 
 COPY webapp/ .
 
-# DB_PATH Railway volume'una işaret eder (bkz. railway.json / Variables)
+# DB_PATH Railway volume'una işaret eder (bkz. .railway/railway.ts / Variables)
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]

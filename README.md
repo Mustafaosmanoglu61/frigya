@@ -157,9 +157,11 @@ Tarayıcıda: <http://localhost:8000> · ilk açılışta `INITIAL_ADMIN_EMAIL` 
 
 ### Deploy (Railway)
 
-Repo kökündeki `Dockerfile` + `railway.json` kullanılır; imaja yalnızca `webapp/` girer
-(`.dockerignore` DB/CSV/PDF/yedekleri dışarıda tutar). Servise `/data` mount'lu bir volume
-bağla ve `DB_PATH=/data/tax.db` ver; healthcheck `/healthz`.
+Repo kökündeki `Dockerfile` kullanılır; imaja yalnızca `webapp/` girer (`.dockerignore`
+DB/CSV/PDF/yedekleri dışarıda tutar). Servis ayarları (Dockerfile builder, healthcheck `/healthz`,
+restart policy, `/data` volume, variable isimleri) `.railway/railway.ts` içinde kod olarak
+tanımlı; değişiklik sonrası `npm install` → `railway config plan` → `railway config apply`.
+Variable değerleri dosyada yok (`preserve()`), Railway'de kalır; `DB_PATH=/data/tax.db`.
 
 Local DB'yi canlıya taşımak (hedef önce volume'a yedeklenir):
 
