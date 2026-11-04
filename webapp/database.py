@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS raw_transactions (
     source_file TEXT,
     source_year INTEGER,
     portfolio   TEXT    NOT NULL DEFAULT '2025',
+    -- Taze DB'de baştan var olmalı: aşağıdaki ux_raw_dedup_user index'i bu
+    -- kolona dayanır. Eski DB'lere ensure_multitenant_schema() ALTER ile ekler.
+    user_id     INTEGER,
     dedup_key   TEXT    GENERATED ALWAYS AS (
                     tx_date||'|'||upper(symbol)||'|'||direction
                     ||'|'||CAST(ROUND(quantity,9) AS TEXT)
@@ -903,6 +906,10 @@ def migrate_consolidate_watchlist_notes() -> None:
             return
         if "notes_migrated_at" not in wl_cols:
             conn.execute("ALTER TABLE watchlist ADD COLUMN notes_migrated_at TEXT")
+        if "user_id" not in wl_cols:
+            # Taze DB: user_id henüz yok (ensure_multitenant_schema() sonra ekler)
+            # ve taşınacak not da yok — sonraki açılışta normal akış çalışır.
+            return
 
         rows = conn.execute(
             """SELECT id, user_id, symbol, notes, added_at
