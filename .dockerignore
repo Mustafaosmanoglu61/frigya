@@ -22,6 +22,8 @@ node_modules/
 tests/
 test-results/
 frigya-mcp/
+# İstisna: imaja yalnızca frigya_core paket kodu (bkz. Dockerfile)
+!frigya-mcp/frigya_core/*.py
 data/
 docs/
 2025/

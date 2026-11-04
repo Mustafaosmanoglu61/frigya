@@ -31,6 +31,13 @@ GOOGLE_CLIENT_ID_ENV = "GOOGLE_CLIENT_ID"
 GOOGLE_CLIENT_SECRET_ENV = "GOOGLE_CLIENT_SECRET"
 GOOGLE_REDIRECT_URI_ENV = "GOOGLE_REDIRECT_URI"
 
+# Bearer token (frigya MCP "canlı mod"): yalnızca bu prefix altındaki API'lerde geçerli,
+# token tek bir kullanıcıya bağlanır. İkisi de verilmezse token yolu kapalıdır.
+API_TOKEN_ENV = "FRIGYA_API_TOKEN"
+API_TOKEN_USER_ENV = "FRIGYA_API_TOKEN_USER"
+API_TOKEN_PATH_PREFIX = "/api/ai/frigya/"
+API_TOKEN_MIN_LENGTH = 32
+
 PBKDF2_ALGO = "sha256"
 PBKDF2_ITERATIONS = 200_000
 
@@ -178,10 +185,32 @@ def logout_user(request: Request) -> None:
     request.session.clear()
 
 
+def get_api_token_user(request: Request):
+    """`Authorization: Bearer <FRIGYA_API_TOKEN>` → FRIGYA_API_TOKEN_USER kullanıcısı.
+
+    Yalnızca API_TOKEN_PATH_PREFIX altında; diğer tüm yollar session ister.
+    """
+    if not request.url.path.startswith(API_TOKEN_PATH_PREFIX):
+        return None
+    expected = os.getenv(API_TOKEN_ENV, "").strip()
+    email = os.getenv(API_TOKEN_USER_ENV, "").strip()
+    if len(expected) < API_TOKEN_MIN_LENGTH or not email:
+        return None
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    # bytes karşılaştırması: ASCII dışı header'da compare_digest TypeError atmasın
+    if scheme.lower() != "bearer" or not hmac.compare_digest(
+            token.strip().encode(), expected.encode()):
+        return None
+    user = get_user_by_email(email)
+    if not user or not is_approved(user):
+        return None
+    return user
+
+
 def get_session_user(request: Request):
     user_id = request.session.get(SESSION_USER_ID_KEY)
     if not user_id:
-        return None
+        return get_api_token_user(request)
     user = get_user_by_id(int(user_id))
     if not user or not is_approved(user):
         request.session.pop(SESSION_USER_ID_KEY, None)

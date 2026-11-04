@@ -111,6 +111,26 @@ JSON olarak geçirir, server teknik + DB + notları birleştirir. Beklenen yapı
 Ekledikten sonra **Claude Desktop'ı yeniden başlat**. Massive MCP'sini de ekli tutarsan
 tam piyasa analizi için ikisini birlikte orkestre eder.
 
+## Canlı mod (Railway'deki Frigya'ya bağlan)
+
+Varsayılan olarak server yerel `tax.db`'yi okur. Canlı site (Railway) kendi volume'undaki
+DB'ye yazdığı için yerel kopya zamanla eskir. `FRIGYA_API_URL` verilirse araçlar yerel DB
+yerine canlı API'yi (`/api/ai/frigya/*`) çağırır; okuma ve yazma araçları canlı veride çalışır.
+
+```json
+"env": {
+  "FRIGYA_API_URL": "https://frigya.ottomantion.com",
+  "FRIGYA_API_TOKEN": "<sunucudaki FRIGYA_API_TOKEN ile aynı>"
+}
+```
+
+- Sunucu tarafı: Railway Variables'a `FRIGYA_API_TOKEN` (en az 32 karakter) ve
+  `FRIGYA_API_TOKEN_USER` (token'ın temsil ettiği kullanıcının e-postası) eklenir.
+  Token yalnızca `/api/ai/frigya/*` altında geçerlidir; diğer tüm sayfalar session ister.
+- Kullanıcı token'dan gelir; araçlardaki `user` parametresi canlı modda yok sayılır.
+- Boş `portfolio` canlı modda da "tüm portföyler" demektir (API'ye süper portföy gönderilir).
+- Render araçları (`frigya_render_*`) DB kullanmaz, iki modda aynı çalışır.
+
 ## Geliştirme / test
 
 ```bash
@@ -121,6 +141,10 @@ uv run --python 3.12 python server.py --selftest
 
 # Gerçek MCP stdio handshake testi
 uv run --python 3.12 python _smoke.py
+
+# Canlı mod self-test (FRIGYA_API_URL + FRIGYA_API_TOKEN ile; hedef dry-run için portföy adı)
+FRIGYA_API_URL=https://frigya.ottomantion.com FRIGYA_API_TOKEN=... SELFTEST_PORTFOLIO=<portföy> \
+  uv run --python 3.12 python server.py --selftest
 ```
 
 ## Bağımlılıklar

@@ -17,5 +17,9 @@ RUN pip install -r requirements.txt
 
 COPY webapp/ .
 
+# routers/frigya_ai.py, frigya_core'u <app'in bir üstü>/frigya-mcp altında arar → /frigya-mcp.
+# Yalnızca paket kodu (*.py) girer; .dockerignore frigya-mcp/'nin geri kalanını dışarıda tutar.
+COPY frigya-mcp/frigya_core/ /frigya-mcp/frigya_core/
+
 # DB_PATH Railway volume'una işaret eder (bkz. .railway/railway.ts / Variables)
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
