@@ -128,6 +128,12 @@ app.include_router(frigya_ai.router)
 app.include_router(all_profile.router)
 
 
+@app.get("/healthz")
+async def healthz():
+    """Platform healthcheck (Railway) — auth gerektirmez, DB'ye dokunmaz."""
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/session/portfolio")
 async def set_session_portfolio(request: Request):
     """Portfolio'yu session'a kaydet."""

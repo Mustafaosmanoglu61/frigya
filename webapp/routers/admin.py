@@ -368,7 +368,7 @@ async def restore_sqlite(
             status_code=503,
             detail=(
                 f"{RESTORE_TOKEN_ENV} ayarlı değil. "
-                "Render Environment bölümünden token ekleyip yeniden deploy edin."
+                "Railway > Variables bölümünden token ekleyip yeniden deploy edin."
             ),
         )
 

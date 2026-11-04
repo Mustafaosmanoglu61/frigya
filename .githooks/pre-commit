@@ -1,0 +1,40 @@
+#!/bin/sh
+# Frigya pre-commit guard — kişisel finansal veri repoya girmesin.
+# .gitignore'u `git add -f` ile aşan dosyaları da yakalar.
+# Kurulum (repo başına bir kez): git config core.hooksPath .githooks
+# Bilinçli istisna gerekirse: git commit --no-verify
+
+fail=0
+files=$(git diff --cached --name-only --diff-filter=ACMR)
+
+for f in $files; do
+  case "$f" in
+    *.sample.py|*.example|.env.example) continue ;;
+  esac
+  case "$f" in
+    *.db|*.db-*|*.db.*|*.sqlite|*.sqlite3|*.bak|*.bak-*|*backup_*/*|\
+    *.csv|*.xlsx|*.xls|*.docx|*.pdf|.env|.env.*|*/.env|\
+    data/transactions_*.py|data/carry_lots_*.py|data/analiz/*|tests/.auth/*)
+      echo "✋ pre-commit: hassas dosya engellendi → $f"; fail=1 ;;
+  esac
+  # SQLite dosyası uzantısız/yeniden adlandırılmış olabilir — içerikten yakala
+  if [ -f "$f" ] && head -c 16 "$f" 2>/dev/null | grep -q "SQLite format 3"; then
+    echo "✋ pre-commit: SQLite veritabanı içeriği → $f"; fail=1
+  fi
+  # 5 MB üstü dosyalar (DB/ekstre kopyası şüphesi)
+  if [ -f "$f" ] && [ "$(wc -c < "$f")" -gt 5242880 ]; then
+    echo "✋ pre-commit: 5 MB üstü dosya → $f"; fail=1
+  fi
+done
+
+# Eklenen satırlarda gizli anahtar kalıpları
+if git diff --cached -U0 --diff-filter=ACMR -- . ':(exclude).githooks/*' | grep '^+' | \
+   grep -E -q 'sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY-----|GOCSPX-[A-Za-z0-9_-]{20,}'; then
+  echo "✋ pre-commit: eklenen satırlarda API anahtarı/secret kalıbı var"; fail=1
+fi
+
+if [ $fail -ne 0 ]; then
+  echo "Commit iptal edildi. Dosyayı stage'den çıkar: git restore --staged <dosya>"
+  exit 1
+fi
+exit 0
