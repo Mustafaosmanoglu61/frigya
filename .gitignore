@@ -10,6 +10,8 @@ webapp/tax.db-wal
 *.db.bak*
 *.bak-*
 tax.db.bak*
+# Merge/geri-dönüş yedek klasörleri — içindeki CSV'ler ham finansal veri
+backup_*/
 
 # Python
 __pycache__/

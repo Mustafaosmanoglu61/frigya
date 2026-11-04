@@ -155,6 +155,28 @@ Tarayıcıda: <http://localhost:8000> · ilk açılışta `INITIAL_ADMIN_EMAIL` 
 | `INITIAL_ADMIN_PASSWORD` | `CHANGE_ME_BEFORE_DEPLOY` | Deploy öncesi **mutlaka** değiştir. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | — | Google OAuth (opsiyonel). |
 
+### Deploy (Railway)
+
+Repo kökündeki `Dockerfile` + `railway.json` kullanılır; imaja yalnızca `webapp/` girer
+(`.dockerignore` DB/CSV/PDF/yedekleri dışarıda tutar). Servise `/data` mount'lu bir volume
+bağla ve `DB_PATH=/data/tax.db` ver; healthcheck `/healthz`.
+
+Local DB'yi canlıya taşımak (hedef önce volume'a yedeklenir):
+
+```bash
+railway link                      # frigya projesi / web servisi
+./scripts/railway_db_push.sh      # varsayılan: webapp/tax.db
+```
+
+### Gizli veri koruması
+
+`.gitignore`'a ek olarak `.githooks/pre-commit`, `git add -f` ile bile DB/CSV/PDF/`.env`,
+SQLite içerikli ve 5 MB üstü dosyaları ve API anahtarı kalıplarını engeller. Klon başına bir kez:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ---
 
 ## 🏗 Mimari
