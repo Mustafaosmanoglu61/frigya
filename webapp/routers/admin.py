@@ -70,6 +70,7 @@ async def admin_home(request: Request):
         "pending_users": pending_users,
         "pending_count": len(pending_users),
         "current_user_id": user_id,
+        "api_tokens": auth_service.list_api_tokens(user_id),
         "active": "admin",
     })
 

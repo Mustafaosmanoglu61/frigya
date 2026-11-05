@@ -10,3 +10,4 @@ pandas>=2.2.0
 openpyxl>=3.1.2
 yfinance>=0.2.40
 anthropic>=0.52.0
+mcp>=1.2.0,<2  # uzak frigya MCP (Streamable HTTP, /mcp); 2.x FastMCP adını değiştirdi

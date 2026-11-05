@@ -31,12 +31,14 @@ GOOGLE_CLIENT_ID_ENV = "GOOGLE_CLIENT_ID"
 GOOGLE_CLIENT_SECRET_ENV = "GOOGLE_CLIENT_SECRET"
 GOOGLE_REDIRECT_URI_ENV = "GOOGLE_REDIRECT_URI"
 
-# Bearer token (frigya MCP "canlı mod"): yalnızca bu prefix altındaki API'lerde geçerli,
-# token tek bir kullanıcıya bağlanır. İkisi de verilmezse token yolu kapalıdır.
-API_TOKEN_ENV = "FRIGYA_API_TOKEN"
-API_TOKEN_USER_ENV = "FRIGYA_API_TOKEN_USER"
-API_TOKEN_PATH_PREFIX = "/api/ai/frigya/"
-API_TOKEN_MIN_LENGTH = 32
+# Kişisel API token'ları (Yönetim → MCP Erişimi): `Authorization: Bearer frg_…`.
+# Yalnızca uzak MCP (/mcp) ve frigya analiz API'sinde geçerli; DB'de yalnızca sha256'sı durur.
+API_TOKEN_PREFIX = "frg_"
+API_TOKEN_DISPLAY_LEN = 12          # listede gösterilen kısım: "frg_" + 8 karakter
+API_TOKEN_MAX_ACTIVE = 10
+API_TOKEN_NAME_MAX = 60
+API_TOKEN_API_PREFIX = "/api/ai/frigya/"
+MCP_PATH = "/mcp"
 
 PBKDF2_ALGO = "sha256"
 PBKDF2_ITERATIONS = 200_000
@@ -185,25 +187,90 @@ def logout_user(request: Request) -> None:
     request.session.clear()
 
 
-def get_api_token_user(request: Request):
-    """`Authorization: Bearer <FRIGYA_API_TOKEN>` → FRIGYA_API_TOKEN_USER kullanıcısı.
+def is_mcp_path(path: str) -> bool:
+    return path == MCP_PATH or path.startswith(MCP_PATH + "/")
 
-    Yalnızca API_TOKEN_PATH_PREFIX altında; diğer tüm yollar session ister.
-    """
-    if not request.url.path.startswith(API_TOKEN_PATH_PREFIX):
-        return None
-    expected = os.getenv(API_TOKEN_ENV, "").strip()
-    email = os.getenv(API_TOKEN_USER_ENV, "").strip()
-    if len(expected) < API_TOKEN_MIN_LENGTH or not email:
+
+def in_api_token_scope(path: str) -> bool:
+    """Token'ın geçerli olduğu yollar; diğer her yer session ister."""
+    return path.startswith(API_TOKEN_API_PREFIX) or is_mcp_path(path)
+
+
+def _hash_api_token(token: str) -> str:
+    # Rastgele, yüksek entropili token → tuzsuz sha256 yeterli ve indeksle aranabilir
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_api_token(user_id: int, name: str):
+    """Yeni token üretir. (satır dict'i, düz token) döner — düz token yalnızca burada görünür."""
+    name = (name or "").strip()[:API_TOKEN_NAME_MAX]
+    if not name:
+        raise ValueError("Token adı gerekli")
+    token = API_TOKEN_PREFIX + secrets.token_urlsafe(32)
+    with database.db() as conn:
+        active = conn.execute(
+            "SELECT COUNT(*) FROM api_tokens WHERE user_id=? AND revoked_at IS NULL",
+            (user_id,),
+        ).fetchone()[0]
+        if active >= API_TOKEN_MAX_ACTIVE:
+            raise ValueError(f"En fazla {API_TOKEN_MAX_ACTIVE} aktif token olabilir; önce birini iptal et")
+        cur = conn.execute(
+            "INSERT INTO api_tokens (user_id, name, token_prefix, token_hash) VALUES (?, ?, ?, ?)",
+            (user_id, name, token[:API_TOKEN_DISPLAY_LEN], _hash_api_token(token)),
+        )
+        row = conn.execute(
+            "SELECT id, name, token_prefix, created_at, last_used_at FROM api_tokens WHERE id=?",
+            (cur.lastrowid,),
+        ).fetchone()
+    return dict(row), token
+
+
+def list_api_tokens(user_id: int):
+    with database.db() as conn:
+        rows = conn.execute(
+            """SELECT id, name, token_prefix, created_at, last_used_at FROM api_tokens
+               WHERE user_id=? AND revoked_at IS NULL ORDER BY id DESC""",
+            (user_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def revoke_api_token(user_id: int, token_id: int) -> bool:
+    """Kullanıcının kendi aktif token'ını iptal eder; başkasınınki/yoksa False."""
+    with database.db() as conn:
+        cur = conn.execute(
+            """UPDATE api_tokens SET revoked_at=datetime('now')
+               WHERE id=? AND user_id=? AND revoked_at IS NULL""",
+            (token_id, user_id),
+        )
+    return cur.rowcount > 0
+
+
+def get_api_token_user(request: Request):
+    """`Authorization: Bearer frg_…` → token sahibi (onaylı, aktif) kullanıcı; yalnızca token kapsamında."""
+    if not in_api_token_scope(request.url.path):
         return None
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
-    # bytes karşılaştırması: ASCII dışı header'da compare_digest TypeError atmasın
-    if scheme.lower() != "bearer" or not hmac.compare_digest(
-            token.strip().encode(), expected.encode()):
+    token = token.strip()
+    if scheme.lower() != "bearer" or not token.startswith(API_TOKEN_PREFIX):
         return None
-    user = get_user_by_email(email)
+    with database.db() as conn:
+        row = conn.execute(
+            "SELECT id, user_id FROM api_tokens WHERE token_hash=? AND revoked_at IS NULL",
+            (_hash_api_token(token),),
+        ).fetchone()
+    if not row:
+        return None
+    user = get_user_by_id(int(row["user_id"]))
     if not user or not is_approved(user):
         return None
+    with database.db() as conn:
+        # Her istekte yazmamak için dakikada en fazla bir kez
+        conn.execute(
+            """UPDATE api_tokens SET last_used_at=datetime('now')
+               WHERE id=? AND (last_used_at IS NULL OR last_used_at < datetime('now', '-1 minute'))""",
+            (row["id"],),
+        )
     return user
 
 
@@ -286,6 +353,18 @@ def ensure_identity_bootstrap() -> None:
                 UNIQUE(provider, provider_user_id)
             );
             CREATE INDEX IF NOT EXISTS ix_oauth_user ON oauth_accounts(user_id);
+
+            CREATE TABLE IF NOT EXISTS api_tokens (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name          TEXT    NOT NULL,
+                token_prefix  TEXT    NOT NULL,
+                token_hash    TEXT    NOT NULL UNIQUE,
+                created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+                last_used_at  TEXT,
+                revoked_at    TEXT
+            );
+            CREATE INDEX IF NOT EXISTS ix_api_tokens_user ON api_tokens(user_id);
             """
         )
 

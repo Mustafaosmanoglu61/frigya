@@ -26,7 +26,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import database
 import auth_service
-from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai, nakit, all_profile
+import mcp_http
+from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai, nakit, all_profile, api_tokens
 from portfolio_helper import get_portfolios, create_portfolio, is_super, SUPER_PORTFOLIO
 
 if load_dotenv:
@@ -61,7 +62,9 @@ SESSION_SECRET = get_session_secret()
 async def lifespan(app: FastAPI):
     database.init_db()
     auth_service.ensure_identity_bootstrap()
-    yield
+    # Uzak MCP (Streamable HTTP) oturum yöneticisi app ömrü boyunca çalışır
+    async with mcp_http.mcp.session_manager.run():
+        yield
 
 
 app = FastAPI(title="Frigya", lifespan=lifespan)
@@ -70,6 +73,18 @@ app = FastAPI(title="Frigya", lifespan=lifespan)
 class AuthGuardMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
+
+        # Uzak MCP: yalnızca kişisel API token'ı (session cookie kabul edilmez)
+        if auth_service.is_mcp_path(path):
+            user = auth_service.get_api_token_user(request)
+            if user is None:
+                return JSONResponse(
+                    {"error": "Geçerli bir API token'ı gerekli (Yönetim → MCP Erişimi)"},
+                    status_code=401, headers={"WWW-Authenticate": 'Bearer realm="frigya"'},
+                )
+            request.state.user = user
+            return await call_next(request)
+
         user = auth_service.get_session_user(request)
         request.state.user = user
 
@@ -126,6 +141,9 @@ app.include_router(symbol_notes.pf_router)
 app.include_router(ai.router)
 app.include_router(frigya_ai.router)
 app.include_router(all_profile.router)
+app.include_router(api_tokens.router)
+# /mcp rotası doğrudan eklenir (Mount değil: /mcp → /mcp/ yönlendirmesi olmasın)
+app.router.routes.extend(mcp_http.mcp.streamable_http_app().routes)
 
 
 @app.get("/healthz")

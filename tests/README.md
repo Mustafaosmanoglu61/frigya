@@ -42,6 +42,7 @@ Credentials kaynak öncelik sırası:
 | Dosya | Kapsam |
 |---|---|
 | `dashboard-unrealized-kpi.spec.ts` | Dashboard Açık Pozisyon Gerçekleşmemiş K/Z KPI kartı (async fetch, AH override, 60s interval) |
+| `mcp-tokens.spec.ts` | Yönetim → MCP Erişimi: kişisel API token oluştur, uzak `/mcp`'de kullan, yönetim API'sinde reddedilir, iptal et |
 
 ## Senaryolar — `dashboard-unrealized-kpi.spec.ts`
 

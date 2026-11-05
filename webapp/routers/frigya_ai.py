@@ -5,10 +5,10 @@ Mimari: webapp, frigya-mcp/frigya_core paketini (SSOT) import edip analizi sunar
 Subprocess/MCP yok — aynı çekirdek fonksiyonlar. Massive piyasa verisi için
 frigya_core.fetch_market kendi REST key'iyle çalışır (MASSIVE_API_KEY).
 
-Endpoint'ler (hepsi giriş gerektirir, /api/ prefix'i auth guard'a tabi; session VEYA
-`Authorization: Bearer <FRIGYA_API_TOKEN>` — bkz. auth_service.get_api_token_user):
+Endpoint'ler (hepsi giriş gerektirir, /api/ prefix'i auth guard'a tabi; session VEYA kişisel
+API token'ı `Authorization: Bearer frg_…` — Yönetim → MCP Erişimi, bkz. auth_service.get_api_token_user):
   GET  /api/ai/frigya/sembol/{symbol}?portfolio=&format=json|markdown|html&market=true
-  POST /api/ai/frigya/sembol/{symbol}   {portfolio?, market?}  ← MCP Massive passthrough
+  POST /api/ai/frigya/sembol/{symbol}   {portfolio?, market?}  ← client Massive passthrough
   GET  /api/ai/frigya/portfoy?portfolio=
   GET  /api/ai/frigya/davranis?portfolio=&year=
   POST /api/ai/frigya/hedef             {symbol, portfolio, hedef?, taban?, stop?, note?, apply}
