@@ -40,6 +40,11 @@
       <i class="bi bi-calculator me-1"></i>FIFO
     </button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-mcp" type="button">
+      <i class="bi bi-plug me-1"></i>MCP Erişimi
+    </button>
+  </li>
   {% if is_admin %}
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-onay" type="button">
@@ -228,6 +233,95 @@
           <i class="bi bi-arrow-repeat me-1"></i>Hesapla
         </button>
         <div id="compute-status" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB: MCP Erişimi (herkes — kendi kişisel API token'ları) -->
+  <div class="tab-pane fade" id="tab-mcp">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-primary-custom text-white">
+        <i class="bi bi-plug me-2"></i>MCP Erişimi — Kişisel API Token'ları
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info py-2 small">
+          <i class="bi bi-info-circle me-1"></i>
+          Claude Code / Claude Desktop gibi istemcileri kendi hesabınla frigya MCP'sine bağlamak için token oluştur.
+          İstemci <code><span class="mcp-origin"></span>/mcp</code> adresine Streamable HTTP ile bağlanır ve yalnızca
+          senin verini görür. Token yalnızca MCP ve frigya analiz API'sinde geçerlidir; site girişi için kullanılamaz.
+        </div>
+
+        <form class="row g-2 align-items-end mb-3" onsubmit="createApiToken(event)">
+          <div class="col-sm-8 col-md-6">
+            <label class="form-label small mb-1" for="token-name">Token adı</label>
+            <input type="text" class="form-control form-control-sm" id="token-name" maxlength="60"
+                   placeholder="ör. MacBook – Claude Desktop" required>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-primary btn-sm" id="token-create-btn">
+              <i class="bi bi-key me-1"></i>Token oluştur
+            </button>
+          </div>
+        </form>
+
+        <div id="token-created" class="border rounded p-3 mb-3 bg-body-tertiary d-none">
+          <div class="fw-semibold mb-1"><i class="bi bi-check-circle text-success me-1"></i>Token oluşturuldu</div>
+          <div class="small text-warning-emphasis mb-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>Bu token bir daha gösterilmeyecek — şimdi kopyala.
+          </div>
+          <div class="input-group input-group-sm mb-3">
+            <input type="text" class="form-control font-monospace" id="token-value" readonly>
+            <button class="btn btn-outline-secondary" type="button" onclick="copyText('token-value', this)">
+              <i class="bi bi-clipboard me-1"></i>Kopyala
+            </button>
+          </div>
+          <div class="small fw-semibold mb-1">Claude Code</div>
+          <div class="input-group input-group-sm mb-3">
+            <input type="text" class="form-control font-monospace" id="token-snippet-code" readonly>
+            <button class="btn btn-outline-secondary" type="button" onclick="copyText('token-snippet-code', this)">
+              <i class="bi bi-clipboard"></i>
+            </button>
+          </div>
+          <div class="small fw-semibold mb-1">Claude Desktop — <code>claude_desktop_config.json</code> → <code>mcpServers</code></div>
+          <div class="position-relative">
+            <textarea class="form-control form-control-sm font-monospace" id="token-snippet-desktop" rows="9" readonly></textarea>
+            <button class="btn btn-outline-secondary btn-sm position-absolute top-0 end-0 m-1" type="button"
+                    onclick="copyText('token-snippet-desktop', this)"><i class="bi bi-clipboard"></i></button>
+          </div>
+        </div>
+
+        <div id="tokens-empty" class="alert alert-secondary py-2 {% if api_tokens %}d-none{% endif %}">
+          <i class="bi bi-inbox me-1"></i>Henüz token yok.
+        </div>
+        <div class="table-responsive {% if not api_tokens %}d-none{% endif %}" id="tokens-table-wrap">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Ad</th>
+                <th>Token</th>
+                <th>Oluşturuldu</th>
+                <th>Son kullanım</th>
+                <th class="text-end">İşlem</th>
+              </tr>
+            </thead>
+            <tbody id="tokens-tbody">
+              {% for t in api_tokens %}
+              <tr data-token-id="{{ t.id }}">
+                <td>{{ t.name }}</td>
+                <td class="font-monospace small">{{ t.token_prefix }}…</td>
+                <td class="text-muted small">{{ t.created_at }}</td>
+                <td class="text-muted small">{{ t.last_used_at or '—' }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-outline-danger btn-sm" onclick="revokeApiToken({{ t.id }})">
+                    <i class="bi bi-x-lg me-1"></i>İptal et
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="token-status" class="mt-2"></div>
       </div>
     </div>
   </div>
@@ -580,6 +674,94 @@ async function restoreSQLite() {
   } catch (e) {
     statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
   }
+}
+
+// ── MCP Erişimi: kişisel API token'ları ─────────────────────────────────
+const MCP_URL = window.location.origin + '/mcp';
+document.querySelectorAll('.mcp-origin').forEach(el => { el.textContent = window.location.origin; });
+
+function _refreshTokensUI() {
+  const rows = document.querySelectorAll('#tokens-tbody tr').length;
+  document.getElementById('tokens-empty').classList.toggle('d-none', rows > 0);
+  document.getElementById('tokens-table-wrap').classList.toggle('d-none', rows === 0);
+}
+
+function _tokenRow(t) {
+  const tr = document.createElement('tr');
+  tr.dataset.tokenId = t.id;
+  tr.innerHTML = `<td>${escapeHtml(t.name)}</td>
+    <td class="font-monospace small">${escapeHtml(t.token_prefix)}…</td>
+    <td class="text-muted small">${escapeHtml(t.created_at)}</td>
+    <td class="text-muted small">${t.last_used_at ? escapeHtml(t.last_used_at) : '—'}</td>
+    <td class="text-end"><button type="button" class="btn btn-outline-danger btn-sm" onclick="revokeApiToken(${t.id})">
+      <i class="bi bi-x-lg me-1"></i>İptal et</button></td>`;
+  return tr;
+}
+
+async function createApiToken(e) {
+  e.preventDefault();
+  const nameEl = document.getElementById('token-name');
+  const btn = document.getElementById('token-create-btn');
+  const statusEl = document.getElementById('token-status');
+  btn.disabled = true;
+  statusEl.innerHTML = '';
+  try {
+    const r = await fetch('/api/tokens', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                          body: JSON.stringify({name: nameEl.value})});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || data.detail || 'Token oluşturulamadı');
+    document.getElementById('token-value').value = data.token;
+    document.getElementById('token-snippet-code').value =
+      `claude mcp add --transport http frigya ${MCP_URL} --header "Authorization: Bearer ${data.token}"`;
+    document.getElementById('token-snippet-desktop').value = JSON.stringify({
+      frigya: {
+        command: 'npx',
+        args: ['-y', 'mcp-remote@0.16.0', MCP_URL, '--header', 'Authorization:${FRIGYA_AUTH}'],
+        env: {FRIGYA_AUTH: `Bearer ${data.token}`},
+      },
+    }, null, 2);
+    document.getElementById('token-created').classList.remove('d-none');
+    document.getElementById('tokens-tbody').prepend(_tokenRow(data));
+    _refreshTokensUI();
+    nameEl.value = '';
+  } catch (err) {
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ ${escapeHtml(err.message)}</span>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function revokeApiToken(id) {
+  if (!confirm('Bu token iptal edilsin mi? Onu kullanan istemciler bağlantıyı kaybeder.')) return;
+  const statusEl = document.getElementById('token-status');
+  try {
+    const r = await fetch(`/api/tokens/${id}`, {method: 'DELETE'});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || data.detail || 'İptal edilemedi');
+    document.querySelector(`tr[data-token-id="${id}"]`)?.remove();
+    _refreshTokensUI();
+    statusEl.innerHTML = '<span class="badge bg-success">✓ Token iptal edildi</span>';
+  } catch (err) {
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ ${escapeHtml(err.message)}</span>`;
+  }
+}
+
+async function copyText(inputId, btn) {
+  const el = document.getElementById(inputId);
+  try {
+    await navigator.clipboard.writeText(el.value);
+  } catch {
+    el.select(); document.execCommand('copy');   // http (localhost dışı) için yedek yol
+  }
+  const html = btn.innerHTML;
+  btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+  setTimeout(() => { btn.innerHTML = html; }, 1500);
+}
+
+// /yonetim#tab-mcp → sekmeyi doğrudan aç
+if (location.hash === '#tab-mcp') {
+  const tabBtn = document.querySelector('[data-bs-target="#tab-mcp"]');
+  if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
 }
 </script>
 {% endblock %}

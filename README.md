@@ -163,6 +163,9 @@ restart policy, `/data` volume, variable isimleri) `.railway/railway.ts` içinde
 tanımlı; değişiklik sonrası `npm install` → `railway config plan` → `railway config apply`.
 Variable değerleri dosyada yok (`preserve()`), Railway'de kalır; `DB_PATH=/data/tax.db`.
 
+Uzak frigya MCP aynı serviste `https://frigya.ottomantion.com/mcp` adresinde (Streamable HTTP)
+çalışır; her kullanıcı **Yönetim → MCP Erişimi**'nden kendi token'ını üretir (bkz. `frigya-mcp/README.md`).
+
 Local DB'yi canlıya taşımak (hedef önce volume'a yedeklenir):
 
 ```bash
