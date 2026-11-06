@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Yönetim Paneli — Frigya{% endblock %}
+{% block title %}{{ tr('Yönetim Paneli — Frigya') }}{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h4 class="fw-bold text-dark mb-0">
-    <i class="bi bi-gear me-2 text-primary"></i>Yönetim Paneli
+    <i class="bi bi-gear me-2 text-primary"></i>{{ tr('Yönetim Paneli') }}
     {% if is_admin %}<span class="badge bg-danger ms-2">Admin</span>{% endif %}
   </h4>
 </div>
@@ -27,12 +27,12 @@
 <ul class="nav nav-tabs mb-3" role="tablist">
   <li class="nav-item" role="presentation">
     <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-portfoy" type="button">
-      <i class="bi bi-folder me-1"></i>Portföyler
+      <i class="bi bi-folder me-1"></i>{{ tr('Portföyler') }}
     </button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-yukleme" type="button">
-      <i class="bi bi-cloud-upload me-1"></i>Veri Yükleme
+      <i class="bi bi-cloud-upload me-1"></i>{{ tr('Veri Yükleme') }}
     </button>
   </li>
   <li class="nav-item" role="presentation">
@@ -42,25 +42,25 @@
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-mcp" type="button">
-      <i class="bi bi-plug me-1"></i>MCP Erişimi
+      <i class="bi bi-plug me-1"></i>{{ tr('MCP Erişimi') }}
     </button>
   </li>
   {% if is_admin %}
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-onay" type="button">
-      <i class="bi bi-person-check me-1"></i>Onay Bekleyenler
+      <i class="bi bi-person-check me-1"></i>{{ tr('Onay Bekleyenler') }}
       {% if pending_count > 0 %}<span class="badge bg-danger ms-1" id="pending-badge">{{ pending_count }}</span>{% endif %}
     </button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-roller" type="button">
-      <i class="bi bi-people me-1"></i>Rol Yönetimi
+      <i class="bi bi-people me-1"></i>{{ tr('Rol Yönetimi') }}
       <span class="badge bg-danger ms-1">Admin</span>
     </button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-yedek" type="button">
-      <i class="bi bi-database-fill-gear me-1"></i>Yedekleme
+      <i class="bi bi-database-fill-gear me-1"></i>{{ tr('Yedekleme') }}
       <span class="badge bg-danger ms-1">Admin</span>
     </button>
   </li>
@@ -75,23 +75,23 @@
       <div class="col-md-6">
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-primary-custom text-white">
-            <i class="bi bi-folder-plus me-2"></i>Yeni Portföy Oluştur
+            <i class="bi bi-folder-plus me-2"></i>{{ tr('Yeni Portföy Oluştur') }}
           </div>
           <div class="card-body">
             <form action="/yonetim/portföy-ekle" method="post">
               <div class="mb-3">
-                <label class="form-label fw-semibold">Portföy Adı</label>
-                <input type="text" name="name" class="form-control" placeholder="Örn: GeneralMu, 2025, Yatırım-A"
+                <label class="form-label fw-semibold">{{ tr('Portföy Adı') }}</label>
+                <input type="text" name="name" class="form-control" placeholder="{{ tr('Örn: GeneralMu, 2025, Yatırım-A') }}"
                        required minlength="2" maxlength="50">
-                <small class="form-text text-muted">Harf, rakam ve tire kullanabilirsiniz</small>
+                <small class="form-text text-muted">{{ tr('Harf, rakam ve tire kullanabilirsiniz') }}</small>
               </div>
               <div class="mb-3">
-                <label class="form-label fw-semibold">Açıklama (İsteğe Bağlı)</label>
-                <textarea name="description" class="form-control" rows="2" placeholder="Bu portföy hakkında notlar..."
+                <label class="form-label fw-semibold">{{ tr('Açıklama (İsteğe Bağlı)') }}</label>
+                <textarea name="description" class="form-control" rows="2" placeholder="{{ tr('Bu portföy hakkında notlar...') }}"
                           maxlength="200"></textarea>
               </div>
               <button type="submit" class="btn btn-success w-100">
-                <i class="bi bi-plus-lg me-1"></i>Portföy Oluştur
+                <i class="bi bi-plus-lg me-1"></i>{{ tr('Portföy Oluştur') }}
               </button>
             </form>
           </div>
@@ -99,20 +99,20 @@
 
         <div class="card border-0 shadow-sm mt-3">
           <div class="card-header bg-primary-custom text-white">
-            <i class="bi bi-cash-coin me-2"></i>İşlem Ücreti
+            <i class="bi bi-cash-coin me-2"></i>{{ tr('İşlem Ücreti') }}
           </div>
           <div class="card-body">
             <form action="/yonetim/islem-ucreti" method="post">
               <div class="mb-3">
-                <label class="form-label fw-semibold" for="trade-fee">İşlem başına ücret (USD)</label>
+                <label class="form-label fw-semibold" for="trade-fee">{{ tr('İşlem başına ücret (USD)') }}</label>
                 <input type="number" id="trade-fee" name="fee" class="form-control" required
                        min="0" max="100" step="0.01" value="{{ '%.2f' % trade_fee }}">
                 <small class="form-text text-muted">
-                  Bundan sonra girilen her alış ve satışa yazılır, nakit bakiyeden düşülür. K/Z ve maliyeti etkilemez; kayıtlı işlemler değişmez.
+                  {{ tr('Bundan sonra girilen her alış ve satışa yazılır, nakit bakiyeden düşülür. K/Z ve maliyeti etkilemez; kayıtlı işlemler değişmez.') }}
                 </small>
               </div>
               <button type="submit" class="btn btn-success w-100">
-                <i class="bi bi-check-lg me-1"></i>Kaydet
+                <i class="bi bi-check-lg me-1"></i>{{ tr('Kaydet') }}
               </button>
             </form>
           </div>
@@ -122,7 +122,7 @@
       <div class="col-md-6">
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-primary-custom text-white">
-            <i class="bi bi-folder-check me-2"></i>Mevcut Portföyler
+            <i class="bi bi-folder-check me-2"></i>{{ tr('Mevcut Portföyler') }}
           </div>
           <div class="card-body">
             {% if portfolio_data %}
@@ -130,10 +130,10 @@
               <table class="table table-sm table-hover mb-0">
                 <thead class="table-light">
                   <tr>
-                    <th>Portföy</th>
-                    <th class="text-end">İşlem</th>
-                    <th class="text-end">Satış</th>
-                    <th class="text-end">Net K/Z</th>
+                    <th>{{ tr('Portföy') }}</th>
+                    <th class="text-end">{{ tr('İşlem') }}</th>
+                    <th class="text-end">{{ tr('Satış') }}</th>
+                    <th class="text-end">{{ tr('Net K/Z') }}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -158,7 +158,7 @@
                     <td class="text-end">
                       <form action="/yonetim/portföy-sil/{{ p.name }}" method="post" style="display:inline">
                         <button type="submit" class="btn btn-sm btn-outline-danger"
-                                onclick="return confirm('{{ p.name }} portföyü ve tüm işlem verileri kalıcı olarak silinecek!\n\nEmin misiniz?')">
+                                onclick="return confirm(_t('{name} portföyü ve tüm işlem verileri kalıcı olarak silinecek!\n\nEmin misiniz?', {name: '{{ p.name }}'}))">
                           <i class="bi bi-trash3"></i>
                         </button>
                       </form>
@@ -170,7 +170,7 @@
             </div>
             {% else %}
             <div class="alert alert-info mb-0">
-              <i class="bi bi-info-circle me-2"></i>Henüz portföy yok
+              <i class="bi bi-info-circle me-2"></i>{{ tr('Henüz portföy yok') }}
             </div>
             {% endif %}
           </div>
@@ -185,25 +185,25 @@
       <div class="col-md-6">
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-primary-custom text-white">
-            <i class="bi bi-file-pdf me-2"></i>PDF Yükleme (Aylık Özet)
+            <i class="bi bi-file-pdf me-2"></i>{{ tr('PDF Yükleme (Aylık Özet)') }}
           </div>
           <div class="card-body">
             <form id="pdf-form">
               <div class="mb-3">
-                <label class="form-label fw-semibold">Portföy Seçin</label>
+                <label class="form-label fw-semibold">{{ tr('Portföy Seçin') }}</label>
                 <select id="pdf-portfolio" class="form-select" required>
-                  <option value="">-- Seçiniz --</option>
+                  <option value="">{{ tr('-- Seçiniz --') }}</option>
                   {% for p in portfolios %}
                   <option value="{{ p }}">{{ p }}</option>
                   {% endfor %}
                 </select>
               </div>
               <div class="mb-3">
-                <label class="form-label fw-semibold">PDF Dosyası</label>
+                <label class="form-label fw-semibold">{{ tr('PDF Dosyası') }}</label>
                 <input type="file" id="pdf-file" accept=".pdf" class="form-control" required>
               </div>
               <button type="button" onclick="uploadPDF()" class="btn btn-primary w-100">
-                <i class="bi bi-cloud-upload me-1"></i>Yükle
+                <i class="bi bi-cloud-upload me-1"></i>{{ tr('Yükle') }}
               </button>
               <div id="pdf-status" class="mt-2"></div>
             </form>
@@ -214,25 +214,25 @@
       <div class="col-md-6">
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-primary-custom text-white">
-            <i class="bi bi-file-earmark-csv me-2"></i>CSV Yükleme (Emir Geçmişi)
+            <i class="bi bi-file-earmark-csv me-2"></i>{{ tr('CSV Yükleme (Emir Geçmişi)') }}
           </div>
           <div class="card-body">
             <form id="csv-form">
               <div class="mb-3">
-                <label class="form-label fw-semibold">Portföy Seçin</label>
+                <label class="form-label fw-semibold">{{ tr('Portföy Seçin') }}</label>
                 <select id="csv-portfolio" class="form-select" required>
-                  <option value="">-- Seçiniz --</option>
+                  <option value="">{{ tr('-- Seçiniz --') }}</option>
                   {% for p in portfolios %}
                   <option value="{{ p }}">{{ p }}</option>
                   {% endfor %}
                 </select>
               </div>
               <div class="mb-3">
-                <label class="form-label fw-semibold">CSV Dosyası</label>
+                <label class="form-label fw-semibold">{{ tr('CSV Dosyası') }}</label>
                 <input type="file" id="csv-file" accept=".csv" class="form-control" required>
               </div>
               <button type="button" onclick="uploadCSV()" class="btn btn-primary w-100">
-                <i class="bi bi-cloud-upload me-1"></i>Yükle
+                <i class="bi bi-cloud-upload me-1"></i>{{ tr('Yükle') }}
               </button>
               <div id="csv-status" class="mt-2"></div>
             </form>
@@ -246,12 +246,12 @@
   <div class="tab-pane fade" id="tab-hesapla">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-warning">
-        <i class="bi bi-calculator me-2"></i>FIFO Yeniden Hesaplama
+        <i class="bi bi-calculator me-2"></i>{{ tr('FIFO Yeniden Hesaplama') }}
       </div>
       <div class="card-body">
-        <p class="text-muted mb-3">Yeni işlem ekledikten sonra FIFO hesaplamalarını güncelle</p>
+        <p class="text-muted mb-3">{{ tr('Yeni işlem ekledikten sonra FIFO hesaplamalarını güncelle') }}</p>
         <button type="button" onclick="recompute()" class="btn btn-warning">
-          <i class="bi bi-arrow-repeat me-1"></i>Hesapla
+          <i class="bi bi-arrow-repeat me-1"></i>{{ tr('Hesapla') }}
         </button>
         <div id="compute-status" class="mt-2"></div>
       </div>
@@ -262,38 +262,36 @@
   <div class="tab-pane fade" id="tab-mcp">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-primary-custom text-white">
-        <i class="bi bi-plug me-2"></i>MCP Erişimi — Kişisel API Token'ları
+        <i class="bi bi-plug me-2"></i>{{ tr("MCP Erişimi — Kişisel API Token'ları") }}
       </div>
       <div class="card-body">
         <div class="alert alert-info py-2 small">
           <i class="bi bi-info-circle me-1"></i>
-          Claude Code / Claude Desktop gibi istemcileri kendi hesabınla frigya MCP'sine bağlamak için token oluştur.
-          İstemci <code><span class="mcp-origin"></span>/mcp</code> adresine Streamable HTTP ile bağlanır ve yalnızca
-          senin verini görür. Token yalnızca MCP ve frigya analiz API'sinde geçerlidir; site girişi için kullanılamaz.
+          {{ tr("Claude Code / Claude Desktop gibi istemcileri kendi hesabınla frigya MCP'sine bağlamak için token oluştur. İstemci") }} <code><span class="mcp-origin"></span>/mcp</code> {{ tr("adresine Streamable HTTP ile bağlanır ve yalnızca senin verini görür. Token yalnızca MCP ve frigya analiz API'sinde geçerlidir; site girişi için kullanılamaz.") }}
         </div>
 
         <form class="row g-2 align-items-end mb-3" onsubmit="createApiToken(event)">
           <div class="col-sm-8 col-md-6">
-            <label class="form-label small mb-1" for="token-name">Token adı</label>
+            <label class="form-label small mb-1" for="token-name">{{ tr('Token adı') }}</label>
             <input type="text" class="form-control form-control-sm" id="token-name" maxlength="60"
-                   placeholder="ör. MacBook – Claude Desktop" required>
+                   placeholder="{{ tr('ör. MacBook – Claude Desktop') }}" required>
           </div>
           <div class="col-auto">
             <button type="submit" class="btn btn-primary btn-sm" id="token-create-btn">
-              <i class="bi bi-key me-1"></i>Token oluştur
+              <i class="bi bi-key me-1"></i>{{ tr('Token oluştur') }}
             </button>
           </div>
         </form>
 
         <div id="token-created" class="border rounded p-3 mb-3 bg-body-tertiary d-none">
-          <div class="fw-semibold mb-1"><i class="bi bi-check-circle text-success me-1"></i>Token oluşturuldu</div>
+          <div class="fw-semibold mb-1"><i class="bi bi-check-circle text-success me-1"></i>{{ tr('Token oluşturuldu') }}</div>
           <div class="small text-warning-emphasis mb-2">
-            <i class="bi bi-exclamation-triangle me-1"></i>Bu token bir daha gösterilmeyecek — şimdi kopyala.
+            <i class="bi bi-exclamation-triangle me-1"></i>{{ tr('Bu token bir daha gösterilmeyecek — şimdi kopyala.') }}
           </div>
           <div class="input-group input-group-sm mb-3">
             <input type="text" class="form-control font-monospace" id="token-value" readonly>
             <button class="btn btn-outline-secondary" type="button" onclick="copyText('token-value', this)">
-              <i class="bi bi-clipboard me-1"></i>Kopyala
+              <i class="bi bi-clipboard me-1"></i>{{ tr('Kopyala') }}
             </button>
           </div>
           <div class="small fw-semibold mb-1">Claude Code</div>
@@ -303,7 +301,7 @@
               <i class="bi bi-clipboard"></i>
             </button>
           </div>
-          <div class="small fw-semibold mb-1">Claude Desktop — <code>claude_desktop_config.json</code> → <code>mcpServers</code></div>
+          <div class="small fw-semibold mb-1">{{ tr('Claude Desktop —') }} <code>claude_desktop_config.json</code> → <code>mcpServers</code></div>
           <div class="position-relative">
             <textarea class="form-control form-control-sm font-monospace" id="token-snippet-desktop" rows="9" readonly></textarea>
             <button class="btn btn-outline-secondary btn-sm position-absolute top-0 end-0 m-1" type="button"
@@ -312,17 +310,17 @@
         </div>
 
         <div id="tokens-empty" class="alert alert-secondary py-2 {% if api_tokens %}d-none{% endif %}">
-          <i class="bi bi-inbox me-1"></i>Henüz token yok.
+          <i class="bi bi-inbox me-1"></i>{{ tr('Henüz token yok.') }}
         </div>
         <div class="table-responsive {% if not api_tokens %}d-none{% endif %}" id="tokens-table-wrap">
           <table class="table table-sm table-hover align-middle mb-0">
             <thead>
               <tr>
-                <th>Ad</th>
+                <th>{{ tr('Ad') }}</th>
                 <th>Token</th>
-                <th>Oluşturuldu</th>
-                <th>Son kullanım</th>
-                <th class="text-end">İşlem</th>
+                <th>{{ tr('Oluşturuldu') }}</th>
+                <th>{{ tr('Son kullanım') }}</th>
+                <th class="text-end">{{ 'Action' if lang == 'en' else 'İşlem' }}</th>
               </tr>
             </thead>
             <tbody id="tokens-tbody">
@@ -334,7 +332,7 @@
                 <td class="text-muted small">{{ t.last_used_at or '—' }}</td>
                 <td class="text-end">
                   <button type="button" class="btn btn-outline-danger btn-sm" onclick="revokeApiToken({{ t.id }})">
-                    <i class="bi bi-x-lg me-1"></i>İptal et
+                    <i class="bi bi-x-lg me-1"></i>{{ tr('İptal et') }}
                   </button>
                 </td>
               </tr>
@@ -352,24 +350,24 @@
   <div class="tab-pane fade" id="tab-onay">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-primary-custom text-white">
-        <i class="bi bi-person-check me-2"></i>Onay Bekleyen Kullanıcılar
+        <i class="bi bi-person-check me-2"></i>{{ tr('Onay Bekleyen Kullanıcılar') }}
         <span class="badge bg-light text-dark ms-2" id="pending-count-label">{{ pending_count }}</span>
       </div>
       <div class="card-body">
         <div class="alert alert-info py-2 small">
           <i class="bi bi-info-circle me-1"></i>
-          Yeni kayıt olan her kullanıcı burada görünür. Onayla → giriş yapabilir. Reddet → hesap pasifleşir.
+          {{ tr('Yeni kayıt olan her kullanıcı burada görünür. Onayla → giriş yapabilir. Reddet → hesap pasifleşir.') }}
         </div>
         <div id="pending-empty" class="alert alert-secondary py-2 {% if pending_users %}d-none{% endif %}">
-          <i class="bi bi-inbox me-1"></i>Bekleyen kullanıcı yok.
+          <i class="bi bi-inbox me-1"></i>{{ tr('Bekleyen kullanıcı yok.') }}
         </div>
         <div class="table-responsive {% if not pending_users %}d-none{% endif %}" id="pending-table-wrap">
           <table class="table table-sm table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
                 <th>Email</th>
-                <th>Kayıt Tarihi</th>
-                <th class="text-end">İşlem</th>
+                <th>{{ tr('Kayıt Tarihi') }}</th>
+                <th class="text-end">{{ 'Action' if lang == 'en' else 'İşlem' }}</th>
               </tr>
             </thead>
             <tbody id="pending-tbody">
@@ -380,10 +378,10 @@
                 <td class="text-end">
                   <div class="btn-group btn-group-sm">
                     <button type="button" class="btn btn-success" onclick="approveUser({{ u.id }})">
-                      <i class="bi bi-check-lg me-1"></i>Onayla
+                      <i class="bi bi-check-lg me-1"></i>{{ tr('Onayla') }}
                     </button>
                     <button type="button" class="btn btn-outline-danger" onclick="rejectUser({{ u.id }})">
-                      <i class="bi bi-x-lg me-1"></i>Reddet
+                      <i class="bi bi-x-lg me-1"></i>{{ tr('Reddet') }}
                     </button>
                   </div>
                 </td>
@@ -401,22 +399,22 @@
   <div class="tab-pane fade" id="tab-roller">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-primary-custom text-white">
-        <i class="bi bi-people me-2"></i>Kullanıcı Rolleri
+        <i class="bi bi-people me-2"></i>{{ tr('Kullanıcı Rolleri') }}
       </div>
       <div class="card-body">
         <div class="alert alert-info py-2 small">
           <i class="bi bi-info-circle me-1"></i>
-          Rol değişikliği anında etkin olur. Son admin rolü düşürülemez.
+          {{ tr('Rol değişikliği anında etkin olur. Son admin rolü düşürülemez.') }}
         </div>
         <div class="table-responsive">
           <table class="table table-sm table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
                 <th>Email</th>
-                <th>Rol</th>
-                <th>Durum</th>
-                <th>Kayıt Tarihi</th>
-                <th class="text-end">İşlem</th>
+                <th>{{ tr('Rol') }}</th>
+                <th>{{ tr('Durum') }}</th>
+                <th>{{ tr('Kayıt Tarihi') }}</th>
+                <th class="text-end">{{ 'Action' if lang == 'en' else 'İşlem' }}</th>
               </tr>
             </thead>
             <tbody id="users-tbody">
@@ -425,7 +423,7 @@
                 <td>
                   {{ u.email }}
                   {% if u.id == current_user_id %}
-                  <span class="badge bg-secondary ms-1">Sen</span>
+                  <span class="badge bg-secondary ms-1">{{ tr('Sen') }}</span>
                   {% endif %}
                 </td>
                 <td>
@@ -436,11 +434,11 @@
                 <td>
                   {% set st = u.approval_status or 'approved' %}
                   {% if st == 'approved' %}
-                  <span class="badge bg-success">Onaylı</span>
+                  <span class="badge bg-success">{{ tr('Onaylı') }}</span>
                   {% elif st == 'pending' %}
-                  <span class="badge bg-warning text-dark">Bekliyor</span>
+                  <span class="badge bg-warning text-dark">{{ tr('Bekliyor') }}</span>
                   {% else %}
-                  <span class="badge bg-dark">Reddedildi</span>
+                  <span class="badge bg-dark">{{ tr('Reddedildi') }}</span>
                   {% endif %}
                 </td>
                 <td class="text-muted small">{{ u.created_at }}</td>
@@ -449,12 +447,12 @@
                     <button type="button" class="btn btn-outline-danger"
                             onclick="setRole({{ u.id }}, 'admin', this)"
                             {% if u.role == 'admin' %}disabled{% endif %}>
-                      Admin yap
+                      {{ tr('Admin yap') }}
                     </button>
                     <button type="button" class="btn btn-outline-secondary"
                             onclick="setRole({{ u.id }}, 'user', this)"
                             {% if u.role == 'user' %}disabled{% endif %}>
-                      User yap
+                      {{ tr('User yap') }}
                     </button>
                   </div>
                 </td>
@@ -472,25 +470,24 @@
   <div class="tab-pane fade" id="tab-yedek">
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-danger text-white">
-        <i class="bi bi-database-fill-gear me-2"></i>SQLite Geri Yükleme
+        <i class="bi bi-database-fill-gear me-2"></i>{{ tr('SQLite Geri Yükleme') }}
       </div>
       <div class="card-body">
         <div class="alert alert-warning py-2">
-          Bu işlem mevcut cloud veritabanını yüklediğin dosyayla değiştirir.
-          İşlemden önce otomatik yedek alınır.
+          {{ tr('Bu işlem mevcut cloud veritabanını yüklediğin dosyayla değiştirir. İşlemden önce otomatik yedek alınır.') }}
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">SQLite Dosyası (.db)</label>
+          <label class="form-label fw-semibold">{{ tr('SQLite Dosyası (.db)') }}</label>
           <input type="file" id="restore-db-file" accept=".db,.sqlite,.sqlite3" class="form-control">
-          <small class="form-text text-muted">Yerel makinedeki güncel veritabanı dosyanı seç.</small>
+          <small class="form-text text-muted">{{ tr('Yerel makinedeki güncel veritabanı dosyanı seç.') }}</small>
         </div>
         <div class="mb-3">
           <label class="form-label fw-semibold">Restore Token</label>
-          <input type="password" id="restore-token" class="form-control" placeholder="Railway'deki DB_RESTORE_TOKEN değeri">
-          <small class="form-text text-muted">Token'ı Railway > Variables bölümünden ayarlayıp buraya gir.</small>
+          <input type="password" id="restore-token" class="form-control" placeholder="{{ tr('Railway\'deki DB_RESTORE_TOKEN değeri') }}">
+          <small class="form-text text-muted">{{ tr("Token'ı Railway > Variables bölümünden ayarlayıp buraya gir.") }}</small>
         </div>
         <button type="button" onclick="restoreSQLite()" class="btn btn-danger">
-          <i class="bi bi-upload me-1"></i>DB Geri Yükle
+          <i class="bi bi-upload me-1"></i>{{ tr('DB Geri Yükle') }}
         </button>
         <div id="restore-status" class="mt-2"></div>
       </div>
@@ -507,74 +504,74 @@
 async function uploadPDF() {
   const file = document.getElementById('pdf-file').files[0];
   const portfolio = document.getElementById('pdf-portfolio').value;
-  if (!file) { alert('Dosya seçiniz'); return; }
-  if (!portfolio) { alert('Portföy seçiniz'); return; }
+  if (!file) { alert(_t('Dosya seçiniz')); return; }
+  if (!portfolio) { alert(_t('Portföy seçiniz')); return; }
 
   const formData = new FormData();
   formData.append('file', file);
   formData.append('portfolio', portfolio);
 
-  document.getElementById('pdf-status').innerHTML = '<span class="badge bg-info">Yükleniyor...</span>';
+  document.getElementById('pdf-status').innerHTML = `<span class="badge bg-info">${_t('Yükleniyor...')}</span>`;
   try {
     const resp = await fetch('/yonetim/api/upload-pdf', {method: 'POST', body: formData});
     const data = await resp.json();
     if (resp.ok) {
       document.getElementById('pdf-status').innerHTML =
-        `<span class="badge bg-success">✓ Başarılı: ${data.inserted} eklendi, ${data.skipped} mükerrer</span>`;
+        `<span class="badge bg-success">${_t('✓ Başarılı: {inserted} eklendi, {skipped} mükerrer', data)}</span>`;
       document.getElementById('pdf-file').value = '';
     } else {
       document.getElementById('pdf-status').innerHTML =
-        `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+        `<span class="badge bg-danger">✗ ${_t('Hata')}: ${data.detail}</span>`;
     }
   } catch (e) {
     document.getElementById('pdf-status').innerHTML =
-      `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+      `<span class="badge bg-danger">✗ ${_t('Hata')}: ${e.message}</span>`;
   }
 }
 
 async function uploadCSV() {
   const file = document.getElementById('csv-file').files[0];
   const portfolio = document.getElementById('csv-portfolio').value;
-  if (!file) { alert('Dosya seçiniz'); return; }
-  if (!portfolio) { alert('Portföy seçiniz'); return; }
+  if (!file) { alert(_t('Dosya seçiniz')); return; }
+  if (!portfolio) { alert(_t('Portföy seçiniz')); return; }
 
   const formData = new FormData();
   formData.append('file', file);
   formData.append('portfolio', portfolio);
 
-  document.getElementById('csv-status').innerHTML = '<span class="badge bg-info">Yükleniyor...</span>';
+  document.getElementById('csv-status').innerHTML = `<span class="badge bg-info">${_t('Yükleniyor...')}</span>`;
   try {
     const resp = await fetch('/yonetim/api/upload-csv', {method: 'POST', body: formData});
     const data = await resp.json();
     if (resp.ok) {
       document.getElementById('csv-status').innerHTML =
-        `<span class="badge bg-success">✓ Başarılı: ${data.inserted} eklendi, ${data.skipped} mükerrer</span>`;
+        `<span class="badge bg-success">${_t('✓ Başarılı: {inserted} eklendi, {skipped} mükerrer', data)}</span>`;
       document.getElementById('csv-file').value = '';
     } else {
       document.getElementById('csv-status').innerHTML =
-        `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+        `<span class="badge bg-danger">✗ ${_t('Hata')}: ${data.detail}</span>`;
     }
   } catch (e) {
     document.getElementById('csv-status').innerHTML =
-      `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+      `<span class="badge bg-danger">✗ ${_t('Hata')}: ${e.message}</span>`;
   }
 }
 
 async function recompute() {
-  document.getElementById('compute-status').innerHTML = '<span class="badge bg-info">Hesaplanıyor...</span>';
+  document.getElementById('compute-status').innerHTML = `<span class="badge bg-info">${_t('Hesaplanıyor...')}</span>`;
   try {
     const resp = await fetch('/yonetim/api/recompute', {method: 'POST'});
     const data = await resp.json();
     if (resp.ok) {
       document.getElementById('compute-status').innerHTML =
-        `<span class="badge bg-success">✓ Başarılı: ${data.sell_results} satış işlemi hesaplandı</span>`;
+        `<span class="badge bg-success">${_t('✓ Başarılı: {sell_results} satış işlemi hesaplandı', data)}</span>`;
     } else {
       document.getElementById('compute-status').innerHTML =
-        `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+        `<span class="badge bg-danger">✗ ${_t('Hata')}: ${data.detail}</span>`;
     }
   } catch (e) {
     document.getElementById('compute-status').innerHTML =
-      `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+      `<span class="badge bg-danger">✗ ${_t('Hata')}: ${e.message}</span>`;
   }
 }
 
@@ -599,45 +596,45 @@ function _refreshPendingUI() {
 
 async function approveUser(userId) {
   const statusEl = document.getElementById('approval-status');
-  statusEl.innerHTML = '<span class="badge bg-info">Onaylanıyor...</span>';
+  statusEl.innerHTML = `<span class="badge bg-info">${_t('Onaylanıyor...')}</span>`;
   try {
     const resp = await fetch(`/yonetim/api/users/${userId}/approve`, {method: 'POST'});
     const data = await resp.json();
     if (resp.ok) {
       document.querySelector(`tr[data-pending-id="${userId}"]`)?.remove();
       _refreshPendingUI();
-      statusEl.innerHTML = '<span class="badge bg-success">✓ Kullanıcı onaylandı</span>';
+      statusEl.innerHTML = `<span class="badge bg-success">${_t('✓ Kullanıcı onaylandı')}</span>`;
     } else {
-      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${data.detail}</span>`;
     }
   } catch (e) {
-    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${e.message}</span>`;
   }
 }
 
 async function rejectUser(userId) {
-  if (!confirm('Bu kullanıcı reddedilecek ve hesabı pasife düşecek. Emin misin?')) return;
+  if (!confirm(_t('Bu kullanıcı reddedilecek ve hesabı pasife düşecek. Emin misin?'))) return;
   const statusEl = document.getElementById('approval-status');
-  statusEl.innerHTML = '<span class="badge bg-info">Reddediliyor...</span>';
+  statusEl.innerHTML = `<span class="badge bg-info">${_t('Reddediliyor...')}</span>`;
   try {
     const resp = await fetch(`/yonetim/api/users/${userId}/reject`, {method: 'POST'});
     const data = await resp.json();
     if (resp.ok) {
       document.querySelector(`tr[data-pending-id="${userId}"]`)?.remove();
       _refreshPendingUI();
-      statusEl.innerHTML = '<span class="badge bg-dark">✓ Kullanıcı reddedildi</span>';
+      statusEl.innerHTML = `<span class="badge bg-dark">${_t('✓ Kullanıcı reddedildi')}</span>`;
     } else {
-      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${data.detail}</span>`;
     }
   } catch (e) {
-    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${e.message}</span>`;
   }
 }
 
 async function setRole(userId, role, btn) {
   const statusEl = document.getElementById('role-status');
-  if (!confirm(`Bu kullanıcının rolü "${role}" olarak değiştirilecek. Emin misin?`)) return;
-  statusEl.innerHTML = '<span class="badge bg-info">Güncelleniyor...</span>';
+  if (!confirm(_t('Bu kullanıcının rolü "{role}" olarak değiştirilecek. Emin misin?', {role}))) return;
+  statusEl.innerHTML = `<span class="badge bg-info">${_t('Güncelleniyor...')}</span>`;
   try {
     const resp = await fetch(`/yonetim/api/users/${userId}/role`, {
       method: 'POST',
@@ -656,12 +653,12 @@ async function setRole(userId, role, btn) {
           b.disabled = (target === role);
         });
       }
-      statusEl.innerHTML = `<span class="badge bg-success">✓ Rol güncellendi: ${role}</span>`;
+      statusEl.innerHTML = `<span class="badge bg-success">${_t('✓ Rol güncellendi: {role}', {role})}</span>`;
     } else {
-      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail}</span>`;
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${data.detail}</span>`;
     }
   } catch (e) {
-    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${e.message}</span>`;
   }
 }
 
@@ -669,11 +666,11 @@ async function restoreSQLite() {
   const file = document.getElementById('restore-db-file').files[0];
   const restoreToken = document.getElementById('restore-token').value.trim();
   const statusEl = document.getElementById('restore-status');
-  if (!file) { alert('SQLite dosyası seçiniz'); return; }
-  if (!restoreToken) { alert('Restore token giriniz'); return; }
+  if (!file) { alert(_t('SQLite dosyası seçiniz')); return; }
+  if (!restoreToken) { alert(_t('Restore token giriniz')); return; }
 
   const confirmed = confirm(
-    'Bu işlem cloud veritabanını tamamen değiştirir. Devam etmek istediğinize emin misiniz?'
+    _t('Bu işlem cloud veritabanını tamamen değiştirir. Devam etmek istediğinize emin misiniz?')
   );
   if (!confirmed) return;
 
@@ -681,19 +678,19 @@ async function restoreSQLite() {
   formData.append('file', file);
   formData.append('restore_token', restoreToken);
 
-  statusEl.innerHTML = '<span class="badge bg-info">Yükleniyor ve geri yükleniyor...</span>';
+  statusEl.innerHTML = `<span class="badge bg-info">${_t('Yükleniyor ve geri yükleniyor...')}</span>`;
   try {
     const resp = await fetch('/yonetim/api/restore-sqlite', { method: 'POST', body: formData });
     const data = await resp.json();
     if (resp.ok) {
       statusEl.innerHTML = `<span class="badge bg-success">✓ ${data.message}</span>`;
       document.getElementById('restore-db-file').value = '';
-      setTimeout(() => window.location.href = '/yonetim?success=DB%20restore%20tamamlandı', 1200);
+      setTimeout(() => window.location.href = '/yonetim?success=' + encodeURIComponent(_t('DB restore tamamlandı')), 1200);
     } else {
-      statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${data.detail || 'Bilinmeyen hata'}</span>`;
+      statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${data.detail || _t('Bilinmeyen hata')}</span>`;
     }
   } catch (e) {
-    statusEl.innerHTML = `<span class="badge bg-danger">✗ Hata: ${e.message}</span>`;
+    statusEl.innerHTML = `<span class="badge bg-danger">✗ ${_t('Hata')}: ${e.message}</span>`;
   }
 }
 
@@ -715,7 +712,7 @@ function _tokenRow(t) {
     <td class="text-muted small">${escapeHtml(t.created_at)}</td>
     <td class="text-muted small">${t.last_used_at ? escapeHtml(t.last_used_at) : '—'}</td>
     <td class="text-end"><button type="button" class="btn btn-outline-danger btn-sm" onclick="revokeApiToken(${t.id})">
-      <i class="bi bi-x-lg me-1"></i>İptal et</button></td>`;
+      <i class="bi bi-x-lg me-1"></i>${_t('İptal et')}</button></td>`;
   return tr;
 }
 
@@ -730,7 +727,7 @@ async function createApiToken(e) {
     const r = await fetch('/api/tokens', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                           body: JSON.stringify({name: nameEl.value})});
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || data.detail || 'Token oluşturulamadı');
+    if (!r.ok) throw new Error(data.error || data.detail || _t('Token oluşturulamadı'));
     document.getElementById('token-value').value = data.token;
     document.getElementById('token-snippet-code').value =
       `claude mcp add --transport http frigya ${MCP_URL} --header "Authorization: Bearer ${data.token}"`;
@@ -753,15 +750,15 @@ async function createApiToken(e) {
 }
 
 async function revokeApiToken(id) {
-  if (!confirm('Bu token iptal edilsin mi? Onu kullanan istemciler bağlantıyı kaybeder.')) return;
+  if (!confirm(_t('Bu token iptal edilsin mi? Onu kullanan istemciler bağlantıyı kaybeder.'))) return;
   const statusEl = document.getElementById('token-status');
   try {
     const r = await fetch(`/api/tokens/${id}`, {method: 'DELETE'});
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || data.detail || 'İptal edilemedi');
+    if (!r.ok) throw new Error(data.error || data.detail || _t('İptal edilemedi'));
     document.querySelector(`tr[data-token-id="${id}"]`)?.remove();
     _refreshTokensUI();
-    statusEl.innerHTML = '<span class="badge bg-success">✓ Token iptal edildi</span>';
+    statusEl.innerHTML = `<span class="badge bg-success">${_t('✓ Token iptal edildi')}</span>`;
   } catch (err) {
     statusEl.innerHTML = `<span class="badge bg-danger">✗ ${escapeHtml(err.message)}</span>`;
   }

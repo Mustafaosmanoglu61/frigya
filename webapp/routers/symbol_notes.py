@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from portfolio_helper import get_portfolios, is_super
@@ -33,9 +34,9 @@ async def add_note(request: Request, symbol: str):
     body = await request.json()
     text = (body.get("text") or "").strip()
     if not text:
-        return JSONResponse({"error": "Not metni boş olamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni boş olamaz")}, status_code=400)
     if len(text) > 5000:
-        return JSONResponse({"error": "Not metni 5000 karakteri aşamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni 5000 karakteri aşamaz")}, status_code=400)
     note_id = database.insert_symbol_note(int(user["id"]), symbol, text)
     return JSONResponse({"ok": True, "id": note_id})
 
@@ -46,12 +47,12 @@ async def edit_note(request: Request, note_id: int):
     body = await request.json()
     text = (body.get("text") or "").strip()
     if not text:
-        return JSONResponse({"error": "Not metni boş olamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni boş olamaz")}, status_code=400)
     if len(text) > 5000:
-        return JSONResponse({"error": "Not metni 5000 karakteri aşamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni 5000 karakteri aşamaz")}, status_code=400)
     ok = database.update_symbol_note(int(user["id"]), note_id, text)
     if not ok:
-        return JSONResponse({"error": "Not bulunamadı"}, status_code=404)
+        return JSONResponse({"error": i18n.tx(request, "Not bulunamadı")}, status_code=404)
     return JSONResponse({"ok": True})
 
 
@@ -60,7 +61,7 @@ async def delete_note(request: Request, note_id: int):
     user = auth_service.require_current_user(request)
     ok = database.delete_symbol_note(int(user["id"]), note_id)
     if not ok:
-        return JSONResponse({"error": "Not bulunamadı"}, status_code=404)
+        return JSONResponse({"error": i18n.tx(request, "Not bulunamadı")}, status_code=404)
     return JSONResponse({"ok": True})
 
 
@@ -91,7 +92,7 @@ async def pf_list_notes(request: Request, portfolio: str):
     user_id = int(user["id"])
     err = _validate_portfolio(user_id, portfolio)
     if err:
-        return JSONResponse({"error": err}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, err)}, status_code=400)
     notes = database.list_portfolio_notes(user_id, portfolio)
     return JSONResponse({"portfolio": portfolio, "notes": notes})
 
@@ -102,13 +103,13 @@ async def pf_add_note(request: Request, portfolio: str):
     user_id = int(user["id"])
     err = _validate_portfolio(user_id, portfolio)
     if err:
-        return JSONResponse({"error": err}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, err)}, status_code=400)
     body = await request.json()
     text = (body.get("text") or "").strip()
     if not text:
-        return JSONResponse({"error": "Not metni boş olamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni boş olamaz")}, status_code=400)
     if len(text) > 5000:
-        return JSONResponse({"error": "Not metni 5000 karakteri aşamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni 5000 karakteri aşamaz")}, status_code=400)
     note_id = database.insert_portfolio_note(user_id, portfolio, text)
     return JSONResponse({"ok": True, "id": note_id})
 
@@ -119,12 +120,12 @@ async def pf_edit_note(request: Request, note_id: int):
     body = await request.json()
     text = (body.get("text") or "").strip()
     if not text:
-        return JSONResponse({"error": "Not metni boş olamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni boş olamaz")}, status_code=400)
     if len(text) > 5000:
-        return JSONResponse({"error": "Not metni 5000 karakteri aşamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Not metni 5000 karakteri aşamaz")}, status_code=400)
     ok = database.update_portfolio_note(int(user["id"]), note_id, text)
     if not ok:
-        return JSONResponse({"error": "Not bulunamadı"}, status_code=404)
+        return JSONResponse({"error": i18n.tx(request, "Not bulunamadı")}, status_code=404)
     return JSONResponse({"ok": True})
 
 
@@ -133,5 +134,5 @@ async def pf_delete_note(request: Request, note_id: int):
     user = auth_service.require_current_user(request)
     ok = database.delete_portfolio_note(int(user["id"]), note_id)
     if not ok:
-        return JSONResponse({"error": "Not bulunamadı"}, status_code=404)
+        return JSONResponse({"error": i18n.tx(request, "Not bulunamadı")}, status_code=404)
     return JSONResponse({"ok": True})

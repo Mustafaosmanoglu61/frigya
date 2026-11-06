@@ -76,6 +76,15 @@ def _tr(ctx, text):
 templates.env.globals["tr"] = _tr
 
 
+@pass_context
+def _i18n_client(ctx):
+    """Tarayıcıdaki _t() için sözlük; Türkçede boş (metin zaten kaynak dilde)."""
+    return i18n.TRANSLATIONS if ctx.get("lang") == "en" else {}
+
+
+templates.env.globals["i18n_client"] = _i18n_client
+
+
 # ─── Custom Filters ────────────────────────────────────────────────────────
 
 def _fmtqty(value) -> str:

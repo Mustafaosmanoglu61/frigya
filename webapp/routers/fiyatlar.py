@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 import os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from templates_config import templates
@@ -309,11 +310,11 @@ async def watchlist_ekle(request: Request):
     portfolio = request.session.get("portfolio")
 
     if not symbol:
-        return JSONResponse({"error": "Sembol boş olamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Sembol boş olamaz")}, status_code=400)
     if not portfolio:
-        return JSONResponse({"error": "Önce portföy oluşturun veya seçin"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Önce portföy oluşturun veya seçin")}, status_code=400)
     if is_super(portfolio):
-        return JSONResponse({"error": "Süper portföyde ekleme yapılamaz, gerçek bir portföy seçin"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Süper portföyde ekleme yapılamaz, gerçek bir portföy seçin")}, status_code=400)
 
     with database.db() as conn:
         existing = conn.execute(
@@ -321,7 +322,7 @@ async def watchlist_ekle(request: Request):
             (user_id, portfolio, symbol),
         ).fetchone()
         if existing:
-            return JSONResponse({"error": f"{symbol} zaten listede"}, status_code=409)
+            return JSONResponse({"error": i18n.tx(request, "{symbol} zaten listede", symbol=symbol)}, status_code=409)
         conn.execute(
             "INSERT INTO watchlist (user_id, portfolio, symbol) VALUES (?, ?, ?)",
             (user_id, portfolio, symbol),
@@ -356,7 +357,7 @@ async def watchlist_note_update(item_id: int, request: Request):
     if not note or not note.strip():
         note = None
     if is_super(portfolio):
-        return JSONResponse({"error": "Süper portföyde düzenleme yapılamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Süper portföyde düzenleme yapılamaz")}, status_code=400)
     with database.db() as conn:
         conn.execute(
             "UPDATE watchlist SET notes=? WHERE id=? AND user_id=? AND portfolio=?",
@@ -374,7 +375,7 @@ async def watchlist_sil(item_id: int, request: Request):
     if not portfolio:
         return JSONResponse({"ok": True})
     if is_super(portfolio):
-        return JSONResponse({"error": "Süper portföyde silme yapılamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Süper portföyde silme yapılamaz")}, status_code=400)
     with database.db() as conn:
         conn.execute(
             "DELETE FROM watchlist WHERE id=? AND user_id=? AND portfolio=?",
@@ -393,12 +394,12 @@ async def targets_upsert(request: Request):
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
     if not portfolio:
-        return JSONResponse({"error": "Portföy seçilmedi"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Portföy seçilmedi")}, status_code=400)
 
     body = await request.json()
     symbol = body.get("symbol", "").strip().upper()
     if not symbol:
-        return JSONResponse({"error": "Sembol boş olamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Sembol boş olamaz")}, status_code=400)
 
     hedef = body.get("hedef_fiyat")
     taban = body.get("taban_fiyat")
@@ -457,7 +458,7 @@ async def symbol_tag_upsert(request: Request):
     body = await request.json()
     symbol = (body.get("symbol") or "").strip().upper()
     if not symbol:
-        return JSONResponse({"error": "Sembol boş olamaz"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Sembol boş olamaz")}, status_code=400)
     tag = body.get("tag")
     if tag is not None:
         tag = str(tag).strip()
@@ -544,7 +545,7 @@ async def validate_symbol(request: Request):
     symbol = body.get("symbol", "").strip().upper()
 
     if not symbol:
-        return JSONResponse({"valid": False, "error": "Sembol boş olamaz"}, status_code=400)
+        return JSONResponse({"valid": False, "error": i18n.tx(request, "Sembol boş olamaz")}, status_code=400)
 
     def _validate():
         # yfinance senkron + ağ; event loop'u bloke etmemek için thread'de çalışır.
@@ -574,7 +575,7 @@ async def validate_symbol(request: Request):
         if res is None:
             return JSONResponse({
                 "valid": False,
-                "error": f"{symbol} geçerli bir ticker değil veya kalktı"
+                "error": i18n.tx(request, "{symbol} geçerli bir ticker değil veya kalktı", symbol=symbol)
             }, status_code=400)
 
         return JSONResponse({
@@ -586,7 +587,7 @@ async def validate_symbol(request: Request):
     except Exception as e:
         return JSONResponse({
             "valid": False,
-            "error": f"{symbol} bulunamadı"
+            "error": i18n.tx(request, "{symbol} bulunamadı", symbol=symbol)
         }, status_code=400)
 
 
@@ -625,12 +626,12 @@ async def symbol_charts(request: Request):
 # ─── GET /api/fiyatlar/chart/{symbol} ─────────────────────────────────────
 
 @router.get("/api/fiyatlar/chart/{symbol}")
-async def fiyatlar_chart(symbol: str, interval: str = Query("1d")):
+async def fiyatlar_chart(request: Request, symbol: str, interval: str = Query("1d")):
     """Sembol için historical chart verisi (OHLCV)."""
     symbol = symbol.upper().strip()
 
     if not symbol:
-        return JSONResponse({"error": "Sembol boş"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Sembol boş")}, status_code=400)
 
     try:
         from price_service import get_historical_data

@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 import os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import sync_all_profile
 
@@ -54,16 +55,16 @@ async def all_profile_sync(request: Request):
     uid = await run_in_threadpool(sync_all_profile.get_target_uid)
 
     if uid is None:
-        return JSONResponse({"error": "Birleşik profil bulunamadı"}, status_code=404)
+        return JSONResponse({"error": i18n.tx(request, "Birleşik profil bulunamadı")}, status_code=404)
     if int(user["id"]) != uid:
         return JSONResponse(
-            {"error": "Bu işlem yalnızca birleşik profilden yapılabilir"}, status_code=403
+            {"error": i18n.tx(request, "Bu işlem yalnızca birleşik profilden yapılabilir")}, status_code=403
         )
 
     try:
         await run_in_threadpool(sync_all_profile.main)
     except Exception as e:
-        return JSONResponse({"error": f"Senkron başarısız: {e}"}, status_code=500)
+        return JSONResponse({"error": i18n.tx(request, "Senkron başarısız: {err}", err=e)}, status_code=500)
 
     st = await run_in_threadpool(sync_all_profile.get_status)
     return JSONResponse({"ok": True, "stale": st["stale"], "last_sync": st["last_sync"]})

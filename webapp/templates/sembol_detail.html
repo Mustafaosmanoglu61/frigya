@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{{ symbol }} Detay — Frigya{% endblock %}
+{% block title %}{{ symbol }} {{ tr('Detay — Frigya') }}{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
     <a href="/semboller" class="text-muted small text-decoration-none">
-      <i class="bi bi-arrow-left me-1"></i>Semboller
+      <i class="bi bi-arrow-left me-1"></i>{{ tr('Semboller') }}
     </a>
     <h4 class="fw-bold text-dark mb-0 mt-1">
       <i class="bi bi-graph-up me-2 text-primary"></i>{{ symbol }}
       <button type="button" class="btn btn-link btn-sm p-1 note-btn position-relative align-baseline"
               data-symbol="{{ symbol }}"
               onclick="openSymbolNotes('{{ symbol }}')"
-              title="Notlar">
+              title="{{ tr('Notlar') }}">
         <i class="bi bi-journal-text text-muted"></i>
         <span class="badge bg-primary note-count-badge d-none position-absolute top-0 start-100 translate-middle"
               style="font-size:.6rem;padding:.15rem .3rem"></span>
@@ -22,14 +22,14 @@
   <div class="d-flex gap-2 align-items-center flex-wrap">
     <!-- Year dropdown -->
     <select id="year-filter-select" class="form-select form-select-sm" style="width:auto;min-width:120px">
-      <option value="all" selected>Tümü</option>
+      <option value="all" selected>{{ tr('Tümü') }}</option>
       {% for y in summary %}
       <option value="{{ y.tax_year }}">{{ y.tax_year }}</option>
       {% endfor %}
     </select>
     {% if not is_super %}
     <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addTxModal">
-      <i class="bi bi-plus-lg me-1"></i>İşlem Ekle
+      <i class="bi bi-plus-lg me-1"></i>{{ tr('İşlem Ekle') }}
     </button>
     {% endif %}
   </div>
@@ -58,7 +58,7 @@
             <div class="fw-semibold">{{ "{:.0f}".format(s.success_rate * 100) }}%</div>
           </div>
           <div class="col">
-            <div class="text-muted">K/Z %</div>
+            <div class="text-muted">{{ tr('K/Z') }} %</div>
             <div class="fw-semibold {% if s.net_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
               {% if s.pnl_pct is not none %}{{ "{:+.1f}".format(s.pnl_pct * 100) }}%{% else %}—{% endif %}
             </div>
@@ -156,13 +156,13 @@
                   {% if is_super %}
                   <span class="badge bg-light text-secondary border">{{ r.portfolio }}</span>
                   {% else %}
-                  <button type="button" class="btn btn-sm btn-outline-secondary me-1" title="Düzenle"
+                  <button type="button" class="btn btn-sm btn-outline-secondary me-1" title="{{ tr('Düzenle') }}"
                           onclick="openEditModal({{ r.id }}, '{{ r.tx_date }}', '{{ r.direction }}', {{ r.quantity }}, {{ r.price }})">
                     <i class="bi bi-pencil"></i>
                   </button>
                   <form action="/sembol/{{ symbol }}/sil/{{ r.id }}?portfolio={{ current_portfolio }}" method="post" style="display: inline;">
-                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Sil"
-                            onclick="return confirm('{{ r.tx_date }} {{ r.direction }} işlemini silmek istediğinize emin misiniz?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ tr('Sil') }}"
+                            onclick="return confirm(_t('{what} işlemini silmek istediğinize emin misiniz?', {what: '{{ r.tx_date }} {{ tr(r.direction) }}'}));">
                       <i class="bi bi-trash3"></i>
                     </button>
                   </form>
@@ -210,7 +210,7 @@
                 </td>
                 <td class="text-center">
                   <span class="badge {% if r.eksik_lot %}bg-warning text-dark{% elif r.pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
-                    {% if r.eksik_lot %}{{ r.status }}*{% else %}{{ r.status }}{% endif %}
+                    {{ tr(r.status) }}{% if r.eksik_lot %}*{% endif %}
                   </span>
                 </td>
                 <td class="text-end">
@@ -234,11 +234,11 @@
       <div class="card-header bg-white py-2">
         <div class="d-flex justify-content-between align-items-center">
           <span class="fw-semibold">
-            Satış: {{ r.tx_date }} — {{ r.quantity | fmtqty }} adet @ ${{ "{:,.2f}".format(r.sale_price) }}
-            → Gelir: ${{ "{:,.2f}".format(r.sale_proceeds) }}
+            {{ tr('Satış:') }} {{ r.tx_date }} — {{ r.quantity | fmtqty }} {{ tr('adet @ $') }}{{ "{:,.2f}".format(r.sale_price) }}
+            {{ tr('→ Gelir: $') }}{{ "{:,.2f}".format(r.sale_proceeds) }}
           </span>
           <span class="badge {% if r.pnl >= 0 %}bg-success{% else %}bg-danger{% endif %}">
-            K/Z: ${{ "{:,.2f}".format(r.pnl) }}
+            {{ tr('K/Z:') }} ${{ "{:,.2f}".format(r.pnl) }}
           </span>
         </div>
       </div>
@@ -263,14 +263,14 @@
                 <td class="text-end">${{ "{:,.2f}".format(m.buy_price or 0) }}</td>
                 <td class="text-end">${{ "{:,.2f}".format(m.consumed_cost) }}</td>
                 <td class="text-center">
-                  {% if m.is_carry_lot %}<span class="badge bg-warning text-dark">Devir</span>
+                  {% if m.is_carry_lot %}<span class="badge bg-warning text-dark">{{ tr('Devir') }}</span>
                   {% else %}<span class="badge bg-light text-secondary">Normal</span>{% endif %}
                 </td>
               </tr>
               {% endfor %}
             {% else %}
               <tr><td colspan="5" class="text-muted text-center small py-2">
-                {% if r.eksik_lot %}Eksik lot — önceki dönem verisi yok{% else %}Eşleşme verisi yok{% endif %}
+                {% if r.eksik_lot %}{{ tr('Eksik lot — önceki dönem verisi yok') }}{% else %}{{ tr('Eşleşme verisi yok') }}{% endif %}
               </td></tr>
             {% endif %}
           </tbody>
@@ -278,7 +278,7 @@
       </div>
     </div>
     {% else %}
-    <div class="alert alert-info">Bu sembol için satış kaydı yok.</div>
+    <div class="alert alert-info">{{ tr('Bu sembol için satış kaydı yok.') }}</div>
     {% endfor %}
   </div>
 
@@ -286,7 +286,7 @@
   <div class="tab-pane fade {% if active_tab == 'open' %}show active{% endif %}" id="tab-open">
     {% if open_pos %}
     <div class="alert alert-info py-2 small mb-3">
-      Toplam Açık: <strong>{{ total_open_qty | fmtqty }} adet</strong> —
+      {{ tr('Toplam Açık:') }} <strong>{{ total_open_qty | fmtqty }} {{ tr('adet') }}</strong> —
       {{ tr('Toplam Maliyet:') }} <strong>${{ "{:,.2f}".format(total_open_cost) }}</strong> —
       {{ tr('Ortalama Maliyet:') }} <strong>${{ "{:,.2f}".format(total_open_cost / total_open_qty if total_open_qty > 0 else 0) }}</strong>
     </div>
@@ -317,7 +317,7 @@
               <td class="text-end fw-semibold">${{ "{:,.2f}".format(r.cost_basis) }}</td>
               <td class="text-end">${{ "{:,.2f}".format(r.cost_basis / r.quantity if r.quantity > 0 else 0) }}</td>
               <td class="text-center">
-                {% if r.is_carry_lot %}<span class="badge bg-warning text-dark">Devir</span>
+                {% if r.is_carry_lot %}<span class="badge bg-warning text-dark">{{ tr('Devir') }}</span>
                 {% else %}<span class="badge bg-light text-secondary">Normal</span>{% endif %}
               </td>
             </tr>
@@ -325,7 +325,7 @@
           </tbody>
           <tfoot class="table-total-row">
             <tr class="fw-bold">
-              <td colspan="2">TOPLAM</td>
+              <td colspan="2">{{ tr('TOPLAM') }}</td>
               <td class="text-end">{{ total_open_qty | fmtqty }}</td>
               <td></td>
               <td class="text-end">${{ "{:,.2f}".format(total_open_cost) }}</td>
@@ -337,7 +337,7 @@
       </div>
     </div>
     {% else %}
-    <div class="alert alert-secondary">Bu sembol için açık pozisyon yok — tüm lotlar satılmış.</div>
+    <div class="alert alert-secondary">{{ tr('Bu sembol için açık pozisyon yok — tüm lotlar satılmış.') }}</div>
     {% endif %}
   </div>
 
@@ -347,19 +347,19 @@
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-body">
         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-          <label class="fw-semibold mb-0">Hedef Fiyat (USD)</label>
+          <label class="fw-semibold mb-0">{{ tr('Hedef Fiyat (USD)') }}</label>
           <span id="current-price-badge" class="badge bg-light text-secondary border">
             <span class="spinner-border spinner-border-sm me-1" id="price-spinner"></span>
-            <span id="current-price-label">Yükleniyor...</span>
+            <span id="current-price-label">{{ tr('Yükleniyor...') }}</span>
           </span>
         </div>
         <div class="input-group" style="max-width:320px">
           <span class="input-group-text">$</span>
           <input type="number" id="currentPriceInput" class="form-control"
-                 placeholder="Güncel fiyat yükleniyor..." step="0.01" min="0"
+                 placeholder="{{ tr('Güncel fiyat yükleniyor...') }}" step="0.01" min="0"
                  value="{{ target.get('hedef_fiyat', '') or '' }}"
                  oninput="calcUnrealized(this.value)">
-          <button class="btn btn-outline-secondary" type="button" id="btn-reset-price" title="Güncel fiyata dön" style="display:none" onclick="resetToCurrentPrice()">
+          <button class="btn btn-outline-secondary" type="button" id="btn-reset-price" title="{{ tr('Güncel fiyata dön') }}" style="display:none" onclick="resetToCurrentPrice()">
             <i class="bi bi-arrow-counterclockwise"></i>
           </button>
         </div>
@@ -368,37 +368,37 @@
         <!-- Süper: portföy bazlı hedefler (read-only) -->
         {% if target_list %}
         <div class="mt-3 small">
-          <div class="text-muted mb-1"><i class="bi bi-bullseye me-1"></i>Portföy hedefleri (salt-okunur):</div>
+          <div class="text-muted mb-1"><i class="bi bi-bullseye me-1"></i>{{ tr('Portföy hedefleri (salt-okunur):') }}</div>
           {% for t in target_list %}
           <span class="badge bg-light text-dark border me-1 mb-1">
             {{ t.portfolio }}:
-            {% if t.hedef_fiyat %}Hedef ${{ "{:,.2f}".format(t.hedef_fiyat) }}{% endif %}
-            {% if t.taban_fiyat %} · Taban ${{ "{:,.2f}".format(t.taban_fiyat) }}{% endif %}
-            {% if t.hedef_dolar_kazanci %} · Kazanç ${{ "{:,.0f}".format(t.hedef_dolar_kazanci) }}{% endif %}
+            {% if t.hedef_fiyat %}{{ tr('Hedef $') }}{{ "{:,.2f}".format(t.hedef_fiyat) }}{% endif %}
+            {% if t.taban_fiyat %} {{ tr('· Taban $') }}{{ "{:,.2f}".format(t.taban_fiyat) }}{% endif %}
+            {% if t.hedef_dolar_kazanci %} {{ tr('· Kazanç $') }}{{ "{:,.0f}".format(t.hedef_dolar_kazanci) }}{% endif %}
           </span>
           {% endfor %}
         </div>
         {% else %}
-        <div class="text-muted small mt-2">Bu sembol için hiçbir portföyde hedef tanımlı değil.</div>
+        <div class="text-muted small mt-2">{{ tr('Bu sembol için hiçbir portföyde hedef tanımlı değil.') }}</div>
         {% endif %}
         {% else %}
         <!-- Taban Fiyat & Hedef Kazanç -->
         <div class="row g-2 mt-2" style="max-width:500px">
           <div class="col-6">
-            <label class="form-label small mb-1">Taban Fiyat ($)</label>
+            <label class="form-label small mb-1">{{ tr('Taban Fiyat ($)') }}</label>
             <input type="number" id="detail-taban" class="form-control form-control-sm"
-                   step="0.01" min="0" placeholder="Destek"
+                   step="0.01" min="0" placeholder="{{ tr('Destek') }}"
                    value="{{ target.get('taban_fiyat', '') or '' }}">
           </div>
           <div class="col-6">
             <label class="form-label small mb-1">{{ tr('Hedef Kazanç ($)') }}</label>
             <input type="number" id="detail-kazanc" class="form-control form-control-sm"
-                   step="0.01" min="0" placeholder="Opsiyonel"
+                   step="0.01" min="0" placeholder="{{ tr('Opsiyonel') }}"
                    value="{{ target.get('hedef_dolar_kazanci', '') or '' }}">
           </div>
         </div>
         <button class="btn btn-sm btn-outline-primary mt-2" onclick="saveDetailTargets()">
-          <i class="bi bi-check-lg me-1"></i>Hedefleri Kaydet
+          <i class="bi bi-check-lg me-1"></i>{{ tr('Hedefleri Kaydet') }}
         </button>
         <span id="detail-target-status" class="small ms-2"></span>
         {% endif %}
@@ -407,7 +407,7 @@
         <hr class="my-3">
         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
           <label class="fw-semibold mb-0" for="detail-tag">
-            <i class="bi bi-tag me-1 text-primary"></i>Sektör / Klasman
+            <i class="bi bi-tag me-1 text-primary"></i>{{ tr('Sektör / Klasman') }}
           </label>
           {% if sym_tag %}
           <span class="badge bg-primary-subtle text-primary border" id="detail-tag-current">{{ sym_tag }}</span>
@@ -416,10 +416,10 @@
         <div class="input-group" style="max-width:360px">
           <input type="text" id="detail-tag" class="form-control form-control-sm"
                  list="tag-suggestions" maxlength="40"
-                 placeholder="Örn: Fintech, AI, Yarı İletken"
+                 placeholder="{{ tr('Örn: Fintech, AI, Yarı İletken') }}"
                  value="{{ sym_tag or '' }}">
           <button class="btn btn-sm btn-outline-primary" type="button" onclick="saveDetailTag()">
-            <i class="bi bi-check-lg me-1"></i>Kaydet
+            <i class="bi bi-check-lg me-1"></i>{{ tr('Kaydet') }}
           </button>
         </div>
         <datalist id="tag-suggestions">
@@ -427,12 +427,11 @@
         </datalist>
         <span id="detail-tag-status" class="small ms-2"></span>
         <div class="text-muted small mt-1">
-          Tag tüm portfolyolarda ortaktır — sektör bazlı dashboard grafiğinde kullanılır.
+          {{ tr('Tag tüm portfolyolarda ortaktır — sektör bazlı dashboard grafiğinde kullanılır.') }}
         </div>
 
         <div class="text-muted small mt-2">
-          Açık pozisyon: {{ total_open_qty | fmtqty }} adet |
-          Maliyet bazı: ${{ "{:,.2f}".format(total_open_cost) }}
+          {{ tr('Açık pozisyon:') }} {{ total_open_qty | fmtqty }} {{ tr('adet | Maliyet bazı: $') }}{{ "{:,.2f}".format(total_open_cost) }}
         </div>
       </div>
     </div>
@@ -441,25 +440,25 @@
     <div class="row g-3 mb-3">
       <div class="col-md-3">
         <div class="card border-0 shadow-sm text-center py-2">
-          <div class="text-muted small">Piyasa Değeri</div>
+          <div class="text-muted small">{{ tr('Piyasa Değeri') }}</div>
           <div class="fw-bold" id="totalMktValue">—</div>
         </div>
       </div>
       <div class="col-md-3">
         <div class="card border-0 shadow-sm text-center py-2">
-          <div class="text-muted small">Maliyet Bazı</div>
+          <div class="text-muted small">{{ tr('Maliyet Bazı') }}</div>
           <div class="fw-bold">${{ "{:,.2f}".format(total_open_cost) }}</div>
         </div>
       </div>
       <div class="col-md-3">
         <div class="card border-0 shadow-sm text-center py-2">
-          <div class="text-muted small">Unrealized K/Z</div>
+          <div class="text-muted small">{{ tr('Unrealized K/Z') }}</div>
           <div class="fw-bold" id="totalUnrPnl">—</div>
         </div>
       </div>
       <div class="col-md-3">
         <div class="card border-0 shadow-sm text-center py-2">
-          <div class="text-muted small">Unrealized K/Z %</div>
+          <div class="text-muted small">{{ tr('Unrealized K/Z %') }}</div>
           <div class="fw-bold" id="totalUnrPct">—</div>
         </div>
       </div>
@@ -501,7 +500,7 @@
           </tbody>
           <tfoot class="table-total-row">
             <tr class="fw-bold">
-              <td colspan="4">TOPLAM</td>
+              <td colspan="4">{{ tr('TOPLAM') }}</td>
               <td class="text-end">${{ "{:,.2f}".format(total_open_cost) }}</td>
               <td class="text-end">${{ "{:,.2f}".format(total_open_cost / total_open_qty if total_open_qty > 0 else 0) }}</td>
               <td class="text-end" id="footMktValue">—</td>
@@ -513,7 +512,7 @@
       </div>
     </div>
     {% else %}
-    <div class="alert alert-secondary">Açık pozisyon yok — unrealized K/Z hesaplanamaz.</div>
+    <div class="alert alert-secondary">{{ tr('Açık pozisyon yok — unrealized K/Z hesaplanamaz.') }}</div>
     {% endif %}
   </div>
 
@@ -525,14 +524,14 @@
     <div class="modal-content">
       <form id="editTxForm" method="post">
         <div class="modal-header bg-primary-custom text-white">
-          <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>İşlem Düzenle</h5>
+          <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>{{ tr('İşlem Düzenle') }}</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <input type="hidden" name="portfolio" value="{{ current_portfolio }}">
           <div class="row g-3">
             <div class="col-6">
-              <label class="form-label fw-semibold">Tarih</label>
+              <label class="form-label fw-semibold">{{ tr('Tarih') }}</label>
               <input type="date" name="tx_date" id="edit-tx-date" class="form-control" required>
             </div>
             <div class="col-6">
@@ -543,29 +542,29 @@
               </select>
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">Adet</label>
+              <label class="form-label fw-semibold">{{ tr('Adet') }}</label>
               <input type="number" name="quantity" id="edit-quantity" class="form-control"
                      step="0.000001" min="0.000001" required>
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">Fiyat (USD)</label>
+              <label class="form-label fw-semibold">{{ tr('Fiyat (USD)') }}</label>
               <input type="number" name="price" id="edit-price" class="form-control"
                      step="0.000001" min="0.000001" required>
             </div>
           </div>
           <div class="mt-3 p-2 bg-light rounded small">
-            <strong>Toplam:</strong> <span id="editCalcTotal">$0.00</span>
-            <span class="text-muted ms-2">(adet × fiyat)</span>
+            <strong>{{ tr('Toplam:') }}</strong> <span id="editCalcTotal">$0.00</span>
+            <span class="text-muted ms-2">{{ tr('(adet × fiyat)') }}</span>
           </div>
           <div class="alert alert-warning mt-3 py-2 small mb-0">
             <i class="bi bi-exclamation-triangle me-1"></i>
-            Değişiklik kaydedilince <strong>tüm FIFO hesaplamaları yeniden yapılır</strong>.
+            {{ tr('Değişiklik kaydedilince') }} <strong>{{ tr('tüm FIFO hesaplamaları yeniden yapılır') }}</strong>.
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ tr('İptal') }}</button>
           <button type="submit" class="btn btn-primary">
-            <i class="bi bi-check-lg me-1"></i>Kaydet & FIFO Hesapla
+            <i class="bi bi-check-lg me-1"></i>{{ tr('Kaydet & FIFO Hesapla') }}
           </button>
         </div>
       </form>
@@ -579,7 +578,7 @@
     <div class="modal-content">
       <form id="addTxForm" method="post">
         <div class="modal-header bg-primary-custom text-white">
-          <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>İşlem Ekle</h5>
+          <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>{{ tr('İşlem Ekle') }}</h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -587,7 +586,7 @@
 
           <div class="row g-3">
             <div class="col-6">
-              <label class="form-label fw-semibold">Tarih</label>
+              <label class="form-label fw-semibold">{{ tr('Tarih') }}</label>
               <input type="date" name="tx_date" class="form-control" required
                      value="{{ today }}">
             </div>
@@ -599,16 +598,16 @@
               </select>
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">Sembol</label>
+              <label class="form-label fw-semibold">{{ tr('Sembol') }}</label>
               <input type="text" class="form-control" value="{{ symbol }}" disabled>
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">Adet</label>
+              <label class="form-label fw-semibold">{{ tr('Adet') }}</label>
               <input type="number" name="quantity" id="addtx-qty" class="form-control" step="0.000001" min="0.000001"
                      required placeholder="36">
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">Fiyat (USD)</label>
+              <label class="form-label fw-semibold">{{ tr('Fiyat (USD)') }}</label>
               <input type="number" name="price" id="addtx-price" class="form-control" step="0.01" min="0.01"
                      required placeholder="16.29">
             </div>
@@ -616,33 +615,33 @@
 
           <div class="mt-3">
             <label class="form-label fw-semibold small">
-              <i class="bi bi-tag me-1 text-primary"></i>Sektör / Klasman (opsiyonel)
+              <i class="bi bi-tag me-1 text-primary"></i>{{ tr('Sektör / Klasman (opsiyonel)') }}
             </label>
             <input type="text" id="addtx-tag" class="form-control form-control-sm"
                    list="addtx-tag-suggestions" maxlength="40"
-                   placeholder="Örn: Fintech, AI, Yarı İletken"
+                   placeholder="{{ tr('Örn: Fintech, AI, Yarı İletken') }}"
                    value="{{ sym_tag or '' }}">
             <datalist id="addtx-tag-suggestions">
               {% for t in distinct_tags %}<option value="{{ t }}">{% endfor %}
             </datalist>
             <div class="text-muted" style="font-size:0.72rem">
-              Sembolün etiketi — sektör bazlı dashboard grafiği için. Tüm portfolyolarda ortak.
+              {{ tr('Sembolün etiketi — sektör bazlı dashboard grafiği için. Tüm portfolyolarda ortak.') }}
             </div>
           </div>
 
           <div class="mt-3 p-2 bg-light rounded small">
-            <strong>Toplam:</strong> <span id="addtx-total">$0.00</span>
-            <span class="text-muted ms-2">(adet × fiyat, otomatik hesaplanır)</span>
+            <strong>{{ tr('Toplam:') }}</strong> <span id="addtx-total">$0.00</span>
+            <span class="text-muted ms-2">{{ tr('(adet × fiyat, otomatik hesaplanır)') }}</span>
           </div>
           <div class="alert alert-warning mt-3 py-2 small mb-0">
             <i class="bi bi-exclamation-triangle me-1"></i>
-            Değişiklik kaydedilince <strong>tüm FIFO hesaplamaları yeniden yapılır</strong>.
+            {{ tr('Değişiklik kaydedilince') }} <strong>{{ tr('tüm FIFO hesaplamaları yeniden yapılır') }}</strong>.
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ tr('İptal') }}</button>
           <button type="submit" id="addtx-submit" class="btn btn-success">
-            <i class="bi bi-check-lg me-1"></i>Ekle & FIFO Hesapla
+            <i class="bi bi-check-lg me-1"></i>{{ tr('Ekle & FIFO Hesapla') }}
           </button>
         </div>
       </form>
@@ -779,7 +778,7 @@ async function fetchCurrentPrice() {
       const chgStr = chgVal != null
         ? ` (${chgVal >= 0 ? '+' : ''}${chgVal.toFixed(2)}%)`
         : '';
-      let prefix = 'Güncel';
+      let prefix = _t('Güncel');
       if (isExt) {
         if (phase === 'PRE')       prefix = 'Pre-Market';
         else if (phase === 'POST') prefix = 'After-Market';
@@ -800,11 +799,11 @@ async function fetchCurrentPrice() {
       input.value = cur.toFixed(2);
       calcUnrealized(cur);
     } else {
-      label.textContent = 'Fiyat alınamadı';
+      label.textContent = _t('Fiyat alınamadı');
       badge.classList.add('bg-warning', 'text-dark');
     }
   } catch(e) {
-    label.textContent = 'Hata';
+    label.textContent = _t('Hata');
     badge.classList.add('bg-danger', 'text-white');
   } finally {
     spinner.style.display = 'none';
@@ -856,13 +855,13 @@ async function saveDetailTargets() {
       })
     });
     if (resp.ok) {
-      status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Kaydedildi</span>';
+      status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + _t('Kaydedildi') + '</span>';
       setTimeout(() => { status.innerHTML = ''; }, 3000);
     } else {
-      status.innerHTML = '<span class="text-danger">Hata!</span>';
+      status.innerHTML = `<span class="text-danger">${_t('Hata')}!</span>`;
     }
   } catch(e) {
-    status.innerHTML = '<span class="text-danger">Hata: ' + e.message + '</span>';
+    status.innerHTML = '<span class="text-danger">' + _t('Hata') + ': ' + e.message + '</span>';
   }
 }
 
@@ -878,7 +877,7 @@ async function saveDetailTag() {
       body: JSON.stringify({ symbol, tag: tag || null }),
     });
     if (resp.ok) {
-      status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Kaydedildi</span>';
+      status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + _t('Kaydedildi') + '</span>';
       const badge = document.getElementById('detail-tag-current');
       if (tag) {
         if (badge) badge.textContent = tag;
@@ -887,10 +886,10 @@ async function saveDetailTag() {
       }
       setTimeout(() => { status.innerHTML = ''; }, 2500);
     } else {
-      status.innerHTML = '<span class="text-danger">Hata!</span>';
+      status.innerHTML = `<span class="text-danger">${_t('Hata')}!</span>`;
     }
   } catch(e) {
-    status.innerHTML = '<span class="text-danger">Hata: ' + e.message + '</span>';
+    status.innerHTML = '<span class="text-danger">' + _t('Hata') + ': ' + e.message + '</span>';
   }
 }
 

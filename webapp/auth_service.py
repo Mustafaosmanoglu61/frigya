@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import HTTPException, Request
 
 import database
+import i18n
 
 try:
     from authlib.integrations.starlette_client import OAuth
@@ -213,7 +214,7 @@ def create_api_token(user_id: int, name: str):
             (user_id,),
         ).fetchone()[0]
         if active >= API_TOKEN_MAX_ACTIVE:
-            raise ValueError(f"En fazla {API_TOKEN_MAX_ACTIVE} aktif token olabilir; önce birini iptal et")
+            raise ValueError("En fazla {max} aktif token olabilir; önce birini iptal et")
         cur = conn.execute(
             "INSERT INTO api_tokens (user_id, name, token_prefix, token_hash) VALUES (?, ?, ?, ?)",
             (user_id, name, token[:API_TOKEN_DISPLAY_LEN], _hash_api_token(token)),
@@ -288,14 +289,14 @@ def get_session_user(request: Request):
 def require_current_user(request: Request):
     user = get_session_user(request)
     if not user:
-        raise HTTPException(status_code=401, detail="Oturum gerekli")
+        raise HTTPException(status_code=401, detail=i18n.tx(request, "Oturum gerekli"))
     return user
 
 
 def require_admin_user(request: Request):
     user = require_current_user(request)
     if user["role"] != ROLE_ADMIN:
-        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+        raise HTTPException(status_code=403, detail=i18n.tx(request, "Admin yetkisi gerekli"))
     return user
 
 

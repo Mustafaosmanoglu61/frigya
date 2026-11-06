@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Açık Pozisyonlar — Frigya{% endblock %}
+{% block title %}{{ tr('Açık Pozisyonlar — Frigya') }}{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4">
@@ -17,17 +17,17 @@
         <span id="hdr-daily-pct" class="text-muted small ms-1"></span>
       </div>
       <!-- Ağırlıklı ortalama (aracı kurum yöntemi) — ikincil, uzlaştırma için -->
-      <div class="hdr-wac-line mt-1 pt-1" title="Aracı kurumun kullandığı ağırlıklı ortalama maliyet yöntemi. Frigya'nın resmi hesabı FIFO'dur; bu satır yalnızca kurum ekranıyla karşılaştırma içindir.">
+      <div class="hdr-wac-line mt-1 pt-1" title="{{ tr('Aracı kurumun kullandığı ağırlıklı ortalama maliyet yöntemi. Frigya\'nın resmi hesabı FIFO\'dur; bu satır yalnızca kurum ekranıyla karşılaştırma içindir.') }}">
         <i class="bi bi-bank2"></i>
         <span>{{ tr('Ağ. Ort.') }}</span>
         <span class="hdr-wac-sep">·</span>
         <span class="text-muted">{{ tr('Maliyet') }}</span> <strong class="price-sensitive">${{ "{:,.0f}".format(wac_total) }}</strong>
         <span class="hdr-wac-sep">·</span>
-        <span class="text-muted">K/Z</span> <strong id="hdr-wac-unrealized" class="price-sensitive">—</strong>
+        <span class="text-muted">{{ tr('K/Z') }}</span> <strong id="hdr-wac-unrealized" class="price-sensitive">—</strong>
         <span id="hdr-wac-pct" class="ms-1"></span>
       </div>
     </div>
-    <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="Fiyatları gizle / göster">
+    <button id="price-toggle-btn" class="btn btn-sm btn-outline-secondary" onclick="togglePrices()" title="{{ tr('Fiyatları gizle / göster') }}">
       <i class="bi bi-eye" id="price-toggle-icon"></i>
     </button>
   </div>
@@ -44,7 +44,7 @@
        data-qty="{{ s.total_qty }}" data-cost="{{ s.total_cost }}"
        data-today-qty="{{ s.today_qty }}" data-today-cost="{{ s.today_cost }}"
        onclick="toggleSymbolFilter('{{ s.symbol }}', event)"
-       title="Tabloda filtrele (Shift ile çoklu seçim)">
+       title="{{ tr('Tabloda filtrele (Shift ile çoklu seçim)') }}">
 
     <!-- ── KİMLİK + CANLI FİYAT ─────────────────────────────── -->
     <div class="pw-top">
@@ -80,7 +80,7 @@
         <span class="pw-line-val price-sensitive">${{ "{:,.0f}".format(s.total_cost) }}
           <span class="pw-unit">· ${{ "{:,.2f}".format(s.avg_price) }}/{{ tr('ad') }}</span>
           {% if s.wac_avg and (s.wac_avg - s.avg_price) | abs > 0.01 %}
-          <span class="pw-wac" title="Ağırlıklı ortalama maliyet (aracı kurum yöntemi). Frigya vergi hesabı FIFO ile ${{ '%.2f'|format(s.avg_price) }}.">
+          <span class="pw-wac" title="{{ tr('Ağırlıklı ortalama maliyet (aracı kurum yöntemi). Frigya vergi hesabı FIFO ile ${price}.').format(price='%.2f'|format(s.avg_price)) }}">
             <i class="bi bi-bank2"></i>{{ "{:,.2f}".format(s.wac_avg) }}</span>
           {% endif %}
         </span>
@@ -411,7 +411,7 @@ function initTableSort() {
   if (!table) return;
   table.querySelectorAll('th').forEach((th, idx) => {
     th.addEventListener('dblclick', () => sortTable(idx));
-    th.title = (th.title ? th.title + ' | ' : '') + 'Çift tık: sırala';
+    th.title = (th.title ? th.title + ' | ' : '') + _t('Çift tık: sırala');
   });
 }
 
@@ -475,7 +475,7 @@ function updatePozPrices(prices) {
     if (priceEl && cur != null) {
       if (isExt) {
         priceEl.innerHTML = '$' + cur.toFixed(2) +
-          ` <span class="badge bg-warning text-dark" style="font-size:0.55rem;vertical-align:middle" title="${extLbl}-Market fiyatı kullanılıyor">${extLbl}</span>`;
+          ` <span class="badge bg-warning text-dark" style="font-size:0.55rem;vertical-align:middle" title="${_t('{lbl}-Market fiyatı kullanılıyor', {lbl: extLbl})}">${extLbl}</span>`;
       } else {
         priceEl.textContent = '$' + cur.toFixed(2);
       }
@@ -673,7 +673,7 @@ function updatePozPrices(prices) {
       if (isExt) {
         // AH aktif: efektif fiyat ana, regular küçük etiketle yanında
         cpEl.innerHTML = '$' + cur.toFixed(2) +
-          ` <small class="text-warning" title="${extLbl}-Market fiyatı kullanılıyor (Reg: $${regCur.toFixed(2)})">${extLbl}</small>`;
+          ` <small class="text-warning" title="${_t('{lbl}-Market fiyatı kullanılıyor', {lbl: extLbl})} (Reg: $${regCur.toFixed(2)})">${extLbl}</small>`;
       } else {
         cpEl.textContent = '$' + cur.toFixed(2);
       }

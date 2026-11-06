@@ -408,6 +408,15 @@ df = pd.read_csv("midas.csv", encoding="utf-8-sig", sep=",")
 - En güvenilir yöntem: Agent'a PDF okutmak
 - PyMuPDF veya pdfplumber ile programatik okuma da çalışır ama tablo hizalaması bozulabilir
 
+### Çeviri (TR/EN)
+Arayüz metni kaynak dilde (Türkçe) yazılır, İngilizcesi `webapp/i18n.py` → `TRANSLATIONS` sözlüğüne eklenir. Yeni ekranda düz metin bırakma:
+- Şablon: `{{ tr('Kaydet') }}`
+- Tarayıcı JS: `_t('Kaydet')`, `_t('{n} işlem', {n: 3})` (`base.html`'de tanımlı). Tırnak taşıyabileceği için JS içinde `{{ tr() }}` kullanma
+- Router mesajı: `i18n.tx(request, '{name} silindi', name=name)`; yönlendirme adresine yazılacaksa `i18n.tx_q(...)`
+- DB'ye yazılan veya sunucuya gönderilen değerler (`Alış`, `yatırma`, `KÂR`) çevrilmez; yalnızca gösterilirken `tr()` ile sarılır
+
+Kontrol: `python3 scripts/check_i18n.py` sözlükte eksik anahtarları bulur, `npm run test:e2e -- i18n-en` EN sayfalarda kalan Türkçeyi yakalar.
+
 ### Tarih Formatları
 - CSV: `DD/MM/YYYY HH:MM:SS` formatında
 - PDF: `DD/MM/YY HH:MM:SS` formatında

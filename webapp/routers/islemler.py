@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from datetime import date
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from templates_config import templates
@@ -129,7 +130,7 @@ async def islem_ekle(
     portfolios = get_portfolios(user_id)
     if portfolio not in portfolios:
         return RedirectResponse(
-            url=f"/islemler?msg=Geçersiz%20portföy",
+            url=f"/islemler?msg={i18n.tx_q(request, 'Geçersiz portföy')}",
             status_code=303,
         )
 
@@ -156,9 +157,10 @@ async def islem_ekle(
     if inserted > 0:
         # FIFO yeniden hesapla
         database.recompute_fifo()
-        msg = f"{symbol.upper()} {direction} {quantity}@${price} eklendi ve FIFO hesaplandı"
+        msg = i18n.tx(request, "{symbol} {direction} {quantity}@${price} eklendi ve FIFO hesaplandı",
+                      symbol=symbol.upper(), direction=i18n.tx(request, direction), quantity=quantity, price=price)
     else:
-        msg = f"Mükerrer işlem — zaten kayıtlı"
+        msg = i18n.tx(request, "Mükerrer işlem — zaten kayıtlı")
 
     return RedirectResponse(
         url=f"/islemler?yil={year}&portfolio={portfolio}&msg={msg}",
@@ -181,7 +183,7 @@ async def islem_duzenle(
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     if is_super(portfolio) or is_super(request.session.get("portfolio")):
-        return RedirectResponse(url="/islemler?msg=Süper%20portföyde%20düzenleme%20yapılamaz", status_code=303)
+        return RedirectResponse(url=f"/islemler?msg={i18n.tx_q(request, 'Süper portföyde düzenleme yapılamaz')}", status_code=303)
 
     total = round(quantity * price, 2)
     year = int(tx_date[:4])
@@ -193,7 +195,7 @@ async def islem_duzenle(
             (tx_id, user_id),
         ).fetchone()
         if not existing:
-            return RedirectResponse(url="/islemler?msg=İşlem%20bulunamadı", status_code=303)
+            return RedirectResponse(url=f"/islemler?msg={i18n.tx_q(request, 'İşlem bulunamadı')}", status_code=303)
 
         # FIFO sonuçları sıfırlanmalı; mevcut id'lere referans veriyor
         conn.execute("DELETE FROM fifo_lot_matches")
@@ -212,7 +214,8 @@ async def islem_duzenle(
 
     database.recompute_fifo()
 
-    msg = f"{symbol_clean} {direction} {quantity}@${price} güncellendi"
+    msg = i18n.tx(request, "{symbol} {direction} {quantity}@${price} güncellendi",
+                  symbol=symbol_clean, direction=i18n.tx(request, direction), quantity=quantity, price=price)
     return RedirectResponse(
         url=f"/islemler?yil={year}&portfolio={portfolio}&msg={msg}",
         status_code=303,
@@ -226,7 +229,7 @@ async def islem_sil(request: Request, tx_id: int):
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
     if is_super(portfolio):
-        return RedirectResponse(url="/islemler?msg=Süper%20portföyde%20silme%20yapılamaz", status_code=303)
+        return RedirectResponse(url=f"/islemler?msg={i18n.tx_q(request, 'Süper portföyde silme yapılamaz')}", status_code=303)
 
     with database.db() as conn:
         # Get transaction info before deletion (ownership check)
@@ -236,7 +239,7 @@ async def islem_sil(request: Request, tx_id: int):
         ).fetchone()
 
         if not tx:
-            return RedirectResponse(url="/islemler?msg=İşlem%20bulunamadı", status_code=303)
+            return RedirectResponse(url=f"/islemler?msg={i18n.tx_q(request, 'İşlem bulunamadı')}", status_code=303)
 
         year = int(tx["tx_date"][:4])
         symbol = tx["symbol"]
@@ -253,7 +256,7 @@ async def islem_sil(request: Request, tx_id: int):
     # Recalculate FIFO
     database.recompute_fifo()
 
-    msg = f"{symbol} işlemi silindi ve FIFO yeniden hesaplandı"
+    msg = i18n.tx(request, "{symbol} işlemi silindi ve FIFO yeniden hesaplandı", symbol=symbol)
     return RedirectResponse(
         url=f"/islemler?yil={year}&portfolio={portfolio or ''}&msg={msg}",
         status_code=303,

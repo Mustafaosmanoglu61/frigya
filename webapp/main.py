@@ -26,6 +26,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import database
 import auth_service
+import i18n
 try:
     import mcp_http
 except ModuleNotFoundError as exc:
@@ -108,7 +109,7 @@ class AuthGuardMiddleware(BaseHTTPMiddleware):
 
         if user is None:
             if path.startswith("/api/"):
-                return JSONResponse({"error": "Oturum gerekli"}, status_code=401)
+                return JSONResponse({"error": i18n.tx(request, "Oturum gerekli")}, status_code=401)
             next_url = request.url.path
             if request.url.query:
                 next_url = f"{next_url}?{request.url.query}"
@@ -177,7 +178,7 @@ async def set_session_portfolio(request: Request):
     # Süper sentinel yalnızca ≥2 portföyde geçerli
     valid = portfolio in portfolios or (is_super(portfolio) and len(portfolios) > 1)
     if not valid:
-        return JSONResponse({"error": "Geçersiz portföy"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Geçersiz portföy")}, status_code=400)
     request.session["portfolio"] = portfolio
     return JSONResponse({"ok": True, "portfolio": portfolio})
 
@@ -185,7 +186,6 @@ async def set_session_portfolio(request: Request):
 @app.post("/api/session/lang")
 async def set_session_lang(request: Request):
     """Arayüz dilini session'a kaydet (tr | en)."""
-    import i18n
     auth_service.require_current_user(request)
     body = await request.json()
     lang = i18n.normalize_lang(body.get("lang"))
@@ -219,11 +219,11 @@ async def create_portfolio_api(request: Request):
     description = (body.get("description") or "").strip()
 
     if len(name) < 2:
-        return JSONResponse({"error": "Portföy adı en az 2 karakter olmalı"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Portföy adı en az 2 karakter olmalı")}, status_code=400)
 
     ok = create_portfolio(user_id, name, description)
     if not ok:
-        return JSONResponse({"error": "Portföy oluşturulamadı veya zaten var"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Portföy oluşturulamadı veya zaten var")}, status_code=400)
 
     request.session["portfolio"] = name
     return JSONResponse({"ok": True, "portfolio": name})
