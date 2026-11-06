@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from templates_config import templates
@@ -140,7 +141,7 @@ async def sil_islem_semboller(request: Request, tx_id: int, yil: int = Query(def
     # Süper portföy salt-okunur: silme reddedilir
     if is_super(portfolio):
         return RedirectResponse(
-            url="/semboller?msg=Süper%20portföyde%20silme%20yapılamaz", status_code=303
+            url=f"/semboller?msg={i18n.tx_q(request, 'Süper portföyde silme yapılamaz')}", status_code=303
         )
 
     with database.db() as conn:
@@ -151,7 +152,7 @@ async def sil_islem_semboller(request: Request, tx_id: int, yil: int = Query(def
         ).fetchone()
 
         if not tx:
-            return RedirectResponse(url=f"/semboller?msg=İşlem%20bulunamadı", status_code=303)
+            return RedirectResponse(url=f"/semboller?msg={i18n.tx_q(request, 'İşlem bulunamadı')}", status_code=303)
 
         year = int(tx["tx_date"][:4])
 
@@ -167,7 +168,7 @@ async def sil_islem_semboller(request: Request, tx_id: int, yil: int = Query(def
     # Recalculate FIFO
     database.recompute_fifo()
 
-    msg = f"{tx['symbol']} işlemi silindi"
+    msg = i18n.tx(request, "{symbol} işlemi silindi", symbol=tx["symbol"])
     return RedirectResponse(
         url=f"/semboller?yil={year}&portfolio={portfolio or ''}&msg={msg}",
         status_code=303,
@@ -185,7 +186,7 @@ async def sembol_detay_inline(request: Request, symbol: str, yil: Optional[int] 
     # /semboller sayfası ziyaret edildiyse session'daki portföye düşer.
     portfolio = resolve_portfolio(request, None, user_id)
     if not portfolio:
-        return JSONResponse({"error": "Portföy seçili değil"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Portföy seçili değil")}, status_code=400)
     pf_sql, pf_params = pf_clause(portfolio)
     sym = symbol.upper().strip()
 

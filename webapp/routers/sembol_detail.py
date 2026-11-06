@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from datetime import date
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from templates_config import templates
@@ -200,7 +201,7 @@ async def ekle_alis(
     portfolios = get_portfolios(user_id)
     if portfolio not in portfolios:
         return RedirectResponse(
-            url=f"/sembol/{symbol.upper()}?portfolio={portfolio}&msg=Geçersiz%20portföy",
+            url=f"/sembol/{symbol.upper()}?portfolio={portfolio}&msg={i18n.tx_q(request, 'Geçersiz portföy')}",
             status_code=303,
         )
 
@@ -227,9 +228,10 @@ async def ekle_alis(
 
     if inserted > 0:
         database.recompute_fifo()
-        msg = f"{symbol} Alış {quantity}@${price} eklendi"
+        msg = i18n.tx(request, "{symbol} {direction} {quantity}@${price} eklendi", symbol=symbol,
+                      direction=i18n.tx(request, "Alış"), quantity=quantity, price=price)
     else:
-        msg = f"Mükerrer işlem"
+        msg = i18n.tx(request, "Mükerrer işlem")
 
     return RedirectResponse(
         url=f"/sembol/{symbol}?portfolio={portfolio}&msg={msg}",
@@ -252,7 +254,7 @@ async def ekle_satis(
     portfolios = get_portfolios(user_id)
     if portfolio not in portfolios:
         return RedirectResponse(
-            url=f"/sembol/{symbol.upper()}?portfolio={portfolio}&msg=Geçersiz%20portföy",
+            url=f"/sembol/{symbol.upper()}?portfolio={portfolio}&msg={i18n.tx_q(request, 'Geçersiz portföy')}",
             status_code=303,
         )
 
@@ -279,9 +281,10 @@ async def ekle_satis(
 
     if inserted > 0:
         database.recompute_fifo()
-        msg = f"{symbol} Satış {quantity}@${price} eklendi"
+        msg = i18n.tx(request, "{symbol} {direction} {quantity}@${price} eklendi", symbol=symbol,
+                      direction=i18n.tx(request, "Satış"), quantity=quantity, price=price)
     else:
-        msg = f"Mükerrer işlem"
+        msg = i18n.tx(request, "Mükerrer işlem")
 
     return RedirectResponse(
         url=f"/sembol/{symbol}?portfolio={portfolio}&msg={msg}",
@@ -306,7 +309,7 @@ async def duzenle_islem_sembol(
     symbol = symbol.upper()
     if is_super(portfolio):
         return RedirectResponse(
-            url=f"/sembol/{symbol}?msg=Süper%20portföyde%20düzenleme%20yapılamaz",
+            url=f"/sembol/{symbol}?msg={i18n.tx_q(request, 'Süper portföyde düzenleme yapılamaz')}",
             status_code=303,
         )
     total = round(quantity * price, 2)
@@ -319,7 +322,7 @@ async def duzenle_islem_sembol(
         ).fetchone()
         if not tx:
             return RedirectResponse(
-                url=f"/sembol/{symbol}?portfolio={portfolio}&msg=İşlem%20bulunamadı",
+                url=f"/sembol/{symbol}?portfolio={portfolio}&msg={i18n.tx_q(request, 'İşlem bulunamadı')}",
                 status_code=303,
             )
 
@@ -339,7 +342,7 @@ async def duzenle_islem_sembol(
 
     database.recompute_fifo()
 
-    msg = f"İşlem güncellendi ve FIFO yeniden hesaplandı"
+    msg = i18n.tx(request, "İşlem güncellendi ve FIFO yeniden hesaplandı")
     return RedirectResponse(
         url=f"/sembol/{symbol}?portfolio={portfolio}&msg={msg}",
         status_code=303,
@@ -354,7 +357,7 @@ async def sil_islem_sembol(request: Request, symbol: str, tx_id: int, portfolio:
     symbol = symbol.upper()
     if is_super(portfolio) or is_super(request.session.get("portfolio")):
         return RedirectResponse(
-            url=f"/sembol/{symbol}?msg=Süper%20portföyde%20silme%20yapılamaz",
+            url=f"/sembol/{symbol}?msg={i18n.tx_q(request, 'Süper portföyde silme yapılamaz')}",
             status_code=303,
         )
 
@@ -367,7 +370,7 @@ async def sil_islem_sembol(request: Request, symbol: str, tx_id: int, portfolio:
 
         if not tx:
             return RedirectResponse(
-                url=f"/sembol/{symbol}?portfolio={portfolio}&msg=İşlem%20bulunamadı",
+                url=f"/sembol/{symbol}?portfolio={portfolio}&msg={i18n.tx_q(request, 'İşlem bulunamadı')}",
                 status_code=303,
             )
 
@@ -383,7 +386,7 @@ async def sil_islem_sembol(request: Request, symbol: str, tx_id: int, portfolio:
     # Recalculate FIFO
     database.recompute_fifo()
 
-    msg = f"İşlem silindi"
+    msg = i18n.tx(request, "İşlem silindi")
     return RedirectResponse(
         url=f"/sembol/{symbol}?portfolio={portfolio}&msg={msg}",
         status_code=303,

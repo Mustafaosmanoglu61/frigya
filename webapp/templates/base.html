@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="{{ lang or 'tr' }}">
 <head>
+  <script>
+    // Çeviri yardımcısı; {ad} yer tutucuları ikinci argümandan dolar. Sözlük yalnızca İngilizcede dolu gelir.
+    window.FRIGYA_I18N = {{ i18n_client() | tojson }};
+    function _t(text, vars) {
+      var s = window.FRIGYA_I18N[text] || text;
+      return vars ? s.replace(/\{(\w+)\}/g, function (m, k) { return k in vars ? vars[k] : m; }) : s;
+    }
+  </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Frigya{% endblock %}</title>
@@ -91,7 +99,7 @@
           <i class="bi bi-person-circle me-1"></i>{{ request.state.user['email'] }}
           <span class="badge bg-light text-dark ms-1">{{ request.state.user['role'] }}</span>
         </span>
-        <span class="badge bg-secondary bg-opacity-50 text-white-50 small font-monospace" title="Uygulama sürümü">v{{ APP_VERSION }}</span>
+        <span class="badge bg-secondary bg-opacity-50 text-white-50 small font-monospace" title="{{ tr('Uygulama sürümü') }}">v{{ APP_VERSION }}</span>
         <!-- Dil seçici -->
         <select id="lang-select" class="form-select form-select-sm" style="width:auto" title="{{ tr('Dil') }}"
                 onchange="setLang(this.value)">
@@ -110,7 +118,7 @@
           {% for p in portfolios %}
             <option value="{{ p }}"
                     {% if (current_portfolio and p == current_portfolio) or (not current_portfolio and loop.first) %}selected{% endif %}>
-              {% if p == "__SUPER__" %}★ Süper Portföy (Tümü){% else %}{{ p }}{% endif %}
+              {% if p == "__SUPER__" %}{{ tr('★ Süper Portföy (Tümü)') }}{% else %}{{ p }}{% endif %}
             </option>
           {% endfor %}
         </select>
@@ -126,16 +134,16 @@
     <div class="modal-content shadow-lg border-0">
       <div class="modal-header text-white" style="background:#1F4E79">
         <h5 class="modal-title">
-          <i class="bi bi-person-check me-2"></i>Portföy Seçin
+          <i class="bi bi-person-check me-2"></i>{{ tr('Portföy Seçin') }}
         </h5>
       </div>
       <div class="modal-body py-4">
-        <p class="text-muted mb-3">Hangi portföy ile devam etmek istiyorsunuz?</p>
+        <p class="text-muted mb-3">{{ tr('Hangi portföy ile devam etmek istiyorsunuz?') }}</p>
         <div id="portfolio-modal-list"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary px-4" onclick="confirmPortfolioSelect()">
-          <i class="bi bi-box-arrow-in-right me-1"></i>Giriş Yap
+          <i class="bi bi-box-arrow-in-right me-1"></i>{{ tr('Giriş Yap') }}
         </button>
       </div>
     </div>
@@ -149,24 +157,24 @@
       <div class="modal-header" style="background:#1F4E79;color:#fff">
         <h5 class="modal-title">
           <i class="bi bi-journal-text me-2"></i>
-          <span id="notes-modal-symbol">—</span> Notları
+          <span id="notes-modal-symbol">—</span> {{ tr('Notları') }}
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <!-- Yeni not ekleme alanı -->
         <div class="mb-3">
-          <label class="form-label small text-muted mb-1">Yeni not</label>
+          <label class="form-label small text-muted mb-1">{{ tr('Yeni not') }}</label>
           <textarea id="notes-new-text" class="form-control" rows="3"
-                    placeholder="Bu sembol hakkındaki düşünceni yaz... (örn. 'fiyat 60$'ın altına inerse satayım', 'hedef 80$')"
+                    placeholder="{{ tr('Bu sembol hakkındaki düşünceni yaz... (örn. \'fiyat 60$\'ın altına inerse satayım\', \'hedef 80$\')') }}"
                     maxlength="5000"></textarea>
           <div class="d-flex justify-content-between align-items-center mt-2">
             <small class="text-muted">
               <i class="bi bi-info-circle me-1"></i>
-              Tarih otomatik kaydedilir. Notlar zamana göre birikir, AI ileride değerlendirecek.
+              {{ tr('Tarih otomatik kaydedilir. Notlar zamana göre birikir, AI ileride değerlendirecek.') }}
             </small>
             <button type="button" class="btn btn-sm btn-primary" id="notes-add-btn">
-              <i class="bi bi-plus-lg me-1"></i>Ekle
+              <i class="bi bi-plus-lg me-1"></i>{{ tr('Ekle') }}
             </button>
           </div>
         </div>
@@ -174,7 +182,7 @@
         <!-- Geçmiş notlar -->
         <div>
           <div class="small text-muted mb-2">
-            Geçmiş notlar <span id="notes-count-label" class="badge bg-secondary ms-1">0</span>
+            {{ tr('Geçmiş notlar') }} <span id="notes-count-label" class="badge bg-secondary ms-1">0</span>
           </div>
           <div id="notes-list-container">
             <div class="text-center text-muted py-3">
@@ -469,8 +477,8 @@ async function fetchPricesSilent() {
     if (!resp.ok) {
       // 401 → oturum düşmüş; diğerleri → sunucu hatası. Sessizce yutma, göster.
       if (sonEl) sonEl.innerHTML = resp.status === 401
-        ? '<span class="text-danger">Oturum düştü — sayfayı yenileyin</span>'
-        : `<span class="text-danger">Sunucu hatası (HTTP ${resp.status})</span>`;
+        ? `<span class="text-danger">${_t('Oturum düştü — sayfayı yenileyin')}</span>`
+        : `<span class="text-danger">${_t('Sunucu hatası')} (HTTP ${resp.status})</span>`;
       return;
     }
     const data = await resp.json();
@@ -479,13 +487,13 @@ async function fetchPricesSilent() {
       const pageHasSymbols = document.querySelector('tr[data-symbol], .pos-card[data-symbol]');
       const priceCount = Object.keys(data.prices).length;
       if (pageHasSymbols && priceCount === 0) {
-        if (sonEl) sonEl.innerHTML = '<span class="text-warning">Fiyat gelmedi — portföy seçili mi?</span>';
+        if (sonEl) sonEl.innerHTML = `<span class="text-warning">${_t('Fiyat gelmedi — portföy seçili mi?')}</span>`;
         return;
       }
       // Tüm semboller hatalıysa (yfinance arızası) bunu da görünür yap
       const errCount = Object.values(data.prices).filter(p => p && p.error).length;
       if (priceCount > 0 && errCount === priceCount) {
-        if (sonEl) sonEl.innerHTML = `<span class="text-danger">Fiyat kaynağı hatası (${errCount}/${priceCount})</span>`;
+        if (sonEl) sonEl.innerHTML = `<span class="text-danger">${_t('Fiyat kaynağı hatası')} (${errCount}/${priceCount})</span>`;
         return;
       }
 
@@ -503,7 +511,7 @@ async function fetchPricesSilent() {
     }
   } catch(e) {
     // Ağ hatası — kullanıcıya kısa bilgi ver (varsa)
-    if (sonEl) sonEl.innerHTML = '<span class="text-danger">Bağlantı hatası</span>';
+    if (sonEl) sonEl.innerHTML = `<span class="text-danger">${_t('Bağlantı hatası')}</span>`;
   }
 }
 
@@ -524,9 +532,9 @@ function applyPricesToPage(prices, fetched_at) {
       if (chg != null) {
         const sign = chg >= 0 ? '+' : '';
         const color = chg >= 0 ? 'text-success' : 'text-danger';
-        el.innerHTML = `Fiyat: <strong>$${p.current_price.toFixed(2)}</strong> <small class="${color}">(${sign}${chg.toFixed(2)}%)</small>`;
+        el.innerHTML = `${_t('Fiyat')}: <strong>$${p.current_price.toFixed(2)}</strong> <small class="${color}">(${sign}${chg.toFixed(2)}%)</small>`;
       } else {
-        el.innerHTML = `Fiyat: <strong>$${p.current_price.toFixed(2)}</strong>`;
+        el.innerHTML = `${_t('Fiyat')}: <strong>$${p.current_price.toFixed(2)}</strong>`;
       }
     }
   });
@@ -619,7 +627,7 @@ function _notesApiBase() {
 }
 
 function _notesTitleText() {
-  if (_notesScope === 'portfolio') return _notesKey + ' Portföyü';
+  if (_notesScope === 'portfolio') return _t('{name} Portföyü', {name: _notesKey});
   return _notesKey;
 }
 
@@ -649,7 +657,7 @@ async function reloadSymbolNotes() {
     updateNoteBadge(_notesScope, _notesKey, (data.notes || []).length);
   } catch (e) {
     document.getElementById('notes-list-container').innerHTML =
-      '<div class="text-danger small">Notlar yüklenemedi.</div>';
+      `<div class="text-danger small">${_t('Notlar yüklenemedi.')}</div>`;
   }
 }
 
@@ -657,12 +665,12 @@ function renderNotesList(notes) {
   const el = document.getElementById('notes-list-container');
   document.getElementById('notes-count-label').textContent = notes.length;
   if (!notes.length) {
-    el.innerHTML = '<div class="text-muted text-center py-3 small">Henüz not yok.</div>';
+    el.innerHTML = `<div class="text-muted text-center py-3 small">${_t('Henüz not yok.')}</div>`;
     return;
   }
   el.innerHTML = notes.map(n => {
     const edited = n.updated_at && n.updated_at !== n.created_at
-      ? `<span class="text-muted ms-1" title="Düzenlendi: ${escapeHtml(n.updated_at)}">(düz.)</span>` : '';
+      ? `<span class="text-muted ms-1" title="${_t('Düzenlendi:')} ${escapeHtml(n.updated_at)}">(${_t('düz.')})</span>` : '';
     return `
       <div class="border rounded p-2 mb-2" data-note-id="${n.id}">
         <div class="d-flex justify-content-between align-items-start mb-1">
@@ -671,11 +679,11 @@ function renderNotesList(notes) {
           </small>
           <div class="btn-group btn-group-sm">
             <button class="btn btn-link btn-sm py-0 px-1 text-secondary"
-                    onclick="startEditNote(${n.id})" title="Düzenle">
+                    onclick="startEditNote(${n.id})" title="${_t('Düzenle')}">
               <i class="bi bi-pencil"></i>
             </button>
             <button class="btn btn-link btn-sm py-0 px-1 text-danger"
-                    onclick="deleteNote(${n.id})" title="Sil">
+                    onclick="deleteNote(${n.id})" title="${_t('Sil')}">
               <i class="bi bi-trash3"></i>
             </button>
           </div>
@@ -695,8 +703,8 @@ function startEditNote(noteId) {
     <div class="note-edit-wrap">
       <textarea class="form-control form-control-sm mb-1" rows="3" maxlength="5000">${escapeHtml(current)}</textarea>
       <div class="text-end">
-        <button class="btn btn-sm btn-secondary me-1" onclick="reloadSymbolNotes()">İptal</button>
-        <button class="btn btn-sm btn-primary" onclick="saveEditNote(${noteId}, this)">Kaydet</button>
+        <button class="btn btn-sm btn-secondary me-1" onclick="reloadSymbolNotes()">${_t('İptal')}</button>
+        <button class="btn btn-sm btn-primary" onclick="saveEditNote(${noteId}, this)">${_t('Kaydet')}</button>
       </div>
     </div>
   `;
@@ -705,7 +713,7 @@ function startEditNote(noteId) {
 async function saveEditNote(noteId, btn) {
   const wrap = btn.closest('.note-edit-wrap');
   const text = wrap.querySelector('textarea').value.trim();
-  if (!text) { alert('Not boş olamaz'); return; }
+  if (!text) { alert(_t('Not boş olamaz')); return; }
   try {
     const resp = await fetch(`${_notesApiBase()}/${noteId}`, {
       method: 'PUT',
@@ -713,15 +721,15 @@ async function saveEditNote(noteId, btn) {
       body: JSON.stringify({ text })
     });
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Hata');
+    if (!resp.ok) throw new Error(data.error || _t('Hata'));
     await reloadSymbolNotes();
   } catch (e) {
-    alert('Kaydedilemedi: ' + e.message);
+    alert(_t('Kaydedilemedi:') + ' ' + e.message);
   }
 }
 
 async function deleteNote(noteId) {
-  if (!confirm('Bu notu silmek istiyor musun?')) return;
+  if (!confirm(_t('Bu notu silmek istiyor musun?'))) return;
   try {
     const resp = await fetch(`${_notesApiBase()}/${noteId}`, { method: 'DELETE' });
     if (!resp.ok) throw new Error('Silinemedi');
@@ -742,11 +750,11 @@ document.getElementById('notes-add-btn')?.addEventListener('click', async () => 
       body: JSON.stringify({ text })
     });
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || 'Hata');
+    if (!resp.ok) throw new Error(data.error || _t('Hata'));
     ta.value = '';
     await reloadSymbolNotes();
   } catch (e) {
-    alert('Eklenemedi: ' + e.message);
+    alert(_t('Eklenemedi:') + ' ' + e.message);
   }
 });
 
@@ -819,13 +827,13 @@ async function checkAllProfileStale() {
     if (!d.applicable || !d.stale) { banner.classList.add('d-none'); return; }
 
     const parts = [];
-    if (d.missing_tx)   parts.push(`${d.missing_tx} işlem`);
-    if (d.missing_cash) parts.push(`${d.missing_cash} nakit hareketi`);
+    if (d.missing_tx)   parts.push(_t('{n} işlem', {n: d.missing_tx}));
+    if (d.missing_cash) parts.push(_t('{n} nakit hareketi', {n: d.missing_cash}));
     document.getElementById('all-stale-detail').textContent =
-      parts.length ? `${parts.join(' ve ')} bu profile henüz aktarılmadı.`
-                   : 'Kaynak profillerde bu profile aktarılmamış değişiklik var.';
+      parts.length ? _t('{parts} bu profile henüz aktarılmadı.', {parts: parts.join(' ' + _t('ve') + ' ')})
+                   : _t('Kaynak profillerde bu profile aktarılmamış değişiklik var.');
     document.getElementById('all-stale-lastsync').textContent =
-      d.last_sync ? ` (son senkron: ${d.last_sync})` : '';
+      d.last_sync ? ` (${_t('son senkron')}: ${d.last_sync})` : '';
     banner.classList.remove('d-none');
     banner.classList.add('d-flex');
   } catch (e) { /* sessiz — uyarı bandı kritik değil */ }
@@ -837,19 +845,19 @@ async function syncAllProfile() {
   if (!btn) return;
   const original = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Senkronlanıyor...';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + _t('Senkronlanıyor...');
   try {
     const resp = await fetch('/api/all-profile/sync', { method: 'POST' });
     const d = await resp.json();
     if (!resp.ok) {
-      detail.textContent = d.error || 'Senkron başarısız.';
+      detail.textContent = d.error || _t('Senkron başarısız.');
       btn.disabled = false; btn.innerHTML = original;
       return;
     }
-    detail.textContent = 'Senkronlandı — sayfa yenileniyor...';
+    detail.textContent = _t('Senkronlandı — sayfa yenileniyor...');
     setTimeout(() => window.location.reload(), 800);
   } catch (e) {
-    detail.textContent = 'Bağlantı hatası — senkron yapılamadı.';
+    detail.textContent = _t('Bağlantı hatası — senkron yapılamadı.');
     btn.disabled = false; btn.innerHTML = original;
   }
 }

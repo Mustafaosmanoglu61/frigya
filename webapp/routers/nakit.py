@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from datetime import date
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from templates_config import templates
@@ -68,16 +69,16 @@ async def nakit_ekle(
     portfolios = get_portfolios(user_id)
 
     if portfolio not in portfolios:
-        return RedirectResponse(url="/nakit?msg=Geçersiz%20portföy", status_code=303)
+        return RedirectResponse(url=f"/nakit?msg={i18n.tx_q(request, 'Geçersiz portföy')}", status_code=303)
     if tx_type not in ("yatırma", "çekme"):
-        return RedirectResponse(url="/nakit?msg=Geçersiz%20işlem%20tipi", status_code=303)
+        return RedirectResponse(url=f"/nakit?msg={i18n.tx_q(request, 'Geçersiz işlem tipi')}", status_code=303)
     if amount <= 0:
-        return RedirectResponse(url="/nakit?msg=Tutar%20sıfırdan%20büyük%20olmalı", status_code=303)
+        return RedirectResponse(url=f"/nakit?msg={i18n.tx_q(request, 'Tutar sıfırdan büyük olmalı')}", status_code=303)
 
     database.add_cash_transaction(user_id, portfolio, tx_date, tx_type, amount, note.strip() or None)
 
     label = "Para yatırma" if tx_type == "yatırma" else "Para çekme"
-    msg = f"{label} eklendi: ${amount:,.2f}"
+    msg = i18n.tx(request, "{label} eklendi: ${amount}", label=i18n.tx(request, label), amount=f"{amount:,.2f}")
     return RedirectResponse(url=f"/nakit?portfolio={portfolio}&msg={msg}", status_code=303)
 
 
@@ -88,8 +89,8 @@ async def nakit_sil(request: Request, cash_id: int):
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
     if is_super(portfolio):
-        return RedirectResponse(url="/nakit?msg=Süper%20portföyde%20silme%20yapılamaz", status_code=303)
+        return RedirectResponse(url=f"/nakit?msg={i18n.tx_q(request, 'Süper portföyde silme yapılamaz')}", status_code=303)
 
     ok = database.delete_cash_transaction(user_id, cash_id)
-    msg = "Nakit işlemi silindi" if ok else "İşlem bulunamadı"
+    msg = i18n.tx(request, "Nakit işlemi silindi" if ok else "İşlem bulunamadı")
     return RedirectResponse(url=f"/nakit?portfolio={portfolio or ''}&msg={msg}", status_code=303)

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Semboller {% if yil %}{{ yil }}{% else %}Tümü{% endif %} — Frigya{% endblock %}
+{% block title %}{{ tr('Semboller') }} {% if yil %}{{ yil }}{% else %}{{ tr('Tümü') }}{% endif %} — Frigya{% endblock %}
 
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-4">
@@ -98,7 +98,7 @@
               <span class="fw-bold symbol-link">
                 <i class="bi bi-chevron-right sym-expand-caret" style="font-size:0.7rem;transition:transform 0.15s"></i>
                 {{ r.symbol }}
-                {% if r.eksik_lot_count %}<i class="bi bi-exclamation-triangle text-warning ms-1" title="Eksik lot"></i>{% endif %}
+                {% if r.eksik_lot_count %}<i class="bi bi-exclamation-triangle text-warning ms-1" title="{{ tr('Eksik lot') }}"></i>{% endif %}
               </span>
             </td>
             <td>
@@ -114,7 +114,7 @@
                 <button type="button" class="btn btn-link btn-sm p-1 note-btn position-relative"
                         data-symbol="{{ r.symbol }}"
                         onclick="openSymbolNotes('{{ r.symbol }}')"
-                        title="Notlar">
+                        title="{{ tr('Notlar') }}">
                   <i class="bi bi-journal-text text-muted"></i>
                   <span class="badge bg-primary note-count-badge d-none position-absolute top-0 start-100 translate-middle"
                         style="font-size:.6rem;padding:.15rem .3rem"></span>
@@ -142,8 +142,8 @@
               {% if r.last_tx_id and not is_super %}
               <form action="/semboller/sil/{{ r.last_tx_id }}" method="post" style="display: inline;">
                 <input type="hidden" name="yil" value="{{ yil }}">
-                <button type="submit" class="btn btn-sm btn-outline-danger" title="Son satışı sil"
-                        onclick="return confirm('{{ r.symbol }} son satışını silmek istediğinize emin misiniz?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ tr('Son satışı sil') }}"
+                        onclick="return confirm(_t('{symbol} son satışını silmek istediğinize emin misiniz?', {symbol: '{{ r.symbol }}'}));">
                   <i class="bi bi-trash3"></i>
                 </button>
               </form>
@@ -212,7 +212,7 @@
     tr.className = 'sym-detail-row';
     tr.dataset.for = sym;
     tr.innerHTML = `<td colspan="${_COLSPAN}"><div class="sym-detail-panel">
-      <div class="text-muted small">Yükleniyor…</div></div></td>`;
+      <div class="text-muted small">${_t('Yükleniyor…')}</div></div></td>`;
     row.after(tr);
     if (caret) caret.style.transform = 'rotate(90deg)';
 
@@ -225,7 +225,7 @@
       tr.querySelector('.sym-detail-panel').innerHTML = renderSymDetail(d);
     } catch (e) {
       tr.querySelector('.sym-detail-panel').innerHTML =
-        '<div class="text-danger small">Detay yüklenemedi.</div>';
+        `<div class="text-danger small">${_t('Detay yüklenemedi.')}</div>`;
     }
   }
 
@@ -252,21 +252,21 @@
         <td class="text-end fw-semibold ${pnlCls}">${r.pnl>=0?'+':''}${_fmt$(r.pnl)}</td>
         <td class="text-end ${pnlCls}">${pctTxt}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="7" class="sym-empty">Bu dönemde satış yok.</td></tr>`;
+    }).join('') : `<tr><td colspan="7" class="sym-empty">${_t('Bu dönemde satış yok.')}</td></tr>`;
 
     const openRows = opens.length ? opens.map(r => `<tr>
         <td>${r.buy_date}</td>
         <td class="text-end">${_fmtQty(r.quantity)}</td>
         <td class="text-end">${_fmt$(r.buy_price)}</td>
         <td class="text-end">${_fmt$(r.cost_basis)}</td>
-      </tr>`).join('') : `<tr><td colspan="4" class="sym-empty">Açık pozisyon yok.</td></tr>`;
+      </tr>`).join('') : `<tr><td colspan="4" class="sym-empty">${_t('Açık pozisyon yok.')}</td></tr>`;
 
     const buyRows = buys.length ? buys.map(r => `<tr>
         <td>${r.tx_date}</td>
         <td class="text-end">${_fmtQty(r.quantity)}</td>
         <td class="text-end">${_fmt$(r.price)}</td>
         <td class="text-end">${_fmt$(r.total)}</td>
-      </tr>`).join('') : `<tr><td colspan="4" class="sym-empty">Alış kaydı yok.</td></tr>`;
+      </tr>`).join('') : `<tr><td colspan="4" class="sym-empty">${_t('Alış kaydı yok.')}</td></tr>`;
 
     // Katlanabilir 3 blok — hepsi default kapalı (data-open="0").
     // Kullanıcı başlığa tıklayarak açar. Sayaç sağda badge olarak.
@@ -275,14 +275,14 @@
         <div class="sym-block-head">
           <i class="bi bi-chevron-right sym-block-caret"></i>
           <i class="bi bi-check2-circle"></i>
-          <span>Gerçekleşen Satışlar</span>
+          <span>${_t('Gerçekleşen Satışlar')}</span>
           <span class="sym-block-count">${sells.length}</span>
         </div>
         <div class="sym-block-body">
           <table class="sym-tbl"><thead><tr>
-            <th>Tarih</th><th class="text-end">Adet</th><th class="text-end">Fiyat</th>
-            <th class="text-end">Gelir</th><th class="text-end">Maliyet</th>
-            <th class="text-end">K/Z</th><th class="text-end">%</th>
+            <th>${_t('Tarih')}</th><th class="text-end">${_t('Adet')}</th><th class="text-end">${_t('Fiyat')}</th>
+            <th class="text-end">${_t('Gelir')}</th><th class="text-end">${_t('Maliyet')}</th>
+            <th class="text-end">${_t('K/Z')}</th><th class="text-end">%</th>
           </tr></thead><tbody>${sellRows}</tbody></table>
         </div>
       </div>
@@ -290,13 +290,13 @@
         <div class="sym-block-head">
           <i class="bi bi-chevron-right sym-block-caret"></i>
           <i class="bi bi-collection"></i>
-          <span>Açık Pozisyon</span>
+          <span>${_t('Açık Pozisyon')}</span>
           <span class="sym-block-count">${opens.length} lot</span>
         </div>
         <div class="sym-block-body">
           <table class="sym-tbl"><thead><tr>
-            <th>Alış Tarihi</th><th class="text-end">Adet</th>
-            <th class="text-end">Fiyat</th><th class="text-end">Maliyet</th>
+            <th>${_t('Alış Tarihi')}</th><th class="text-end">${_t('Adet')}</th>
+            <th class="text-end">${_t('Fiyat')}</th><th class="text-end">${_t('Maliyet')}</th>
           </tr></thead><tbody>${openRows}</tbody></table>
         </div>
       </div>
@@ -304,19 +304,19 @@
         <div class="sym-block-head">
           <i class="bi bi-chevron-right sym-block-caret"></i>
           <i class="bi bi-cart-plus"></i>
-          <span>Son Alışlar</span>
+          <span>${_t('Son Alışlar')}</span>
           <span class="sym-block-count">${buys.length}</span>
         </div>
         <div class="sym-block-body">
           <table class="sym-tbl"><thead><tr>
-            <th>Tarih</th><th class="text-end">Adet</th>
-            <th class="text-end">Fiyat</th><th class="text-end">Tutar</th>
+            <th>${_t('Tarih')}</th><th class="text-end">${_t('Adet')}</th>
+            <th class="text-end">${_t('Fiyat')}</th><th class="text-end">${_t('Tutar')}</th>
           </tr></thead><tbody>${buyRows}</tbody></table>
         </div>
       </div>
       <div class="sym-detail-actions">
         <a href="/sembol/${d.symbol}" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation()">
-          <i class="bi bi-arrow-right-short"></i>Sembol sayfası
+          <i class="bi bi-arrow-right-short"></i>${_t('Sembol sayfası')}
         </a>
       </div>`;
   }

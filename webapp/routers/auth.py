@@ -7,6 +7,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+import i18n
 import auth_service
 from templates_config import templates
 
@@ -52,15 +53,15 @@ async def login_submit(
 ):
     user = auth_service.get_user_by_email(email)
     if not user or not auth_service.verify_password(password, user["password_hash"]):
-        target = f"/auth/login?error={quote('E-posta veya şifre hatalı')}&next={quote(_safe_next(next_url))}"
+        target = f"/auth/login?error={quote(i18n.tx(request, 'E-posta veya şifre hatalı'))}&next={quote(_safe_next(next_url))}"
         return RedirectResponse(url=target, status_code=303)
 
     status = user["approval_status"] if "approval_status" in user.keys() else auth_service.APPROVAL_APPROVED
     if status == auth_service.APPROVAL_PENDING:
-        target = f"/auth/login?error={quote('Hesabın site yetkilisinin onayını bekliyor.')}"
+        target = f"/auth/login?error={quote(i18n.tx(request, 'Hesabın site yetkilisinin onayını bekliyor.'))}"
         return RedirectResponse(url=target, status_code=303)
     if status == auth_service.APPROVAL_REJECTED:
-        target = f"/auth/login?error={quote('Hesabın onaylanmadı. Yönetici ile iletişime geç.')}"
+        target = f"/auth/login?error={quote(i18n.tx(request, 'Hesabın onaylanmadı. Yönetici ile iletişime geç.'))}"
         return RedirectResponse(url=target, status_code=303)
 
     auth_service.login_user(request, user)
@@ -92,13 +93,13 @@ async def register_submit(
     next_url = _safe_next(next_url)
 
     if len(password) < 8:
-        target = f"/auth/register?error={quote('Şifre en az 8 karakter olmalı')}&next={quote(next_url)}"
+        target = f"/auth/register?error={quote(i18n.tx(request, 'Şifre en az 8 karakter olmalı'))}&next={quote(next_url)}"
         return RedirectResponse(url=target, status_code=303)
     if password != password_confirm:
-        target = f"/auth/register?error={quote('Şifreler eşleşmiyor')}&next={quote(next_url)}"
+        target = f"/auth/register?error={quote(i18n.tx(request, 'Şifreler eşleşmiyor'))}&next={quote(next_url)}"
         return RedirectResponse(url=target, status_code=303)
     if auth_service.get_user_by_email(email):
-        target = f"/auth/register?error={quote('Bu e-posta zaten kayıtlı')}&next={quote(next_url)}"
+        target = f"/auth/register?error={quote(i18n.tx(request, 'Bu e-posta zaten kayıtlı'))}&next={quote(next_url)}"
         return RedirectResponse(url=target, status_code=303)
 
     auth_service.create_user(
@@ -107,15 +108,25 @@ async def register_submit(
         role=auth_service.ROLE_USER,
         approval_status=auth_service.APPROVAL_PENDING,
     )
-    info = "Kaydın alındı. Hesabın site yetkilisinin onayını bekliyor — onaylandıktan sonra giriş yapabilirsin."
+    info = i18n.tx(request, "Kaydın alındı. Hesabın site yetkilisinin onayını bekliyor — onaylandıktan sonra giriş yapabilirsin.")
     target = f"/auth/login?info={quote(info)}"
     return RedirectResponse(url=target, status_code=303)
 
 
 @router.get("/logout")
 async def logout(request: Request):
+    lang = request.session.get("lang")
     auth_service.logout_user(request)
+    if lang:
+        request.session["lang"] = lang
     return RedirectResponse(url="/auth/login", status_code=302)
+
+
+@router.get("/lang")
+async def set_lang(request: Request, lang: str = Query(default=i18n.DEFAULT_LANG), next: str = Query(default="/auth/login")):
+    """Giriş yapmadan dil seçimi (giriş ve kayıt ekranları)."""
+    request.session["lang"] = i18n.normalize_lang(lang)
+    return RedirectResponse(url=_safe_next(next), status_code=302)
 
 
 @router.get("/google/start")
@@ -123,7 +134,7 @@ async def google_start(request: Request, next: str = Query(default="/")):
     oauth = auth_service.get_google_oauth()
     if oauth is None:
         return RedirectResponse(
-            url=f"/auth/login?error={quote('Google girişi için ortam değişkenleri eksik')}",
+            url=f"/auth/login?error={quote(i18n.tx(request, 'Google girişi için ortam değişkenleri eksik'))}",
             status_code=302,
         )
 
@@ -141,7 +152,7 @@ async def google_callback(request: Request):
     oauth = auth_service.get_google_oauth()
     if oauth is None:
         return RedirectResponse(
-            url=f"/auth/login?error={quote('Google girişi için ortam değişkenleri eksik')}",
+            url=f"/auth/login?error={quote(i18n.tx(request, 'Google girişi için ortam değişkenleri eksik'))}",
             status_code=302,
         )
 
@@ -154,7 +165,7 @@ async def google_callback(request: Request):
             userinfo = await oauth.google.parse_id_token(request, token)
     except Exception:
         return RedirectResponse(
-            url=f"/auth/login?error={quote('Google doğrulaması başarısız')}&next={quote(next_url)}",
+            url=f"/auth/login?error={quote(i18n.tx(request, 'Google doğrulaması başarısız'))}&next={quote(next_url)}",
             status_code=302,
         )
 
@@ -162,7 +173,7 @@ async def google_callback(request: Request):
     provider_user_id = str(userinfo.get("sub", "")).strip()
     if not email or not provider_user_id:
         return RedirectResponse(
-            url=f"/auth/login?error={quote('Google hesabından e-posta alınamadı')}&next={quote(next_url)}",
+            url=f"/auth/login?error={quote(i18n.tx(request, 'Google hesabından e-posta alınamadı'))}&next={quote(next_url)}",
             status_code=302,
         )
 
@@ -184,7 +195,7 @@ async def google_callback(request: Request):
         return RedirectResponse(url=f"/auth/login?info={quote(info)}", status_code=302)
     if status == auth_service.APPROVAL_REJECTED:
         return RedirectResponse(
-            url=f"/auth/login?error={quote('Hesabın onaylanmadı. Yönetici ile iletişime geç.')}",
+            url=f"/auth/login?error={quote(i18n.tx(request, 'Hesabın onaylanmadı. Yönetici ile iletişime geç.'))}",
             status_code=302,
         )
 

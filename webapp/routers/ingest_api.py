@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from templates_config import templates
@@ -33,7 +34,7 @@ async def ingest_file(request: Request, payload: IngestPayload):
     user_id = int(user["id"])
     portfolio = request.session.get("portfolio")
     if not portfolio:
-        raise HTTPException(400, "Önce bir portföy seçin")
+        raise HTTPException(400, i18n.tx(request, "Önce bir portföy seçin"))
     # Super portföy'den işlem yapılabilir — tüm portföylere yayılır (aşağıya bak)
 
     filename = payload.filename or "upload"
@@ -41,12 +42,12 @@ async def ingest_file(request: Request, payload: IngestPayload):
     try:
         if payload.type == "rows":
             if not payload.rows:
-                raise HTTPException(400, "rows boş olamaz")
+                raise HTTPException(400, i18n.tx(request, "rows boş olamaz"))
             rows, warnings = ingestion.parse_rows(payload.rows, source_file=filename)
 
         elif payload.type in ("csv", "pdf"):
             if not payload.content_b64:
-                raise HTTPException(400, "content_b64 gerekli")
+                raise HTTPException(400, i18n.tx(request, "content_b64 gerekli"))
             content = base64.b64decode(payload.content_b64)
 
             if payload.type == "csv":
@@ -69,7 +70,7 @@ async def ingest_file(request: Request, payload: IngestPayload):
         all_pf = get_portfolios(user_id)
         target_portfolios = [pf for pf in all_pf if pf != portfolio]
         if not target_portfolios:
-            raise HTTPException(400, "Dağıtılacak portföy yok (sadece süper portföy var)")
+            raise HTTPException(400, i18n.tx(request, "Dağıtılacak portföy yok (sadece süper portföy var)"))
 
     # Her portföy için ayrı rows ekle
     all_rows_to_insert = []

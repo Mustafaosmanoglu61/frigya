@@ -17,7 +17,7 @@ function initMonthlyChart(canvasId, labels, values) {
     data: {
       labels,
       datasets: [{
-        label: 'Aylık K/Z (USD)',
+        label: _t('Aylık K/Z (USD)'),
         data: values,
         backgroundColor: barColors(values),
         borderRadius: 4,
@@ -53,7 +53,7 @@ function initCumulativeChart(canvasId, labels, values) {
     data: {
       labels,
       datasets: [{
-        label: 'Kümülatif K/Z (USD)',
+        label: _t('Kümülatif K/Z (USD)'),
         data: values,
         borderColor: lastVal >= 0 ? BLUE_LINE : 'rgba(220,53,69,1)',
         backgroundColor: lastVal >= 0 ? 'rgba(46,117,182,0.08)' : 'rgba(220,53,69,0.08)',
@@ -92,7 +92,7 @@ function initSymbolChart(canvasId, labels, values) {
     data: {
       labels,
       datasets: [{
-        label: 'Net K/Z (USD)',
+        label: _t('Net K/Z (USD)'),
         data: values,
         backgroundColor: barColors(values),
         borderRadius: 3,

@@ -8,6 +8,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - handled at runtime
     anthropic = None
 
+import i18n
 import auth_service
 from templates_config import templates
 from portfolio_helper import get_selectable_portfolios, resolve_portfolio, is_super
@@ -51,7 +52,7 @@ async def ai_chat(request: Request):
     auth_service.require_current_user(request)
     if anthropic is None:
         return JSONResponse(
-            {"error": "anthropic paketi kurulu değil. requirements yüklenmeli."},
+            {"error": i18n.tx(request, "anthropic paketi kurulu değil. requirements yüklenmeli.")},
             status_code=500,
         )
 
@@ -61,7 +62,7 @@ async def ai_chat(request: Request):
         raw_messages = [{"role": "user", "content": body.get("message")}]
 
     if not isinstance(raw_messages, list):
-        return JSONResponse({"error": "messages listesi gerekli."}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "messages listesi gerekli.")}, status_code=400)
 
     messages = []
     for item in raw_messages[-30:]:
@@ -82,7 +83,7 @@ async def ai_chat(request: Request):
         messages.pop(0)
 
     if not messages:
-        return JSONResponse({"error": "En az bir kullanıcı mesajı gerekli."}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "En az bir kullanıcı mesajı gerekli.")}, status_code=400)
 
     model = body.get("model", DEFAULT_MODEL)
     if not isinstance(model, str) or not model.strip():
@@ -106,7 +107,7 @@ async def ai_chat(request: Request):
     api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         return JSONResponse(
-            {"error": "ANTHROPIC_API_KEY tanımlı değil."},
+            {"error": i18n.tx(request, "ANTHROPIC_API_KEY tanımlı değil.")},
             status_code=500,
         )
 
@@ -122,21 +123,21 @@ async def ai_chat(request: Request):
             output_config={"effort": "high"},
         )
     except anthropic.AuthenticationError:
-        return JSONResponse({"error": "Claude API kimlik doğrulaması başarısız."}, status_code=401)
+        return JSONResponse({"error": i18n.tx(request, "Claude API kimlik doğrulaması başarısız.")}, status_code=401)
     except anthropic.PermissionDeniedError:
-        return JSONResponse({"error": "Claude API yetki hatası."}, status_code=403)
+        return JSONResponse({"error": i18n.tx(request, "Claude API yetki hatası.")}, status_code=403)
     except anthropic.RateLimitError as exc:
         retry_after = getattr(exc.response, "headers", {}).get("retry-after", "60")
         return JSONResponse(
-            {"error": f"Rate limit aşıldı. {retry_after} sn sonra tekrar dene."},
+            {"error": i18n.tx(request, "Rate limit aşıldı. {sec} sn sonra tekrar dene.", sec=retry_after)},
             status_code=429,
         )
     except anthropic.BadRequestError as exc:
-        return JSONResponse({"error": f"Geçersiz istek: {exc.message}"}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, "Geçersiz istek: {err}", err=exc.message)}, status_code=400)
     except anthropic.APIConnectionError:
-        return JSONResponse({"error": "Claude API bağlantı hatası."}, status_code=502)
+        return JSONResponse({"error": i18n.tx(request, "Claude API bağlantı hatası.")}, status_code=502)
     except anthropic.APIStatusError as exc:
-        return JSONResponse({"error": f"Claude API durum hatası ({exc.status_code})."}, status_code=502)
+        return JSONResponse({"error": i18n.tx(request, "Claude API durum hatası ({code}).", code=exc.status_code)}, status_code=502)
 
     reply = _extract_text(response) or "(Metin yanıtı alınamadı.)"
     usage = getattr(response, "usage", None)

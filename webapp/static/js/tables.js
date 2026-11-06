@@ -9,7 +9,7 @@ function initTableSort(tableId) {
     const headers = table.querySelectorAll('th');
     headers.forEach((th, idx) => {
         th.style.cursor = 'pointer';
-        th.title = 'Çift tıkla sırala';
+        th.title = _t('Çift tıkla sırala');
 
         let clicks = 0;
         th.addEventListener('dblclick', () => {

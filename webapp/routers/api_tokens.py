@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 
 router = APIRouter(prefix="/api/tokens", tags=["api-tokens"])
@@ -25,7 +26,7 @@ async def create_token(request: Request):
     try:
         row, token = auth_service.create_api_token(int(user["id"]), body.get("name") or "")
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"error": i18n.tx(request, str(e), max=auth_service.API_TOKEN_MAX_ACTIVE)}, status_code=400)
     return JSONResponse({"ok": True, **row, "token": token})
 
 
@@ -33,5 +34,5 @@ async def create_token(request: Request):
 async def revoke_token(request: Request, token_id: int):
     user = auth_service.require_current_user(request)
     if not auth_service.revoke_api_token(int(user["id"]), token_id):
-        return JSONResponse({"error": "Token bulunamadı"}, status_code=404)
+        return JSONResponse({"error": i18n.tx(request, "Token bulunamadı")}, status_code=404)
     return JSONResponse({"ok": True})

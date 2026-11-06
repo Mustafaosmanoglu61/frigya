@@ -10,6 +10,7 @@ import tempfile
 import shutil
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import i18n
 import auth_service
 import database
 from templates_config import templates
@@ -81,9 +82,9 @@ async def set_trade_fee_form(request: Request, fee: float = Form(...)):
     """İşlem başına ücret (USD): bundan sonra girilen işlemlere yazılır ve nakitten düşülür."""
     user = auth_service.require_current_user(request)
     if not 0 <= fee <= 100:
-        return RedirectResponse(url="/yonetim?error=İşlem%20ücreti%200-100%20arasında%20olmalı", status_code=303)
+        return RedirectResponse(url=f"/yonetim?error={i18n.tx_q(request, 'İşlem ücreti 0-100 arasında olmalı')}", status_code=303)
     database.set_trade_fee(int(user["id"]), fee)
-    return RedirectResponse(url="/yonetim?success=İşlem%20ücreti%20kaydedildi", status_code=303)
+    return RedirectResponse(url=f"/yonetim?success={i18n.tx_q(request, 'İşlem ücreti kaydedildi')}", status_code=303)
 
 
 @router.post("/portföy-ekle")
@@ -99,12 +100,12 @@ async def add_portfolio_form(
     description = description.strip()
 
     if not name:
-        return RedirectResponse(url="/yonetim?error=Portföy%20adı%20boş%20olamaz", status_code=303)
+        return RedirectResponse(url=f"/yonetim?error={i18n.tx_q(request, 'Portföy adı boş olamaz')}", status_code=303)
 
     if create_portfolio(user_id, name, description):
-        return RedirectResponse(url=f"/yonetim?success={name}%20portföyü%20oluşturuldu", status_code=303)
+        return RedirectResponse(url=f"/yonetim?success={i18n.tx_q(request, '{name} portföyü oluşturuldu', name=name)}", status_code=303)
     else:
-        return RedirectResponse(url=f"/yonetim?error={name}%20portföyü%20zaten%20var", status_code=303)
+        return RedirectResponse(url=f"/yonetim?error={i18n.tx_q(request, '{name} portföyü zaten var', name=name)}", status_code=303)
 
 
 @router.post("/portföy-sil/{portfolio_name}")
@@ -115,12 +116,12 @@ async def delete_portfolio_form(request: Request, portfolio_name: str):
     portfolio_name = portfolio_name.strip()
 
     if not portfolio_name:
-        return RedirectResponse(url="/yonetim?error=Portföy%20adı%20geçersiz", status_code=303)
+        return RedirectResponse(url=f"/yonetim?error={i18n.tx_q(request, 'Portföy adı geçersiz')}", status_code=303)
 
     if delete_portfolio(user_id, portfolio_name):
-        return RedirectResponse(url=f"/yonetim?success={portfolio_name}%20portföyü%20silindi", status_code=303)
+        return RedirectResponse(url=f"/yonetim?success={i18n.tx_q(request, '{name} portföyü silindi', name=portfolio_name)}", status_code=303)
     else:
-        return RedirectResponse(url=f"/yonetim?error=Silme%20başarısız", status_code=303)
+        return RedirectResponse(url=f"/yonetim?error={i18n.tx_q(request, 'Silme başarısız')}", status_code=303)
 
 
 @router.get("/old", response_class=HTMLResponse)
@@ -296,7 +297,7 @@ async def upload_pdf(request: Request, file: UploadFile = File(...), portfolio: 
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     if portfolio not in get_portfolios(user_id):
-        raise HTTPException(status_code=400, detail="Geçersiz portföy")
+        raise HTTPException(status_code=400, detail=i18n.tx(request, "Geçersiz portföy"))
     try:
         content = await file.read()
         rows, _warnings = parse_pdf(content, filename=file.filename or "upload.pdf")
@@ -319,7 +320,7 @@ async def upload_csv(request: Request, file: UploadFile = File(...), portfolio: 
     user = auth_service.require_current_user(request)
     user_id = int(user["id"])
     if portfolio not in get_portfolios(user_id):
-        raise HTTPException(status_code=400, detail="Geçersiz portföy")
+        raise HTTPException(status_code=400, detail=i18n.tx(request, "Geçersiz portföy"))
     try:
         content = await file.read()
         text = content.decode('utf-8-sig')
@@ -378,22 +379,23 @@ async def restore_sqlite(
     if not expected_token:
         raise HTTPException(
             status_code=503,
-            detail=(
-                f"{RESTORE_TOKEN_ENV} ayarlı değil. "
-                "Railway > Variables bölümünden token ekleyip yeniden deploy edin."
+            detail=i18n.tx(
+                request,
+                "{env} ayarlı değil. Railway > Variables bölümünden token ekleyip yeniden deploy edin.",
+                env=RESTORE_TOKEN_ENV,
             ),
         )
 
     if not hmac.compare_digest(restore_token.strip(), expected_token):
-        raise HTTPException(status_code=403, detail="Geçersiz restore token")
+        raise HTTPException(status_code=403, detail=i18n.tx(request, "Geçersiz restore token"))
 
     content = await file.read()
     if not content:
-        raise HTTPException(status_code=400, detail="Boş dosya yüklenemez")
+        raise HTTPException(status_code=400, detail=i18n.tx(request, "Boş dosya yüklenemez"))
     if len(content) > MAX_SQLITE_UPLOAD_MB * 1024 * 1024:
         raise HTTPException(
             status_code=413,
-            detail=f"Dosya çok büyük (maks {MAX_SQLITE_UPLOAD_MB} MB)",
+            detail=i18n.tx(request, "Dosya çok büyük (maks {mb} MB)", mb=MAX_SQLITE_UPLOAD_MB),
         )
 
     tmp_path = None
@@ -429,14 +431,14 @@ async def restore_sqlite(
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"DB restore başarısız: {exc}") from exc
+        raise HTTPException(status_code=400, detail=i18n.tx(request, "DB restore başarısız: {err}", err=exc)) from exc
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
 
     return {
         "ok": True,
-        "message": "SQLite restore tamamlandı",
+        "message": i18n.tx(request, "SQLite restore tamamlandı"),
         "db_path": db_path,
         "backup_path": backup_path,
     }
@@ -465,7 +467,7 @@ async def approve_user_endpoint(request: Request, user_id: int):
             (user_id,),
         ).fetchone()
     if not target:
-        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+        raise HTTPException(status_code=404, detail=i18n.tx(request, "Kullanıcı bulunamadı"))
     auth_service.approve_user(int(current["id"]), user_id)
     return {"ok": True, "user_id": user_id, "approval_status": auth_service.APPROVAL_APPROVED}
 
@@ -475,14 +477,14 @@ async def reject_user_endpoint(request: Request, user_id: int):
     """Reddet — admin only. Son admin'i reddetmeye / kendini reddetmeye izin verme."""
     current = auth_service.require_admin_user(request)
     if int(current["id"]) == int(user_id):
-        raise HTTPException(status_code=400, detail="Kendi hesabını reddedemezsin")
+        raise HTTPException(status_code=400, detail=i18n.tx(request, "Kendi hesabını reddedemezsin"))
     with database.db() as conn:
         target = conn.execute(
             "SELECT id, email, role FROM users WHERE id=?",
             (user_id,),
         ).fetchone()
         if not target:
-            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+            raise HTTPException(status_code=404, detail=i18n.tx(request, "Kullanıcı bulunamadı"))
         if target["role"] == auth_service.ROLE_ADMIN:
             admin_count = conn.execute(
                 "SELECT COUNT(*) AS c FROM users WHERE role=? AND is_active=1",
@@ -513,7 +515,7 @@ async def set_user_role(request: Request, user_id: int):
     body = await request.json()
     new_role = (body.get("role") or "").strip().lower()
     if new_role not in (auth_service.ROLE_ADMIN, auth_service.ROLE_USER):
-        raise HTTPException(status_code=400, detail="Geçersiz rol")
+        raise HTTPException(status_code=400, detail=i18n.tx(request, "Geçersiz rol"))
 
     with database.db() as conn:
         target = conn.execute(
@@ -521,7 +523,7 @@ async def set_user_role(request: Request, user_id: int):
             (user_id,),
         ).fetchone()
         if not target:
-            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+            raise HTTPException(status_code=404, detail=i18n.tx(request, "Kullanıcı bulunamadı"))
 
         if target["role"] == auth_service.ROLE_ADMIN and new_role != auth_service.ROLE_ADMIN:
             admin_count = conn.execute(
@@ -529,9 +531,9 @@ async def set_user_role(request: Request, user_id: int):
                 (auth_service.ROLE_ADMIN,),
             ).fetchone()["c"]
             if admin_count <= 1:
-                raise HTTPException(status_code=400, detail="Son admin rolü düşürülemez")
+                raise HTTPException(status_code=400, detail=i18n.tx(request, "Son admin rolü düşürülemez"))
             if int(target["id"]) == int(current["id"]):
-                raise HTTPException(status_code=400, detail="Kendi admin rolünü düşüremezsin")
+                raise HTTPException(status_code=400, detail=i18n.tx(request, "Kendi admin rolünü düşüremezsin"))
 
         conn.execute("UPDATE users SET role=? WHERE id=?", (new_role, user_id))
 
