@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS raw_transactions (
     -- Taze DB'de baştan var olmalı: aşağıdaki ux_raw_dedup_user index'i bu
     -- kolona dayanır. Eski DB'lere ensure_multitenant_schema() ALTER ile ekler.
     user_id     INTEGER,
+    -- İşlem ücreti (USD): girişte kullanıcının Yönetim'deki ayarından kopyalanır.
+    -- Yalnızca nakdi etkiler; FIFO maliyeti ve K/Z'ye girmez.
+    fee         REAL    NOT NULL DEFAULT 0,
     dedup_key   TEXT    GENERATED ALWAYS AS (
                     tx_date||'|'||upper(symbol)||'|'||direction
                     ||'|'||CAST(ROUND(quantity,9) AS TEXT)
@@ -1090,6 +1093,52 @@ def migrate_add_cash_transactions() -> None:
             """)
 
 
+TRADE_FEE_KEY = "trade_fee_usd"
+
+
+def migrate_add_trade_fee() -> None:
+    """Idempotent: raw_transactions.fee kolonu + user_settings tablosu.
+    Eski satırlar 0 kalır: geçmiş ücretler elle girilen denkleştirmelerin içinde,
+    doldurulursa iki kez düşülür."""
+    with db() as conn:
+        if "fee" not in _table_columns(conn, "raw_transactions"):
+            conn.execute("ALTER TABLE raw_transactions ADD COLUMN fee REAL NOT NULL DEFAULT 0")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id    INTEGER NOT NULL,
+                key        TEXT    NOT NULL,
+                value      TEXT    NOT NULL,
+                updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (user_id, key)
+            )
+        """)
+
+
+def trade_fee(conn, user_id: int) -> float:
+    """Kullanıcının işlem başına ücreti (USD); ayarlanmadıysa 0."""
+    row = conn.execute(
+        "SELECT value FROM user_settings WHERE user_id=? AND key=?",
+        (user_id, TRADE_FEE_KEY),
+    ).fetchone()
+    return float(row[0]) if row else 0.0
+
+
+def get_trade_fee(user_id: int) -> float:
+    with db() as conn:
+        return trade_fee(conn, user_id)
+
+
+def set_trade_fee(user_id: int, fee: float) -> None:
+    """Yalnızca bundan sonra girilen işlemleri etkiler; kayıtlı işlemlerin ücreti değişmez."""
+    with db() as conn:
+        conn.execute(
+            """INSERT INTO user_settings (user_id, key, value) VALUES (?,?,?)
+               ON CONFLICT(user_id, key) DO UPDATE
+               SET value=excluded.value, updated_at=datetime('now')""",
+            (user_id, TRADE_FEE_KEY, str(fee)),
+        )
+
+
 def add_cash_transaction(
     user_id: int, portfolio: str, tx_date: str, tx_type: str, amount: float, note: Optional[str] = None
 ) -> int:
@@ -1131,7 +1180,7 @@ def delete_cash_transaction(user_id: int, cash_id: int) -> bool:
 
 def get_cash_balance(user_id: int, portfolio: Optional[str] = None) -> dict:
     """
-    Nakit bakiye = yatırılan - çekilen - alış toplamı + satış toplamı.
+    Nakit bakiye = yatırılan - çekilen - alış toplamı + satış toplamı - işlem ücretleri.
     portfolio=None → kullanıcının tüm portföyleri toplanır (süper görünüm).
     """
     with db() as conn:
@@ -1149,7 +1198,8 @@ def get_cash_balance(user_id: int, portfolio: Optional[str] = None) -> dict:
         tx_row = conn.execute(
             f"""SELECT
                    COALESCE(SUM(CASE WHEN direction='Alış'  THEN total ELSE 0 END), 0) AS buys,
-                   COALESCE(SUM(CASE WHEN direction='Satış' THEN total ELSE 0 END), 0) AS sells
+                   COALESCE(SUM(CASE WHEN direction='Satış' THEN total ELSE 0 END), 0) AS sells,
+                   COALESCE(SUM(fee), 0) AS fees
                FROM raw_transactions WHERE user_id=? {pf_sql}""",
             params,
         ).fetchone()
@@ -1158,13 +1208,15 @@ def get_cash_balance(user_id: int, portfolio: Optional[str] = None) -> dict:
     withdrawals = cash_row["withdrawals"]
     buys        = tx_row["buys"]
     sells       = tx_row["sells"]
+    fees        = tx_row["fees"]
 
     return {
         "deposits":    deposits,
         "withdrawals": withdrawals,
         "buys":        buys,
         "sells":       sells,
-        "balance":     round(deposits - withdrawals - buys + sells, 2),
+        "fees":        fees,
+        "balance":     round(deposits - withdrawals - buys + sells - fees, 2),
     }
 
 
@@ -1180,6 +1232,7 @@ def init_db() -> None:
     migrate_consolidate_watchlist_notes()
     migrate_add_portfolio_notes()
     migrate_add_cash_transactions()
+    migrate_add_trade_fee()
     migrate_dedup_index_scope()
 
 

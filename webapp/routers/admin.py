@@ -71,8 +71,19 @@ async def admin_home(request: Request):
         "pending_count": len(pending_users),
         "current_user_id": user_id,
         "api_tokens": auth_service.list_api_tokens(user_id),
+        "trade_fee": database.get_trade_fee(user_id),
         "active": "admin",
     })
+
+
+@router.post("/islem-ucreti")
+async def set_trade_fee_form(request: Request, fee: float = Form(...)):
+    """İşlem başına ücret (USD): bundan sonra girilen işlemlere yazılır ve nakitten düşülür."""
+    user = auth_service.require_current_user(request)
+    if not 0 <= fee <= 100:
+        return RedirectResponse(url="/yonetim?error=İşlem%20ücreti%200-100%20arasında%20olmalı", status_code=303)
+    database.set_trade_fee(int(user["id"]), fee)
+    return RedirectResponse(url="/yonetim?success=İşlem%20ücreti%20kaydedildi", status_code=303)
 
 
 @router.post("/portföy-ekle")
