@@ -96,6 +96,27 @@
             </form>
           </div>
         </div>
+
+        <div class="card border-0 shadow-sm mt-3">
+          <div class="card-header bg-primary-custom text-white">
+            <i class="bi bi-cash-coin me-2"></i>İşlem Ücreti
+          </div>
+          <div class="card-body">
+            <form action="/yonetim/islem-ucreti" method="post">
+              <div class="mb-3">
+                <label class="form-label fw-semibold" for="trade-fee">İşlem başına ücret (USD)</label>
+                <input type="number" id="trade-fee" name="fee" class="form-control" required
+                       min="0" max="100" step="0.01" value="{{ '%.2f' % trade_fee }}">
+                <small class="form-text text-muted">
+                  Bundan sonra girilen her alış ve satışa yazılır, nakit bakiyeden düşülür. K/Z ve maliyeti etkilemez; kayıtlı işlemler değişmez.
+                </small>
+              </div>
+              <button type="submit" class="btn btn-success w-100">
+                <i class="bi bi-check-lg me-1"></i>Kaydet
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
 
       <div class="col-md-6">

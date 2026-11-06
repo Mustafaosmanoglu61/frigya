@@ -12,7 +12,7 @@ from portfolio_helper import (
 
 router = APIRouter()
 
-EMPTY_BALANCE = {"deposits": 0, "withdrawals": 0, "buys": 0, "sells": 0, "balance": 0}
+EMPTY_BALANCE = {"deposits": 0, "withdrawals": 0, "buys": 0, "sells": 0, "fees": 0, "balance": 0}
 
 
 @router.get("/nakit", response_class=HTMLResponse)

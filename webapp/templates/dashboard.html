@@ -99,6 +99,7 @@
         <div class="text-muted small mt-1">
           {{ tr('Yatırılan:') }} <strong class="text-success">{{ "${:,.2f}".format(cash_balance.deposits) }}</strong><br>
           {{ tr('Çekilen:') }} <strong class="text-danger">{{ "${:,.2f}".format(cash_balance.withdrawals) }}</strong>
+          {% if cash_balance.fees %}<br>{{ tr('İşlem ücreti:') }} <strong class="text-danger">{{ "${:,.2f}".format(cash_balance.fees) }}</strong>{% endif %}
         </div>
       </div>
     </div>

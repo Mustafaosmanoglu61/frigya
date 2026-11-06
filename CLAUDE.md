@@ -193,6 +193,7 @@ for tarih_s, sembol, islem, adet, fiyat, toplam in transactions:
 - Satış geliri = `İşlem Tutarı` (adet × ortalama fiyat)
 - Komisyon ($1.50/işlem) CSV/PDF'de ayrı gösterilir, fiyata dahil değil
 - Basitlik için komisyon maliyet bazına eklenmemiştir (fark küçük)
+- Nakit bakiyeden düşülür: tutar Yönetim → Portföyler → **İşlem Ücreti** ayarından gelir (kullanıcı başına, varsayılan 0), giriş anında `raw_transactions.fee`'ye yazılır. Ayar değişince kayıtlı işlemler değişmez; ücret FIFO maliyetine ve K/Z'ye girmez
 
 ---
 

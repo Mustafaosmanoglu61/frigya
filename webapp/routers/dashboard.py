@@ -37,7 +37,7 @@ async def dashboard(request: Request, portfolio: str = Query(None), year: int = 
             "sym_tags": {},
             "realized_by_symbol": {},
             "realized_cost_by_symbol": {},
-            "cash_balance": {"deposits": 0, "withdrawals": 0, "buys": 0, "sells": 0, "balance": 0},
+            "cash_balance": {"deposits": 0, "withdrawals": 0, "buys": 0, "sells": 0, "fees": 0, "balance": 0},
             "active": "dashboard",
             "portfolios": portfolios,
             "current_portfolio": None,

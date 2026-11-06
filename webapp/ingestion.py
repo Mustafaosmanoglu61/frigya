@@ -10,6 +10,8 @@ from typing import List
 
 import pandas as pd
 
+import database
+
 
 def _parse_date(s: str) -> str:
     """Parse various date formats and return YYYY-MM-DD."""
@@ -187,11 +189,12 @@ def insert_rows(rows: List[dict], conn) -> tuple[int, int]:
             conn.execute(
                 """INSERT OR IGNORE INTO raw_transactions
                    (tx_date, symbol, direction, quantity, price, total,
-                    source_type, source_file, source_year, portfolio, user_id)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    source_type, source_file, source_year, portfolio, user_id, fee)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (r["tx_date"], r["symbol"], r["direction"],
                  r["quantity"], r["price"], r["total"],
-                 r["source_type"], r["source_file"], r["source_year"], portfolio, user_id),
+                 r["source_type"], r["source_file"], r["source_year"], portfolio, user_id,
+                 database.trade_fee(conn, user_id)),
             )
             if conn.execute("SELECT changes()").fetchone()[0] > 0:
                 inserted += 1

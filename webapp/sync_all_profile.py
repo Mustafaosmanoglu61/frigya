@@ -126,14 +126,14 @@ def main():
         n = 0
         for su in SRC_IDS:
             for r in q("SELECT tx_date, symbol, direction, quantity, price, total, "
-                       "source_type, source_file, source_year, portfolio "
+                       "source_type, source_file, source_year, portfolio, fee "
                        "FROM raw_transactions WHERE user_id=? ORDER BY tx_date, id", (su,)):
                 ins("INSERT INTO raw_transactions (tx_date, symbol, direction, quantity, price, "
-                    "total, source_type, source_file, source_year, portfolio, user_id) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    "total, source_type, source_file, source_year, portfolio, user_id, fee) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (r["tx_date"], r["symbol"], r["direction"], r["quantity"], r["price"],
                      r["total"], r["source_type"], r["source_file"], r["source_year"],
-                     r["portfolio"], uid))
+                     r["portfolio"], uid, r["fee"]))
                 n += 1
         print(f"  raw_transactions: {n}")
 

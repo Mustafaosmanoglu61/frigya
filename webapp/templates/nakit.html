@@ -50,6 +50,9 @@
       <div class="fw-bold fs-6 {% if (balance.sells - balance.buys) >= 0 %}text-success{% else %}text-danger{% endif %}">
         ${{ "{:,.2f}".format(balance.sells - balance.buys) }}
       </div>
+      {% if balance.fees %}
+      <div class="text-muted small">{{ tr('İşlem ücreti:') }} ${{ "{:,.2f}".format(balance.fees) }}</div>
+      {% endif %}
     </div>
   </div>
 </div>
