@@ -18,7 +18,7 @@ export default defineRailway(() => {
     domains: [{ domain: "frigya.ottomantion.com", port: 8080 }],
     volumeMounts: { "/data": webVolume },
     // Değerler Railway'de kalır; preserve() kaynak koda secret yazmaz
-    env: { ALL_PROFILE_EMAIL: preserve(), ALL_PROFILE_PASSWORD: preserve(), APP_ENV: preserve(),DB_PATH: preserve(), DB_RESTORE_TOKEN: preserve(), INITIAL_ADMIN_EMAIL: preserve(), INITIAL_ADMIN_PASSWORD: preserve(), SESSION_SECRET: preserve() },
+    env: { ALL_PROFILE_EMAIL: preserve(), ALL_PROFILE_PASSWORD: preserve(), APP_ENV: preserve(),DB_PATH: preserve(), DB_RESTORE_TOKEN: preserve(), INITIAL_ADMIN_EMAIL: preserve(), INITIAL_ADMIN_PASSWORD: preserve(), MASSIVE_API_KEY: preserve(), SESSION_SECRET: preserve() },
   });
 
   return project("frigya", {
