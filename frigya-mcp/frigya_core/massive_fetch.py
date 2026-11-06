@@ -82,6 +82,7 @@ def fetch_market(symbol, days=90, limit_news=10):
         return {"_status": "no_key", "_hint": "MASSIVE_API_KEY tanımlı değil — DB-only analiz yapılır."}
 
     sym = symbol.upper()
+    path_sym = urllib.parse.quote(sym, safe="")  # sembol kullanıcıdan gelir; URL yolunu değiştiremesin
     errors = {}
 
     def safe(label, fn):
@@ -98,21 +99,21 @@ def fetch_market(symbol, days=90, limit_news=10):
     def g(path, params=None):
         return _get(path, params, api_key, base_url, auth_mode)
 
-    aggs = safe("aggs", lambda: g(f"/v2/aggs/ticker/{sym}/range/1/day/{frm}/{to}",
+    aggs = safe("aggs", lambda: g(f"/v2/aggs/ticker/{path_sym}/range/1/day/{frm}/{to}",
                                   {"adjusted": "true", "sort": "asc", "limit": 300}))
-    sma = safe("sma", lambda: g(f"/v1/indicators/sma/{sym}",
+    sma = safe("sma", lambda: g(f"/v1/indicators/sma/{path_sym}",
                                 {"timespan": "day", "window": 20, "series_type": "close", "limit": 1}))
-    ema = safe("ema", lambda: g(f"/v1/indicators/ema/{sym}",
+    ema = safe("ema", lambda: g(f"/v1/indicators/ema/{path_sym}",
                                 {"timespan": "day", "window": 21, "series_type": "close", "limit": 1}))
-    rsi = safe("rsi", lambda: g(f"/v1/indicators/rsi/{sym}",
+    rsi = safe("rsi", lambda: g(f"/v1/indicators/rsi/{path_sym}",
                                 {"timespan": "day", "window": 14, "series_type": "close", "limit": 1}))
-    macd = safe("macd", lambda: g(f"/v1/indicators/macd/{sym}",
+    macd = safe("macd", lambda: g(f"/v1/indicators/macd/{path_sym}",
                                   {"timespan": "day", "short_window": 12, "long_window": 26,
                                    "signal_window": 9, "limit": 1}))
     news = safe("news", lambda: g("/v2/reference/news",
                                   {"ticker": sym, "limit": limit_news, "order": "desc"}))
-    overview = safe("overview", lambda: g(f"/v3/reference/tickers/{sym}"))
-    related = safe("related", lambda: g(f"/v1/related-companies/{sym}"))
+    overview = safe("overview", lambda: g(f"/v3/reference/tickers/{path_sym}"))
+    related = safe("related", lambda: g(f"/v1/related-companies/{path_sym}"))
     mstatus = safe("market_status", lambda: g("/v1/marketstatus/now"))
 
     def _vals(ind):

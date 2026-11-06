@@ -20,6 +20,7 @@ from mcp.server.fastmcp import Context
 from .config import open_conn
 from .db import portfoy_data
 from .davranis import davranis_data
+from .massive_fetch import fetch_market
 from .sentez import build_sentez
 from .render import render_markdown, render_html
 from .yazma import hedef_guncelle as _hedef_guncelle, analist_hedef as _analist_hedef
@@ -47,10 +48,17 @@ class SembolAnalizInput(BaseModel):
     symbol: str = Field(..., description="Hisse sembolü (örn. 'RKLB', 'IREX')", min_length=1, max_length=12)
     portfolio: Optional[str] = Field(default=None, description="Tek portföye filtrele (örn. 'family'). Boşsa tüm portföyler birleşir.")
     user: Optional[str] = Field(default=None, description=_USER_DESC)
+    market: bool = Field(
+        default=False,
+        description=(
+            "True ise sunucu güncel fiyat, teknik gösterge, haber ve şirket bilgisini Massive'den kendi "
+            "anahtarıyla çeker (birkaç saniye sürer). Anahtar tanımlı değilse data_gaps'te belirtilir."
+        ),
+    )
     market_json: Optional[str] = Field(
         default=None,
         description=(
-            "Opsiyonel Massive Market verisi (passthrough). Client önce Massive MCP'sinden çeker, "
+            "Opsiyonel Massive Market verisi (passthrough); market=true ise yok sayılır. Client önce Massive MCP'sinden çeker, "
             "şu yapıda JSON string geçirir: "
             "{\"teknik\": {\"sma\":..., \"rsi\":..., \"macd\":..., \"daily\": \"<aggs CSV>\"}, "
             "\"haber\": \"<news CSV>\", \"meta\": {\"overview\": \"<csv>\", \"related\": \"<csv>\", "
@@ -105,8 +113,9 @@ class AnalistHedefInput(BaseModel):
 # ---------------------------------------------------------------------------
 def sembol_analiz(params: SembolAnalizInput, db_path=None, user_id=None) -> dict:
     market = json.loads(params.market_json) if params.market_json else None
+    prefetched = fetch_market(params.symbol) if params.market else None
     return build_sentez(params.symbol, portfolio=params.portfolio, market=market,
-                        db_path=db_path, user_id=user_id)
+                        prefetched_market=prefetched, db_path=db_path, user_id=user_id)
 
 
 def portfoy_tara(params: PortfoyInput, db_path=None, user_id=None) -> dict:
@@ -177,10 +186,11 @@ def register_tools(mcp, resolve, check_portfolio=None):
 
         DB'den: trade geçmişi, FIFO K/Z, açık pozisyon + ortalama maliyet, hedef/taban/stop,
         symbol_notes + portfolio_notes (seviye/earnings/tez parse edilmiş), davranış istatistikleri.
-        market_json verilirse Massive teknik (SMA/RSI/MACD), haber sentiment, şirket meta birleşir.
+        market=true ise (veya market_json verilirse) Massive teknik (SMA/RSI/MACD), haber sentiment,
+        şirket meta birleşir.
 
         Args:
-            params (SembolAnalizInput): symbol, portfolio?, market_json? (Massive passthrough)
+            params (SembolAnalizInput): symbol, portfolio?, market?, market_json? (Massive passthrough)
 
         Returns:
             str: Sentez JSON (references/sentez_sema.md). Üst seviye: meta, position,

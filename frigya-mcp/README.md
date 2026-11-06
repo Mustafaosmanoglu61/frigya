@@ -60,7 +60,7 @@ aynı paketi import edebilir (subprocess yerine doğrudan fonksiyon çağrısı)
 
 | Tool | Tip | Ne yapar |
 |---|---|---|
-| `frigya_sembol_analiz` | okuma | Sembolün komple sentezi (DB + notlar + opsiyonel Massive piyasa passthrough) |
+| `frigya_sembol_analiz` | okuma | Sembolün komple sentezi (DB + notlar + `market=true` ile Massive piyasa verisi) |
 | `frigya_portfoy_tara` | okuma | Tüm açık pozisyonlar + watchlist + hedefler |
 | `frigya_davranis_analiz` | okuma | Davranış paternleri (sektör, hold süresi, aylık trend) |
 | `frigya_render_markdown` | okuma | Sentez JSON → kompakt markdown |
@@ -77,9 +77,11 @@ araçları ayrı izin gruplarında, varsayılan **onay gerektirir**:
 
 ## Massive Market verisi
 
-Server Massive API'sine doğrudan çağrı yapmaz (key gerektirmez). `frigya_sembol_analiz`
-opsiyonel `market_json` passthrough alır: client önce Massive MCP'sinden veriyi çeker,
-JSON olarak geçirir, server teknik + DB + notları birleştirir. Beklenen yapı:
+`frigya_sembol_analiz`'e `market=true` verilirse server fiyat, teknik gösterge, haber ve şirket
+bilgisini Massive REST'ten kendi anahtarıyla çeker (`MASSIVE_API_KEY`); istemcide ek MCP gerekmez.
+Anahtar yoksa analiz DB-only çalışır ve `data_gaps`'te belirtilir.
+
+Elinde Massive verisi olan bir istemci için `market_json` passthrough da duruyor. Beklenen yapı:
 
 ```json
 {
@@ -134,8 +136,7 @@ stdio-only istemciler için `mcp-remote` köprüsü):
 ```
 
 Araç tanımları `frigya_core/mcp_tools.py`'de; stdio (`server.py`) ve HTTP (`webapp/mcp_http.py`)
-ikisi de aynı tanımları kaydeder. Massive MCP'sini de ekli tutarsan tam piyasa analizi için
-ikisini birlikte orkestre eder.
+ikisi de aynı tanımları kaydeder. Piyasa verisi için ayrı bir Massive MCP'si gerekmez (`market=true`).
 
 ## Geliştirme / test
 
@@ -181,5 +182,4 @@ Claude Code skill ──(MCP/script)┘
 ## Gelecek
 
 - Webapp ai.html / sembol sayfalarına frigya analiz panelini bağla (endpoint'ler hazır)
-- Massive auth şemasını canlı doğrula (key girilince `MASSIVE_AUTH_MODE` netleşir)
 - Chat'e (`/api/ai/chat`) anthropic tool-use ile frigya_core'u bağla (opsiyonel, sonraki tur)
