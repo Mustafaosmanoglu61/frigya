@@ -26,7 +26,13 @@ from starlette.middleware.sessions import SessionMiddleware
 
 import database
 import auth_service
-import mcp_http
+try:
+    import mcp_http
+except ModuleNotFoundError as exc:
+    # mcp paketi Python 3.10+ ister; yalnızca paket hiç yoksa tolere edilir (üretimde aşağıda durur)
+    if exc.name != "mcp":
+        raise
+    mcp_http = None
 from routers import dashboard, islemler, semboller, sembol_detail, pozisyonlar, ingest_api, admin, fiyatlar, auth, symbol_notes, ai, frigya_ai, nakit, all_profile, api_tokens
 from portfolio_helper import get_portfolios, create_portfolio, is_super, SUPER_PORTFOLIO
 
@@ -57,11 +63,19 @@ def get_session_secret() -> str:
 
 SESSION_SECRET = get_session_secret()
 
+if mcp_http is None:
+    if IS_PRODUCTION:
+        raise RuntimeError("mcp package is required when APP_ENV=production (Python 3.10+).")
+    print("UYARI: mcp paketi yok (Python 3.10+ gerekir); /mcp kapalı, site normal çalışır.", file=sys.stderr)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.init_db()
     auth_service.ensure_identity_bootstrap()
+    if mcp_http is None:
+        yield
+        return
     # Uzak MCP (Streamable HTTP) oturum yöneticisi app ömrü boyunca çalışır
     async with mcp_http.mcp.session_manager.run():
         yield
@@ -143,7 +157,8 @@ app.include_router(frigya_ai.router)
 app.include_router(all_profile.router)
 app.include_router(api_tokens.router)
 # /mcp rotası doğrudan eklenir (Mount değil: /mcp → /mcp/ yönlendirmesi olmasın)
-app.router.routes.extend(mcp_http.mcp.streamable_http_app().routes)
+if mcp_http is not None:
+    app.router.routes.extend(mcp_http.mcp.streamable_http_app().routes)
 
 
 @app.get("/healthz")
